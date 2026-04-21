@@ -20,10 +20,13 @@ class TaskController extends Controller
     public function index(Request $request): Response
     {
         $teams = $this->ensureTeams();
-        $slug = $request->query('team') ?: $teams->first()?->slug;
-        $team = $slug
-            ? Team::where('slug', $slug)->first()
+        $requestedSlug = $request->query('team');
+        $team = $requestedSlug
+            ? Team::where('slug', $requestedSlug)->first()
             : null;
+        if (! $team) {
+            $team = $teams->first();
+        }
 
         $clientId = $request->filled('client_id') ? (int) $request->query('client_id') : null;
 
@@ -115,10 +118,6 @@ class TaskController extends Controller
      */
     private function ensureTeams()
     {
-        if (Team::query()->exists()) {
-            return Team::orderBy('sort_order')->get(['id', 'name', 'slug']);
-        }
-
         $defaults = [
             ['name' => 'الكتابة', 'slug' => 'writing', 'sort_order' => 10],
             ['name' => 'الميديا باير', 'slug' => 'media-buyer', 'sort_order' => 20],
@@ -129,10 +128,13 @@ class TaskController extends Controller
         ];
 
         foreach ($defaults as $team) {
-            Team::query()->firstOrCreate(['slug' => $team['slug']], $team);
+            Team::query()->updateOrCreate(['slug' => $team['slug']], $team);
         }
 
-        return Team::orderBy('sort_order')->get(['id', 'name', 'slug']);
+        return Team::query()
+            ->whereIn('slug', collect($defaults)->pluck('slug'))
+            ->orderBy('sort_order')
+            ->get(['id', 'name', 'slug']);
     }
 
     public function store(Request $request): RedirectResponse

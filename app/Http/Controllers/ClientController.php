@@ -228,10 +228,6 @@ class ClientController extends Controller
      */
     private function ensurePipelineStages()
     {
-        if (PipelineStage::query()->exists()) {
-            return PipelineStage::orderBy('sort_order')->get(['id', 'key', 'label']);
-        }
-
         $defaults = [
             ['key' => 'lead', 'label' => 'عميل محتمل', 'sort_order' => 10],
             ['key' => 'sales_meeting', 'label' => 'اجتماع مبيعات', 'sort_order' => 20],
@@ -248,6 +244,9 @@ class ClientController extends Controller
             PipelineStage::query()->updateOrCreate(['key' => $stage['key']], $stage);
         }
 
-        return PipelineStage::orderBy('sort_order')->get(['id', 'key', 'label']);
+        return PipelineStage::query()
+            ->whereIn('key', collect($defaults)->pluck('key'))
+            ->orderBy('sort_order')
+            ->get(['id', 'key', 'label']);
     }
 }
