@@ -19,7 +19,7 @@ class TaskController extends Controller
 {
     public function index(Request $request): Response
     {
-        $teams = Team::orderBy('sort_order')->get(['id', 'name', 'slug']);
+        $teams = $this->ensureTeams();
         $slug = $request->query('team') ?: $teams->first()?->slug;
         $team = $slug
             ? Team::where('slug', $slug)->first()
@@ -29,6 +29,7 @@ class TaskController extends Controller
 
         $board = null;
         if ($team) {
+            $this->ensureBoardStructure($team);
             $team->load([
                 'taskBoard.columns' => fn ($q) => $q->orderBy('sort_order'),
                 'taskBoard.columns.tasks' => function ($q) use ($clientId) {
@@ -82,6 +83,56 @@ class TaskController extends Controller
                 'name' => $filterClient->name,
             ] : null,
         ]);
+    }
+
+    private function ensureBoardStructure(Team $team): void
+    {
+        $board = TaskBoard::query()->firstOrCreate(
+            ['team_id' => $team->id],
+            ['name' => 'لوحة '.$team->name]
+        );
+
+        $columnDefaults = [
+            ['name' => 'قائمة الانتظار', 'sort_order' => 10],
+            ['name' => 'قيد التنفيذ', 'sort_order' => 20],
+            ['name' => 'مراجعة', 'sort_order' => 30],
+            ['name' => 'تم', 'sort_order' => 40],
+        ];
+
+        foreach ($columnDefaults as $col) {
+            BoardColumn::query()->firstOrCreate(
+                [
+                    'task_board_id' => $board->id,
+                    'name' => $col['name'],
+                ],
+                ['sort_order' => $col['sort_order']]
+            );
+        }
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, Team>
+     */
+    private function ensureTeams()
+    {
+        if (Team::query()->exists()) {
+            return Team::orderBy('sort_order')->get(['id', 'name', 'slug']);
+        }
+
+        $defaults = [
+            ['name' => 'الكتابة', 'slug' => 'writing', 'sort_order' => 10],
+            ['name' => 'الميديا باير', 'slug' => 'media-buyer', 'sort_order' => 20],
+            ['name' => 'أكاونت', 'slug' => 'account', 'sort_order' => 30],
+            ['name' => 'المبيعات', 'slug' => 'sales', 'sort_order' => 40],
+            ['name' => 'الموارد البشرية', 'slug' => 'hr', 'sort_order' => 50],
+            ['name' => 'المحاسبة', 'slug' => 'accounting', 'sort_order' => 60],
+        ];
+
+        foreach ($defaults as $team) {
+            Team::query()->firstOrCreate(['slug' => $team['slug']], $team);
+        }
+
+        return Team::orderBy('sort_order')->get(['id', 'name', 'slug']);
     }
 
     public function store(Request $request): RedirectResponse

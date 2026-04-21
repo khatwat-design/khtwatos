@@ -104,6 +104,9 @@ function submit() {
                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-500 focus:ring-brand-500"
                         required
                     >
+                        <option v-if="!stages?.length" :value="null" disabled>
+                            لا توجد مراحل متاحة حالياً
+                        </option>
                         <option
                             v-for="s in stages"
                             :key="s.id"

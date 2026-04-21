@@ -45,8 +45,10 @@ class ClientController extends Controller
 
     public function create(): Response
     {
+        $stages = $this->ensurePipelineStages();
+
         return Inertia::render('Clients/Create', [
-            'stages' => PipelineStage::orderBy('sort_order')->get(['id', 'key', 'label']),
+            'stages' => $stages,
             'accountManagers' => User::orderBy('name')->get(['id', 'name']),
         ]);
     }
@@ -208,6 +210,8 @@ class ClientController extends Controller
      */
     private function validatedClient(Request $request): array
     {
+        $this->ensurePipelineStages();
+
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'company' => ['nullable', 'string', 'max:255'],
@@ -217,5 +221,33 @@ class ClientController extends Controller
             'account_manager_id' => ['nullable', 'exists:users,id'],
             'current_pipeline_stage_id' => ['required', 'exists:pipeline_stages,id'],
         ]);
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, PipelineStage>
+     */
+    private function ensurePipelineStages()
+    {
+        if (PipelineStage::query()->exists()) {
+            return PipelineStage::orderBy('sort_order')->get(['id', 'key', 'label']);
+        }
+
+        $defaults = [
+            ['key' => 'lead', 'label' => 'عميل محتمل', 'sort_order' => 10],
+            ['key' => 'sales_meeting', 'label' => 'اجتماع مبيعات', 'sort_order' => 20],
+            ['key' => 'brief_meeting', 'label' => 'اجتماع البريف', 'sort_order' => 30],
+            ['key' => 'analysis', 'label' => 'تحليل', 'sort_order' => 40],
+            ['key' => 'analysis_delivered', 'label' => 'تم تسليم التحليل', 'sort_order' => 50],
+            ['key' => 'payment', 'label' => 'دفع', 'sort_order' => 60],
+            ['key' => 'content_production', 'label' => 'إنتاج المحتوى', 'sort_order' => 70],
+            ['key' => 'campaign_launch', 'label' => 'إطلاق الحملة', 'sort_order' => 80],
+            ['key' => 'optimization', 'label' => 'تحسين', 'sort_order' => 90],
+        ];
+
+        foreach ($defaults as $stage) {
+            PipelineStage::query()->updateOrCreate(['key' => $stage['key']], $stage);
+        }
+
+        return PipelineStage::orderBy('sort_order')->get(['id', 'key', 'label']);
     }
 }
