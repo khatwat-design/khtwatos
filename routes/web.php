@@ -7,6 +7,7 @@ use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicBookingController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TeamChatController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -26,13 +27,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/tasks', [TaskController::class, 'index'])->name('tasks.index');
     Route::post('/tasks', [TaskController::class, 'store'])->name('tasks.store');
     Route::patch('/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
+    Route::post('/tasks/{task}/messages', [TaskController::class, 'addMessage'])->name('tasks.messages.store');
     Route::patch('/task-boards/{taskBoard}/sync', [TaskController::class, 'sync'])->name('task-boards.sync');
+    Route::get('/chat', [TeamChatController::class, 'index'])->name('chat.index');
+    Route::post('/chat', [TeamChatController::class, 'store'])->name('chat.store');
 
     Route::get('/meetings', [MeetingController::class, 'index'])->name('meetings.index');
     Route::get('/meetings/create', [MeetingController::class, 'create'])->name('meetings.create');
     Route::post('/meetings', [MeetingController::class, 'store'])->name('meetings.store');
     Route::get('/meetings/{meeting}/edit', [MeetingController::class, 'edit'])->name('meetings.edit');
     Route::patch('/meetings/{meeting}', [MeetingController::class, 'update'])->name('meetings.update');
+    Route::post('/meetings/{meeting}/complete', [MeetingController::class, 'complete'])->name('meetings.complete');
     Route::delete('/meetings/{meeting}', [MeetingController::class, 'destroy'])->name('meetings.destroy');
 
     Route::get('/clients', [ClientController::class, 'index'])->name('clients.index');

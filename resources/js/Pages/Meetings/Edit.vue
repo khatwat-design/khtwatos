@@ -40,6 +40,7 @@ const form = useForm({
     start_at: props.meeting.start_at,
     end_at: props.meeting.end_at || '',
     reason: props.meeting.reason || '',
+    summary: props.meeting.summary || '',
     invitee_name: props.meeting.invitee_name || '',
     invitee_email: props.meeting.invitee_email || '',
     status: props.meeting.status,
@@ -156,6 +157,7 @@ function destroyMeeting() {
                         >
                             <option value="scheduled">مجدول</option>
                             <option value="canceled">ملغى</option>
+                            <option value="completed">مكتمل</option>
                         </select>
                         <InputError class="mt-1" :message="form.errors.status" />
                     </div>
@@ -191,6 +193,18 @@ function destroyMeeting() {
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
                         />
                         <InputError class="mt-1" :message="form.errors.reason" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="summary" value="ملخص الاجتماع والحل" />
+                        <textarea
+                            id="summary"
+                            v-model="form.summary"
+                            rows="3"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                            placeholder="يظهر عند توثيق الاجتماع كمكتمل"
+                        />
+                        <InputError class="mt-1" :message="form.errors.summary" />
                     </div>
 
                     <div class="flex flex-wrap gap-2">

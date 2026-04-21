@@ -8,6 +8,7 @@ const page = usePage();
 
 const nav = [
     { label: 'المهام', routeName: 'tasks.index', match: 'tasks.*' },
+    { label: 'الدردشة', routeName: 'chat.index', match: 'chat.*' },
     { label: 'الاجتماعات', routeName: 'meetings.index', match: 'meetings.*' },
     { label: 'العملاء', routeName: 'clients.index', match: 'clients.*' },
     { label: 'الأكاديمية', routeName: 'academy.index', match: 'academy.index' },

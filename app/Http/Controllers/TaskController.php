@@ -6,6 +6,7 @@ use App\Models\BoardColumn;
 use App\Models\Client;
 use App\Models\Task;
 use App\Models\TaskBoard;
+use App\Models\TaskMessage;
 use App\Models\TaskStatusHistory;
 use App\Models\Team;
 use App\Models\User;
@@ -37,7 +38,12 @@ class TaskController extends Controller
                 'taskBoard.columns' => fn ($q) => $q->orderBy('sort_order'),
                 'taskBoard.columns.tasks' => function ($q) use ($clientId) {
                     $q->when($clientId, fn ($q2) => $q2->where('client_id', $clientId))
-                        ->with(['assignee:id,name', 'assignees:id,name', 'client:id,name'])
+                        ->with([
+                            'assignee:id,name',
+                            'assignees:id,name',
+                            'client:id,name',
+                            'messages.user:id,name',
+                        ])
                         ->orderBy('position')
                         ->orderBy('id');
                 },
@@ -73,6 +79,15 @@ class TaskController extends Controller
                         'assignee' => $t->assignee ? ['id' => $t->assignee->id, 'name' => $t->assignee->name] : null,
                         'assignees' => $t->assignees->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name])->values(),
                         'client' => $t->client ? ['id' => $t->client->id, 'name' => $t->client->name] : null,
+                        'messages' => $t->messages->map(fn (TaskMessage $message) => [
+                            'id' => $message->id,
+                            'body' => $message->body,
+                            'created_at' => $message->created_at->toIso8601String(),
+                            'user' => $message->user ? [
+                                'id' => $message->user->id,
+                                'name' => $message->user->name,
+                            ] : null,
+                        ])->values(),
                     ]),
                 ]),
             ] : null,
@@ -259,6 +274,35 @@ class TaskController extends Controller
                 }
             }
         });
+
+        return redirect()->back();
+    }
+
+    public function addMessage(Request $request, Task $task)
+    {
+        $data = $request->validate([
+            'body' => ['required', 'string', 'max:4000'],
+        ]);
+
+        $message = TaskMessage::query()->create([
+            'task_id' => $task->id,
+            'user_id' => $request->user()->id,
+            'body' => trim($data['body']),
+        ])->load('user:id,name');
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => [
+                    'id' => $message->id,
+                    'body' => $message->body,
+                    'created_at' => $message->created_at->toIso8601String(),
+                    'user' => $message->user ? [
+                        'id' => $message->user->id,
+                        'name' => $message->user->name,
+                    ] : null,
+                ],
+            ]);
+        }
 
         return redirect()->back();
     }

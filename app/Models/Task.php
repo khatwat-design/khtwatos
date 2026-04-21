@@ -58,4 +58,9 @@ class Task extends Model
     {
         return $this->hasMany(TaskStatusHistory::class)->orderByDesc('created_at');
     }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(TaskMessage::class)->orderBy('created_at');
+    }
 }

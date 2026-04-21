@@ -1,6 +1,10 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import Modal from '@/Components/Modal.vue';
+import PrimaryButton from '@/Components/PrimaryButton.vue';
+import InputError from '@/Components/InputError.vue';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 const props = defineProps({
     meetings: Array,
@@ -12,6 +16,7 @@ const props = defineProps({
 const statusLabels = {
     scheduled: 'مجدول',
     canceled: 'ملغى',
+    completed: 'مكتمل',
 };
 
 const sourceLabels = {
@@ -78,6 +83,35 @@ function formatDt(iso) {
     return new Date(iso).toLocaleString('ar-SA', {
         dateStyle: 'medium',
         timeStyle: 'short',
+    });
+}
+
+const completeModalOpen = ref(false);
+const completingMeetingId = ref(null);
+const completeForm = useForm({
+    summary: '',
+});
+
+function openCompleteModal(meetingId) {
+    completingMeetingId.value = meetingId;
+    completeForm.summary = '';
+    completeForm.clearErrors();
+    completeModalOpen.value = true;
+}
+
+function closeCompleteModal() {
+    completeModalOpen.value = false;
+    completingMeetingId.value = null;
+}
+
+function submitComplete() {
+    if (!completingMeetingId.value) {
+        return;
+    }
+
+    completeForm.post(route('meetings.complete', completingMeetingId.value), {
+        preserveScroll: true,
+        onSuccess: closeCompleteModal,
     });
 }
 </script>
@@ -174,8 +208,19 @@ function formatDt(iso) {
                     <div v-if="m.reason" class="mt-2 rounded bg-gray-50 px-2 py-1 text-xs text-gray-600">
                         {{ m.reason }}
                     </div>
+                    <div v-if="m.summary" class="mt-2 rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
+                        ملخص الاجتماع: {{ m.summary }}
+                    </div>
                     <div v-if="m.source === 'internal'" class="mt-3 flex gap-3 text-sm">
                         <Link :href="route('meetings.edit', m.id)" class="text-brand-600 hover:underline">تعديل</Link>
+                        <button
+                            v-if="m.status !== 'completed'"
+                            type="button"
+                            class="text-emerald-700 hover:underline"
+                            @click="openCompleteModal(m.id)"
+                        >
+                            ✓ تم الاجتماع
+                        </button>
                         <button type="button" class="text-red-600 hover:underline" @click="deleteMeeting(m.id)">حذف</button>
                     </div>
                 </div>
@@ -202,6 +247,9 @@ function formatDt(iso) {
                             </th>
                             <th class="px-4 py-2 text-start font-medium text-gray-600">
                                 السبب
+                            </th>
+                            <th class="px-4 py-2 text-start font-medium text-gray-600">
+                                الملخص
                             </th>
                             <th class="px-4 py-2 text-start font-medium text-gray-600">
                                 الحالة
@@ -243,6 +291,9 @@ function formatDt(iso) {
                             <td class="max-w-xs truncate px-4 py-2 text-gray-600">
                                 {{ m.reason || '—' }}
                             </td>
+                            <td class="max-w-xs truncate px-4 py-2 text-emerald-700">
+                                {{ m.summary || '—' }}
+                            </td>
                             <td class="px-4 py-2">
                                 <span
                                     class="rounded-full bg-gray-100 px-2 py-0.5 text-xs"
@@ -265,6 +316,14 @@ function formatDt(iso) {
                                         تعديل
                                     </Link>
                                     <button
+                                        v-if="m.status !== 'completed'"
+                                        type="button"
+                                        class="text-sm text-emerald-700 hover:underline"
+                                        @click="openCompleteModal(m.id)"
+                                    >
+                                        ✓ تم الاجتماع
+                                    </button>
+                                    <button
                                         type="button"
                                         class="text-sm text-red-600 hover:underline"
                                         @click="deleteMeeting(m.id)"
@@ -276,7 +335,7 @@ function formatDt(iso) {
                             </td>
                         </tr>
                         <tr v-if="!meetings.length">
-                            <td colspan="8" class="px-4 py-8 text-center text-gray-500">
+                            <td colspan="9" class="px-4 py-8 text-center text-gray-500">
                                 <p>لا توجد اجتماعات مطابقة للفلتر.</p>
                                 <p class="mt-2 text-sm">
                                     أنشئ اجتماعاً واربطه بموظف وعميل مباشرة من داخل النظام.
@@ -287,5 +346,36 @@ function formatDt(iso) {
                 </table>
             </div>
         </div>
+
+        <Modal :show="completeModalOpen" @close="closeCompleteModal">
+            <div class="p-4 sm:p-6">
+                <h2 class="text-lg font-semibold text-gray-900">توثيق ملخص الاجتماع</h2>
+                <form class="mt-4 space-y-3" @submit.prevent="submitComplete">
+                    <div>
+                        <textarea
+                            id="meeting_summary"
+                            v-model="completeForm.summary"
+                            rows="4"
+                            class="block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                            placeholder="اكتب ملخص الاجتماع والحل الذي تم الاتفاق عليه"
+                            required
+                        />
+                        <InputError class="mt-1" :message="completeForm.errors.summary" />
+                    </div>
+                    <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                        <button
+                            type="button"
+                            class="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                            @click="closeCompleteModal"
+                        >
+                            إلغاء
+                        </button>
+                        <PrimaryButton :disabled="completeForm.processing" type="submit">
+                            حفظ كمكتمل
+                        </PrimaryButton>
+                    </div>
+                </form>
+            </div>
+        </Modal>
     </AuthenticatedLayout>
 </template>

@@ -14,7 +14,7 @@ use Inertia\Response;
 
 class EmployeeController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
         $teams = $this->ensureTeams();
         $employees = User::query()
@@ -47,6 +47,7 @@ class EmployeeController extends Controller
                 ])->values(),
             ])->values(),
             'teams' => $teams->map(fn (Team $team) => Arr::only($team->toArray(), ['id', 'name', 'slug']))->values(),
+            'canAssignAdmin' => $request->user()?->isAdmin() ?? false,
         ]);
     }
 
@@ -142,6 +143,12 @@ class EmployeeController extends Controller
             'teams.*.allocation_percent' => ['nullable', 'integer', 'min:0', 'max:100'],
             'teams.*.is_lead' => ['nullable', 'boolean'],
         ]);
+
+        if (($data['role'] ?? null) === 'admin' && !$request->user()?->isAdmin()) {
+            throw ValidationException::withMessages([
+                'role' => 'مدير الموارد البشرية لا يمكنه إنشاء أو تعيين مدير نظام.',
+            ]);
+        }
 
         $schedule = [];
         $enabledDays = [];

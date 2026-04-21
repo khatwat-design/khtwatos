@@ -187,6 +187,10 @@ function onDragEnd() {
 
 const editModalOpen = ref(false);
 const editingTask = ref(null);
+const taskMessages = ref([]);
+const taskMessageSending = ref(false);
+const taskMessageError = ref('');
+const taskMessageBody = ref('');
 
 const editForm = useForm({
     title: '',
@@ -204,6 +208,9 @@ function toDatetimeLocal(iso) {
 
 function openEdit(task) {
     editingTask.value = task;
+    taskMessages.value = [...(task.messages || [])];
+    taskMessageBody.value = '';
+    taskMessageError.value = '';
     editForm.title = task.title;
     editForm.description = task.description || '';
     editForm.assignee_ids = (task.assignees || []).map((u) => u.id);
@@ -220,6 +227,9 @@ function openEdit(task) {
 function closeEditModal() {
     editModalOpen.value = false;
     editingTask.value = null;
+    taskMessages.value = [];
+    taskMessageBody.value = '';
+    taskMessageError.value = '';
     editMention.open = false;
 }
 
@@ -369,6 +379,40 @@ function renderTaskDescription(text) {
     );
 
     return content.replaceAll('\n', '<br>');
+}
+
+function formatMessageTime(iso) {
+    return new Date(iso).toLocaleString('ar-SA', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+    });
+}
+
+async function sendTaskMessage() {
+    if (!editingTask.value || !taskMessageBody.value.trim() || taskMessageSending.value) {
+        return;
+    }
+
+    taskMessageSending.value = true;
+    taskMessageError.value = '';
+
+    try {
+        const response = await window.axios.post(
+            route('tasks.messages.store', editingTask.value.id),
+            { body: taskMessageBody.value },
+            { headers: { Accept: 'application/json' } },
+        );
+
+        if (response?.data?.message) {
+            taskMessages.value.push(response.data.message);
+            editingTask.value.messages = [...taskMessages.value];
+            taskMessageBody.value = '';
+        }
+    } catch (error) {
+        taskMessageError.value = error?.response?.data?.message || 'تعذر إرسال الرسالة، حاول مرة أخرى.';
+    } finally {
+        taskMessageSending.value = false;
+    }
 }
 </script>
 
@@ -739,6 +783,44 @@ function renderTaskDescription(text) {
                             class="mt-1 block w-full"
                         />
                         <InputError class="mt-1" :message="editForm.errors.due_at" />
+                    </div>
+
+                    <div class="space-y-2 rounded-md border border-gray-200 p-3">
+                        <div class="text-sm font-semibold text-gray-800">محادثة المهمة</div>
+                        <div class="max-h-48 space-y-2 overflow-y-auto rounded bg-gray-50 p-2">
+                            <div
+                                v-for="msg in taskMessages"
+                                :key="`task-message-${msg.id}`"
+                                class="rounded bg-white px-2 py-1.5 text-sm ring-1 ring-gray-200"
+                            >
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="font-medium text-gray-900">{{ msg.user?.name || 'عضو' }}</span>
+                                    <span class="text-xs text-gray-500">{{ formatMessageTime(msg.created_at) }}</span>
+                                </div>
+                                <p class="mt-1 whitespace-pre-wrap text-gray-700">{{ msg.body }}</p>
+                            </div>
+                            <p v-if="!taskMessages.length" class="text-center text-xs text-gray-500">
+                                لا توجد رسائل بعد داخل هذه المهمة.
+                            </p>
+                        </div>
+
+                        <textarea
+                            v-model="taskMessageBody"
+                            rows="2"
+                            class="block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                            placeholder="اكتب رسالة داخل المهمة..."
+                        />
+                        <div class="flex items-center justify-between gap-2">
+                            <p v-if="taskMessageError" class="text-xs text-red-600">{{ taskMessageError }}</p>
+                            <button
+                                type="button"
+                                class="inline-flex items-center rounded-md bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+                                :disabled="taskMessageSending"
+                                @click="sendTaskMessage"
+                            >
+                                {{ taskMessageSending ? 'جاري الإرسال...' : 'إرسال رسالة' }}
+                            </button>
+                        </div>
                     </div>
 
                     <div class="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:flex-wrap">

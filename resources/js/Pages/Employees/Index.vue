@@ -12,6 +12,7 @@ import { ref } from 'vue';
 const props = defineProps({
     employees: Array,
     teams: Array,
+    canAssignAdmin: Boolean,
 });
 
 const roleLabels = {
@@ -349,7 +350,7 @@ function deleteEmployee(employee) {
                             <select id="c_role" v-model="createForm.role" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
                                 <option value="member">موظف</option>
                                 <option value="lead">قائد فريق</option>
-                                <option value="admin">مدير النظام</option>
+                                <option v-if="canAssignAdmin" value="admin">مدير النظام</option>
                             </select>
                         </div>
                         <div>
@@ -481,7 +482,7 @@ function deleteEmployee(employee) {
                             <select id="e_role" v-model="editForm.role" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
                                 <option value="member">موظف</option>
                                 <option value="lead">قائد فريق</option>
-                                <option value="admin">مدير النظام</option>
+                                <option v-if="canAssignAdmin || editForm.role === 'admin'" value="admin">مدير النظام</option>
                             </select>
                         </div>
                         <div>

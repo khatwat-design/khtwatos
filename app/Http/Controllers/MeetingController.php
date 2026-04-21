@@ -38,6 +38,8 @@ class MeetingController extends Controller
                 'invitee_name' => $m->invitee_name,
                 'invitee_email' => $m->invitee_email,
                 'reason' => $m->reason,
+                'summary' => $m->summary,
+                'completed_at' => $m->completed_at?->toIso8601String(),
                 'status' => $m->status,
                 'source' => $m->source,
                 'host' => $m->host ? ['id' => $m->host->id, 'name' => $m->host->name] : null,
@@ -108,6 +110,7 @@ class MeetingController extends Controller
                 'start_at' => $meeting->start_at->format('Y-m-d\TH:i'),
                 'end_at' => $meeting->end_at?->format('Y-m-d\TH:i'),
                 'reason' => $meeting->reason,
+                'summary' => $meeting->summary,
                 'invitee_name' => $meeting->invitee_name,
                 'invitee_email' => $meeting->invitee_email,
                 'user_id' => $meeting->user_id,
@@ -143,6 +146,10 @@ class MeetingController extends Controller
             'invitee_name' => $data['invitee_name'] ?? $client?->name,
             'invitee_email' => $data['invitee_email'] ?? $client?->email,
             'reason' => $data['reason'] ?? null,
+            'summary' => $data['summary'] ?? $meeting->summary,
+            'completed_at' => ($data['status'] ?? $meeting->status) === 'completed'
+                ? ($meeting->completed_at ?? now())
+                : null,
             'status' => $data['status'] ?? $meeting->status,
             'user_id' => $data['user_id'],
             'client_id' => $data['client_id'] ?? null,
@@ -155,6 +162,23 @@ class MeetingController extends Controller
     {
         $this->ensureInternal($meeting);
         $meeting->delete();
+
+        return redirect()->route('meetings.index');
+    }
+
+    public function complete(Request $request, Meeting $meeting): RedirectResponse
+    {
+        $this->ensureInternal($meeting);
+
+        $data = $request->validate([
+            'summary' => ['required', 'string', 'max:5000'],
+        ]);
+
+        $meeting->update([
+            'status' => 'completed',
+            'summary' => trim($data['summary']),
+            'completed_at' => now(),
+        ]);
 
         return redirect()->route('meetings.index');
     }
@@ -176,6 +200,7 @@ class MeetingController extends Controller
             'invitee_email' => $request->filled('invitee_email') ? $request->input('invitee_email') : null,
             'invitee_name' => $request->filled('invitee_name') ? $request->input('invitee_name') : null,
             'end_at' => $request->filled('end_at') ? $request->input('end_at') : null,
+            'summary' => $request->filled('summary') ? $request->input('summary') : null,
         ]);
 
         $rules = [
@@ -185,12 +210,13 @@ class MeetingController extends Controller
             'start_at' => ['required', 'date'],
             'end_at' => ['nullable', 'date', 'after:start_at'],
             'reason' => ['nullable', 'string', 'max:5000'],
+            'summary' => ['nullable', 'string', 'max:5000'],
             'invitee_name' => ['nullable', 'string', 'max:255'],
             'invitee_email' => ['nullable', 'email', 'max:255'],
         ];
 
         if ($isUpdate) {
-            $rules['status'] = ['required', 'in:scheduled,canceled'];
+            $rules['status'] = ['required', 'in:scheduled,canceled,completed'];
         }
 
         return $request->validate($rules);

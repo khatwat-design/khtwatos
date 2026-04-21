@@ -16,6 +16,8 @@ class Meeting extends Model
         'invitee_name',
         'invitee_email',
         'reason',
+        'summary',
+        'completed_at',
         'status',
         'user_id',
         'client_id',
@@ -27,6 +29,7 @@ class Meeting extends Model
         return [
             'start_at' => 'datetime',
             'end_at' => 'datetime',
+            'completed_at' => 'datetime',
             'raw_payload' => 'array',
         ];
     }
