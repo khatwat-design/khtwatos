@@ -28,7 +28,7 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string'],
+            'username' => ['required', 'string'],
             'password' => ['required', 'string'],
         ];
     }
@@ -41,12 +41,28 @@ class LoginRequest extends FormRequest
     public function authenticate(): void
     {
         $this->ensureIsNotRateLimited();
+        $username = (string) $this->string('username');
+        $password = (string) $this->string('password');
+        $remember = $this->boolean('remember');
 
-        if (! Auth::attempt($this->only('name', 'password'), $this->boolean('remember'))) {
+        $authenticated = Auth::attempt([
+            'email' => $username,
+            'password' => $password,
+        ], $remember);
+
+        // Backward compatibility for existing accounts that still use name as login identifier.
+        if (! $authenticated) {
+            $authenticated = Auth::attempt([
+                'name' => $username,
+                'password' => $password,
+            ], $remember);
+        }
+
+        if (! $authenticated) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
-                'name' => trans('auth.failed'),
+                'username' => trans('auth.failed'),
             ]);
         }
 
@@ -69,7 +85,7 @@ class LoginRequest extends FormRequest
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
         throw ValidationException::withMessages([
-            'name' => trans('auth.throttle', [
+            'username' => trans('auth.throttle', [
                 'seconds' => $seconds,
                 'minutes' => ceil($seconds / 60),
             ]),
@@ -81,6 +97,6 @@ class LoginRequest extends FormRequest
      */
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('name')).'|'.$this->ip());
+        return Str::transliterate(Str::lower($this->string('username')).'|'.$this->ip());
     }
 }

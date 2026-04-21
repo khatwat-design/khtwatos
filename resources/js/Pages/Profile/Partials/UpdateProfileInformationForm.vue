@@ -71,7 +71,7 @@ const form = useForm({
             <h2 class="text-lg font-medium text-gray-900">بيانات الملف</h2>
 
             <p class="mt-1 text-sm text-gray-600">
-                حدّث اسمك وبريدك وحدد أوقات توفرك التي تظهر للعملاء في صفحة الحجز.
+                حدّث اسمك واسم المستخدم وحدد أوقات توفرك التي تظهر للعملاء في صفحة الحجز.
             </p>
         </header>
 
@@ -96,11 +96,11 @@ const form = useForm({
             </div>
 
             <div>
-                <InputLabel for="email" value="البريد الإلكتروني" />
+                <InputLabel for="email" value="اسم المستخدم" />
 
                 <TextInput
                     id="email"
-                    type="email"
+                    type="text"
                     class="mt-1 block w-full"
                     v-model="form.email"
                     required

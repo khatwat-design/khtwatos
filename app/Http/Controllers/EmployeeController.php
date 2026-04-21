@@ -115,10 +115,10 @@ class EmployeeController extends Controller
     private function validatedEmployee(Request $request, bool $isCreate, ?int $userId = null): array
     {
         $this->ensureTeams();
-        $emailRule = ['required', 'email', 'max:255', 'unique:users,email'];
+        $emailRule = ['required', 'string', 'max:255', 'unique:users,email'];
         $nameRule = ['required', 'string', 'max:255', 'unique:users,name'];
         if ($userId) {
-            $emailRule = ['required', 'email', 'max:255', 'unique:users,email,'.$userId];
+            $emailRule = ['required', 'string', 'max:255', 'unique:users,email,'.$userId];
             $nameRule = ['required', 'string', 'max:255', 'unique:users,name,'.$userId];
         }
 

@@ -255,7 +255,7 @@ function deleteEmployee(employee) {
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-4 py-2 text-start font-medium text-gray-600">الاسم</th>
-                            <th class="px-4 py-2 text-start font-medium text-gray-600">البريد</th>
+                            <th class="px-4 py-2 text-start font-medium text-gray-600">اسم المستخدم</th>
                             <th class="px-4 py-2 text-start font-medium text-gray-600">الدور</th>
                             <th class="px-4 py-2 text-start font-medium text-gray-600">الفرق</th>
                             <th class="px-4 py-2 text-start font-medium text-gray-600">التوفر</th>
@@ -337,8 +337,8 @@ function deleteEmployee(employee) {
                             <InputError class="mt-1" :message="createForm.errors.name" />
                         </div>
                         <div>
-                            <InputLabel for="c_email" value="البريد" />
-                            <TextInput id="c_email" v-model="createForm.email" type="email" class="mt-1 block w-full" required />
+                            <InputLabel for="c_email" value="اسم المستخدم" />
+                            <TextInput id="c_email" v-model="createForm.email" type="text" class="mt-1 block w-full" autocomplete="username" required />
                             <InputError class="mt-1" :message="createForm.errors.email" />
                         </div>
                     </div>
@@ -469,8 +469,8 @@ function deleteEmployee(employee) {
                             <InputError class="mt-1" :message="editForm.errors.name" />
                         </div>
                         <div>
-                            <InputLabel for="e_email" value="البريد" />
-                            <TextInput id="e_email" v-model="editForm.email" type="email" class="mt-1 block w-full" required />
+                            <InputLabel for="e_email" value="اسم المستخدم" />
+                            <TextInput id="e_email" v-model="editForm.email" type="text" class="mt-1 block w-full" autocomplete="username" required />
                             <InputError class="mt-1" :message="editForm.errors.email" />
                         </div>
                     </div>
