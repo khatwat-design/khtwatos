@@ -30,6 +30,36 @@ const dayOptions = [
     { value: 6, label: 'السبت' },
 ];
 
+function buildDefaultSchedule(source = null) {
+    const map = source && typeof source === 'object' ? source : {};
+
+    return dayOptions.map((day) => {
+        const raw = map[String(day.value)] || map[day.value] || {};
+        return {
+            day: day.value,
+            enabled: typeof raw.enabled === 'boolean'
+                ? raw.enabled
+                : [0, 1, 2, 3, 4].includes(day.value),
+            start: (raw.start || '09:00').slice(0, 5),
+            end: (raw.end || '17:00').slice(0, 5),
+        };
+    });
+}
+
+function scheduleSummary(schedule) {
+    const enabled = (schedule || []).filter((row) => row.enabled);
+    if (!enabled.length) {
+        return 'لا يوجد توفر';
+    }
+
+    return enabled
+        .map((row) => {
+            const dayLabel = dayOptions.find((d) => d.value === Number(row.day))?.label || row.day;
+            return `${dayLabel}: ${row.start} - ${row.end}`;
+        })
+        .join(' | ');
+}
+
 const createModalOpen = ref(false);
 const editModalOpen = ref(false);
 const editingEmployeeId = ref(null);
@@ -40,9 +70,7 @@ const createForm = useForm({
     password: '',
     role: 'member',
     is_bookable: true,
-    availability_days: [0, 1, 2, 3, 4],
-    availability_start_time: '09:00',
-    availability_end_time: '17:00',
+    availability_schedule: buildDefaultSchedule(),
     teams: [],
 });
 
@@ -52,9 +80,7 @@ const editForm = useForm({
     password: '',
     role: 'member',
     is_bookable: true,
-    availability_days: [0, 1, 2, 3, 4],
-    availability_start_time: '09:00',
-    availability_end_time: '17:00',
+    availability_schedule: buildDefaultSchedule(),
     teams: [],
 });
 
@@ -63,9 +89,7 @@ function openCreateModal() {
     createForm.clearErrors();
     createForm.role = 'member';
     createForm.is_bookable = true;
-    createForm.availability_days = [0, 1, 2, 3, 4];
-    createForm.availability_start_time = '09:00';
-    createForm.availability_end_time = '17:00';
+    createForm.availability_schedule = buildDefaultSchedule();
     createForm.teams = [];
     createModalOpen.value = true;
 }
@@ -82,9 +106,7 @@ function openEditModal(employee) {
     editForm.password = '';
     editForm.role = employee.role;
     editForm.is_bookable = Boolean(employee.is_bookable);
-    editForm.availability_days = employee.availability_days || [0, 1, 2, 3, 4];
-    editForm.availability_start_time = employee.availability_start_time || '09:00';
-    editForm.availability_end_time = employee.availability_end_time || '17:00';
+    editForm.availability_schedule = buildDefaultSchedule(employee.availability_schedule);
     editForm.teams = (employee.teams || []).map((t) => ({
         id: t.id,
         allocation_percent: t.allocation_percent ?? '',
@@ -203,7 +225,7 @@ function deleteEmployee(employee) {
                         <span class="rounded-full px-2 py-0.5" :class="emp.is_bookable ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'">
                             {{ emp.is_bookable ? 'متاح للحجز' : 'غير متاح' }}
                         </span>
-                        <div class="mt-1">{{ emp.availability_start_time }} - {{ emp.availability_end_time }}</div>
+                        <div class="mt-1">{{ scheduleSummary(emp.availability_schedule) }}</div>
                     </div>
 
                     <div class="mt-3 flex gap-2">
@@ -271,7 +293,7 @@ function deleteEmployee(employee) {
                                         {{ emp.is_bookable ? 'متاح للحجز' : 'غير متاح' }}
                                     </span>
                                     <div class="mt-1">
-                                        {{ emp.availability_start_time }} - {{ emp.availability_end_time }}
+                                        {{ scheduleSummary(emp.availability_schedule) }}
                                     </div>
                                 </div>
                             </td>
@@ -343,41 +365,46 @@ function deleteEmployee(employee) {
                     </label>
 
                     <div class="rounded-lg border border-gray-200 p-3">
-                        <p class="text-sm font-semibold text-gray-900">أيام التوفر</p>
-                        <div class="mt-2 grid gap-2 sm:grid-cols-4">
-                            <label v-for="d in dayOptions" :key="`c-day-${d.value}`" class="flex items-center gap-2 text-xs">
-                                <input
-                                    type="checkbox"
-                                    :value="d.value"
-                                    :checked="createForm.availability_days.includes(d.value)"
-                                    class="rounded border-gray-300 text-brand-600"
-                                    @change="
-                                        (e) =>
-                                            e.target.checked
-                                                ? (createForm.availability_days = [...createForm.availability_days, d.value].filter((v, i, a) => a.indexOf(v) === i))
-                                                : (createForm.availability_days = createForm.availability_days.filter((v) => v !== d.value))
-                                    "
-                                />
-                                {{ d.label }}
-                            </label>
-                        </div>
-                        <InputError class="mt-1" :message="createForm.errors.availability_days" />
-                        <div class="mt-3 grid gap-3 sm:grid-cols-2">
-                            <div>
-                                <InputLabel for="c_av_start" value="من الساعة" />
-                                <TextInput id="c_av_start" v-model="createForm.availability_start_time" type="time" class="mt-1 block w-full" />
+                        <p class="text-sm font-semibold text-gray-900">التوفر اليومي (بساعات مختلفة لكل يوم)</p>
+                        <div class="mt-2 space-y-2">
+                            <div
+                                v-for="(row, idx) in createForm.availability_schedule"
+                                :key="`c-day-${row.day}`"
+                                class="rounded border border-gray-100 p-2"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <label class="flex items-center gap-2 text-sm">
+                                        <input
+                                            v-model="row.enabled"
+                                            type="checkbox"
+                                            class="rounded border-gray-300 text-brand-600"
+                                        />
+                                        {{ dayOptions.find((d) => d.value === row.day)?.label }}
+                                    </label>
+                                    <span class="text-xs text-gray-500">{{ row.enabled ? 'متاح' : 'غير متاح' }}</span>
+                                </div>
+                                <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                                    <div>
+                                        <InputLabel :for="`c_av_start_${row.day}`" value="من الساعة" />
+                                        <TextInput :id="`c_av_start_${row.day}`" v-model="row.start" type="time" class="mt-1 block w-full" :disabled="!row.enabled" />
+                                    </div>
+                                    <div>
+                                        <InputLabel :for="`c_av_end_${row.day}`" value="إلى الساعة" />
+                                        <TextInput :id="`c_av_end_${row.day}`" v-model="row.end" type="time" class="mt-1 block w-full" :disabled="!row.enabled" />
+                                    </div>
+                                </div>
+                                <InputError class="mt-1" :message="createForm.errors[`availability_schedule.${idx}.start`]" />
+                                <InputError class="mt-1" :message="createForm.errors[`availability_schedule.${idx}.end`]" />
                             </div>
-                            <div>
-                                <InputLabel for="c_av_end" value="إلى الساعة" />
-                                <TextInput id="c_av_end" v-model="createForm.availability_end_time" type="time" class="mt-1 block w-full" />
-                            </div>
                         </div>
-                        <InputError class="mt-1" :message="createForm.errors.availability_start_time" />
-                        <InputError class="mt-1" :message="createForm.errors.availability_end_time" />
+                        <InputError class="mt-1" :message="createForm.errors.availability_schedule" />
                     </div>
 
                     <div class="rounded-lg border border-gray-200 p-3">
                         <p class="text-sm font-semibold text-gray-900">الفرق</p>
+                        <p v-if="!teams.length" class="mt-2 text-xs text-amber-700">
+                            لا توجد فرق حالياً، سيتم إنشاء الفرق الافتراضية تلقائياً عند إعادة تحميل الصفحة.
+                        </p>
                         <div class="mt-2 space-y-2">
                             <div v-for="team in teams" :key="`c-team-${team.id}`" class="rounded border border-gray-100 p-2">
                                 <label class="flex items-center gap-2 text-sm">
@@ -470,41 +497,46 @@ function deleteEmployee(employee) {
                     </label>
 
                     <div class="rounded-lg border border-gray-200 p-3">
-                        <p class="text-sm font-semibold text-gray-900">أيام التوفر</p>
-                        <div class="mt-2 grid gap-2 sm:grid-cols-4">
-                            <label v-for="d in dayOptions" :key="`e-day-${d.value}`" class="flex items-center gap-2 text-xs">
-                                <input
-                                    type="checkbox"
-                                    :value="d.value"
-                                    :checked="editForm.availability_days.includes(d.value)"
-                                    class="rounded border-gray-300 text-brand-600"
-                                    @change="
-                                        (e) =>
-                                            e.target.checked
-                                                ? (editForm.availability_days = [...editForm.availability_days, d.value].filter((v, i, a) => a.indexOf(v) === i))
-                                                : (editForm.availability_days = editForm.availability_days.filter((v) => v !== d.value))
-                                    "
-                                />
-                                {{ d.label }}
-                            </label>
-                        </div>
-                        <InputError class="mt-1" :message="editForm.errors.availability_days" />
-                        <div class="mt-3 grid gap-3 sm:grid-cols-2">
-                            <div>
-                                <InputLabel for="e_av_start" value="من الساعة" />
-                                <TextInput id="e_av_start" v-model="editForm.availability_start_time" type="time" class="mt-1 block w-full" />
+                        <p class="text-sm font-semibold text-gray-900">التوفر اليومي (بساعات مختلفة لكل يوم)</p>
+                        <div class="mt-2 space-y-2">
+                            <div
+                                v-for="(row, idx) in editForm.availability_schedule"
+                                :key="`e-day-${row.day}`"
+                                class="rounded border border-gray-100 p-2"
+                            >
+                                <div class="flex items-center justify-between">
+                                    <label class="flex items-center gap-2 text-sm">
+                                        <input
+                                            v-model="row.enabled"
+                                            type="checkbox"
+                                            class="rounded border-gray-300 text-brand-600"
+                                        />
+                                        {{ dayOptions.find((d) => d.value === row.day)?.label }}
+                                    </label>
+                                    <span class="text-xs text-gray-500">{{ row.enabled ? 'متاح' : 'غير متاح' }}</span>
+                                </div>
+                                <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                                    <div>
+                                        <InputLabel :for="`e_av_start_${row.day}`" value="من الساعة" />
+                                        <TextInput :id="`e_av_start_${row.day}`" v-model="row.start" type="time" class="mt-1 block w-full" :disabled="!row.enabled" />
+                                    </div>
+                                    <div>
+                                        <InputLabel :for="`e_av_end_${row.day}`" value="إلى الساعة" />
+                                        <TextInput :id="`e_av_end_${row.day}`" v-model="row.end" type="time" class="mt-1 block w-full" :disabled="!row.enabled" />
+                                    </div>
+                                </div>
+                                <InputError class="mt-1" :message="editForm.errors[`availability_schedule.${idx}.start`]" />
+                                <InputError class="mt-1" :message="editForm.errors[`availability_schedule.${idx}.end`]" />
                             </div>
-                            <div>
-                                <InputLabel for="e_av_end" value="إلى الساعة" />
-                                <TextInput id="e_av_end" v-model="editForm.availability_end_time" type="time" class="mt-1 block w-full" />
-                            </div>
                         </div>
-                        <InputError class="mt-1" :message="editForm.errors.availability_start_time" />
-                        <InputError class="mt-1" :message="editForm.errors.availability_end_time" />
+                        <InputError class="mt-1" :message="editForm.errors.availability_schedule" />
                     </div>
 
                     <div class="rounded-lg border border-gray-200 p-3">
                         <p class="text-sm font-semibold text-gray-900">الفرق</p>
+                        <p v-if="!teams.length" class="mt-2 text-xs text-amber-700">
+                            لا توجد فرق حالياً، سيتم إنشاء الفرق الافتراضية تلقائياً عند إعادة تحميل الصفحة.
+                        </p>
                         <div class="mt-2 space-y-2">
                             <div v-for="team in teams" :key="`e-team-${team.id}`" class="rounded border border-gray-100 p-2">
                                 <label class="flex items-center gap-2 text-sm">

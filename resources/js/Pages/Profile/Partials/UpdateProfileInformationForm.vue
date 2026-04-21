@@ -27,24 +27,41 @@ const allDays = [
     { value: 6, label: 'السبت' },
 ];
 
-const defaultDays = [0, 1, 2, 3, 4];
-
-const sanitizeTime = (value, fallback) => {
+function sanitizeTime(value, fallback) {
     if (!value || typeof value !== 'string') {
         return fallback;
     }
     return value.slice(0, 5);
-};
+}
+
+function buildAvailabilitySchedule(rawSchedule, fallbackDays = [0, 1, 2, 3, 4]) {
+    const map = rawSchedule && typeof rawSchedule === 'object' ? rawSchedule : {};
+
+    return allDays.map((day) => {
+        const raw = map[String(day.value)] || map[day.value] || {};
+        const enabled = typeof raw.enabled === 'boolean'
+            ? raw.enabled
+            : fallbackDays.includes(day.value);
+
+        return {
+            day: day.value,
+            enabled,
+            start: sanitizeTime(raw.start, '09:00'),
+            end: sanitizeTime(raw.end, '17:00'),
+        };
+    });
+}
 
 const form = useForm({
     name: user.name,
     email: user.email,
     is_bookable: Boolean(user.is_bookable),
-    availability_days: Array.isArray(user.availability_days) && user.availability_days.length
-        ? user.availability_days
-        : defaultDays,
-    availability_start_time: sanitizeTime(user.availability_start_time, '09:00'),
-    availability_end_time: sanitizeTime(user.availability_end_time, '17:00'),
+    availability_schedule: buildAvailabilitySchedule(
+        user.availability_schedule,
+        Array.isArray(user.availability_days) && user.availability_days.length
+            ? user.availability_days
+            : [0, 1, 2, 3, 4],
+    ),
 });
 </script>
 
@@ -106,62 +123,58 @@ const form = useForm({
             </div>
 
             <div class="rounded-lg border border-gray-200 p-4">
-                <h3 class="text-sm font-semibold text-gray-900">أيام وساعات التوفر</h3>
+                <h3 class="text-sm font-semibold text-gray-900">التوفر اليومي (ساعات مختلفة لكل يوم)</h3>
                 <p class="mt-1 text-xs text-gray-500">
                     لا يمكن للعميل الحجز إلا ضمن هذه الأوقات.
                 </p>
 
-                <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                    <label
-                        v-for="day in allDays"
-                        :key="day.value"
-                        class="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm"
+                <div class="mt-3 space-y-3">
+                    <div
+                        v-for="(row, idx) in form.availability_schedule"
+                        :key="`availability-row-${row.day}`"
+                        class="rounded-md border border-gray-200 p-3"
                     >
-                        <Checkbox
-                            :id="`day-${day.value}`"
-                            :checked="form.availability_days.includes(day.value)"
-                            @change="
-                                (event) => {
-                                    if (event.target.checked) {
-                                        form.availability_days = [...form.availability_days, day.value]
-                                            .map((v) => Number(v))
-                                            .filter((v, i, a) => a.indexOf(v) === i);
-                                    } else {
-                                        form.availability_days = form.availability_days.filter((v) => Number(v) !== day.value);
-                                    }
-                                }
-                            "
-                        />
-                        <span>{{ day.label }}</span>
-                    </label>
-                </div>
-                <InputError class="mt-2" :message="form.errors.availability_days" />
+                        <div class="flex items-center justify-between gap-2">
+                            <label class="flex items-center gap-2 text-sm font-medium text-gray-800">
+                                <Checkbox
+                                    :id="`day-${row.day}`"
+                                    v-model:checked="row.enabled"
+                                />
+                                {{ allDays.find((d) => d.value === row.day)?.label }}
+                            </label>
+                            <span class="text-xs text-gray-500">
+                                {{ row.enabled ? 'متاح' : 'غير متاح' }}
+                            </span>
+                        </div>
 
-                <div class="mt-4 grid gap-4 sm:grid-cols-2">
-                    <div>
-                        <InputLabel for="availability_start_time" value="من الساعة" />
-                        <TextInput
-                            id="availability_start_time"
-                            type="time"
-                            class="mt-1 block w-full"
-                            v-model="form.availability_start_time"
-                            required
-                        />
-                        <InputError class="mt-2" :message="form.errors.availability_start_time" />
-                    </div>
+                        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                            <div>
+                                <InputLabel :for="`availability-start-${row.day}`" value="من الساعة" />
+                                <TextInput
+                                    :id="`availability-start-${row.day}`"
+                                    type="time"
+                                    class="mt-1 block w-full"
+                                    v-model="row.start"
+                                    :disabled="!row.enabled"
+                                />
+                            </div>
+                            <div>
+                                <InputLabel :for="`availability-end-${row.day}`" value="إلى الساعة" />
+                                <TextInput
+                                    :id="`availability-end-${row.day}`"
+                                    type="time"
+                                    class="mt-1 block w-full"
+                                    v-model="row.end"
+                                    :disabled="!row.enabled"
+                                />
+                            </div>
+                        </div>
 
-                    <div>
-                        <InputLabel for="availability_end_time" value="إلى الساعة" />
-                        <TextInput
-                            id="availability_end_time"
-                            type="time"
-                            class="mt-1 block w-full"
-                            v-model="form.availability_end_time"
-                            required
-                        />
-                        <InputError class="mt-2" :message="form.errors.availability_end_time" />
+                        <InputError class="mt-2" :message="form.errors[`availability_schedule.${idx}.start`]" />
+                        <InputError class="mt-2" :message="form.errors[`availability_schedule.${idx}.end`]" />
                     </div>
                 </div>
+                <InputError class="mt-2" :message="form.errors.availability_schedule" />
             </div>
 
             <div v-if="mustVerifyEmail && user.email_verified_at === null">

@@ -7,6 +7,7 @@ use App\Models\Meeting;
 use App\Models\Team;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Arr;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -51,9 +52,7 @@ class PublicBookingController extends Controller
                         'id' => $user->id,
                         'name' => $user->name,
                         'availability' => [
-                            'days' => $user->availability_days ?: [0, 1, 2, 3, 4],
-                            'start_time' => $user->availability_start_time ? substr($user->availability_start_time, 0, 5) : '09:00',
-                            'end_time' => $user->availability_end_time ? substr($user->availability_end_time, 0, 5) : '17:00',
+                            'schedule' => $this->normalizedSchedule($user),
                         ],
                         'slots' => $this->buildAvailableSlots(
                             $user,
@@ -134,19 +133,17 @@ class PublicBookingController extends Controller
      */
     private function buildAvailableSlots(User $user, \Illuminate\Support\Collection $busyMeetings): array
     {
-        $days = $user->availability_days ?: [0, 1, 2, 3, 4];
-        $startTime = $user->availability_start_time ? substr($user->availability_start_time, 0, 5) : '09:00';
-        $endTime = $user->availability_end_time ? substr($user->availability_end_time, 0, 5) : '17:00';
         $slots = [];
 
         for ($offset = 0; $offset <= 21; $offset++) {
             $date = now()->addDays($offset);
-            if (!in_array($date->dayOfWeek, $days, true)) {
+            $window = $this->dayWindow($user, (int) $date->dayOfWeek);
+            if (!$window) {
                 continue;
             }
 
-            $cursor = Carbon::parse($date->format('Y-m-d') . ' ' . $startTime);
-            $endOfDay = Carbon::parse($date->format('Y-m-d') . ' ' . $endTime);
+            $cursor = Carbon::parse($date->format('Y-m-d') . ' ' . $window['start']);
+            $endOfDay = Carbon::parse($date->format('Y-m-d') . ' ' . $window['end']);
 
             while ($cursor->copy()->addHour()->lte($endOfDay)) {
                 $slotStart = $cursor->copy();
@@ -182,16 +179,62 @@ class PublicBookingController extends Controller
 
     private function isWithinAvailability(User $user, Carbon $start, Carbon $end): bool
     {
-        $days = $user->availability_days ?: [0, 1, 2, 3, 4];
-        if (!in_array($start->dayOfWeek, $days, true)) {
+        $window = $this->dayWindow($user, (int) $start->dayOfWeek);
+        if (!$window) {
             return false;
         }
 
-        $startTime = $user->availability_start_time ? substr($user->availability_start_time, 0, 5) : '09:00';
-        $endTime = $user->availability_end_time ? substr($user->availability_end_time, 0, 5) : '17:00';
-        $windowStart = Carbon::parse($start->format('Y-m-d') . ' ' . $startTime);
-        $windowEnd = Carbon::parse($start->format('Y-m-d') . ' ' . $endTime);
+        $windowStart = Carbon::parse($start->format('Y-m-d') . ' ' . $window['start']);
+        $windowEnd = Carbon::parse($start->format('Y-m-d') . ' ' . $window['end']);
 
         return $start->gte($windowStart) && $end->lte($windowEnd);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizedSchedule(User $user): array
+    {
+        $raw = is_array($user->availability_schedule) ? $user->availability_schedule : [];
+        $days = $user->availability_days ?: [0, 1, 2, 3, 4];
+        $defaultStart = $user->availability_start_time ? substr($user->availability_start_time, 0, 5) : '09:00';
+        $defaultEnd = $user->availability_end_time ? substr($user->availability_end_time, 0, 5) : '17:00';
+        $schedule = [];
+
+        for ($day = 0; $day <= 6; $day++) {
+            $entry = Arr::get($raw, (string) $day, []);
+            $enabled = array_key_exists('enabled', $entry)
+                ? (bool) $entry['enabled']
+                : in_array($day, $days, true);
+
+            $schedule[] = [
+                'day' => $day,
+                'enabled' => $enabled,
+                'start' => $enabled ? substr((string) ($entry['start'] ?? $defaultStart), 0, 5) : null,
+                'end' => $enabled ? substr((string) ($entry['end'] ?? $defaultEnd), 0, 5) : null,
+            ];
+        }
+
+        return $schedule;
+    }
+
+    /**
+     * @return array{start: string, end: string}|null
+     */
+    private function dayWindow(User $user, int $day): ?array
+    {
+        $schedule = collect($this->normalizedSchedule($user));
+        $entry = $schedule->first(fn (array $row) => (int) $row['day'] === $day && (bool) $row['enabled']);
+        if (!$entry) {
+            return null;
+        }
+
+        $start = $entry['start'] ?? null;
+        $end = $entry['end'] ?? null;
+        if (!$start || !$end || $start >= $end) {
+            return null;
+        }
+
+        return ['start' => $start, 'end' => $end];
     }
 }

@@ -6,7 +6,9 @@ use App\Models\Team;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -14,6 +16,7 @@ class EmployeeController extends Controller
 {
     public function index(): Response
     {
+        $teams = $this->ensureTeams();
         $employees = User::query()
             ->with(['teams:id,name,slug'])
             ->orderBy('name')
@@ -29,6 +32,12 @@ class EmployeeController extends Controller
                 'availability_days' => $user->availability_days ?: [0, 1, 2, 3, 4],
                 'availability_start_time' => $user->availability_start_time ? substr((string) $user->availability_start_time, 0, 5) : '09:00',
                 'availability_end_time' => $user->availability_end_time ? substr((string) $user->availability_end_time, 0, 5) : '17:00',
+                'availability_schedule' => $this->normalizeAvailabilitySchedule(
+                    is_array($user->availability_schedule) ? $user->availability_schedule : null,
+                    $user->availability_days ?: [0, 1, 2, 3, 4],
+                    $user->availability_start_time ? substr((string) $user->availability_start_time, 0, 5) : '09:00',
+                    $user->availability_end_time ? substr((string) $user->availability_end_time, 0, 5) : '17:00',
+                ),
                 'teams' => $user->teams->map(fn ($team) => [
                     'id' => $team->id,
                     'name' => $team->name,
@@ -37,7 +46,7 @@ class EmployeeController extends Controller
                     'allocation_percent' => $team->pivot?->allocation_percent,
                 ])->values(),
             ])->values(),
-            'teams' => Team::query()->orderBy('sort_order')->get(['id', 'name', 'slug']),
+            'teams' => $teams->map(fn (Team $team) => Arr::only($team->toArray(), ['id', 'name', 'slug']))->values(),
         ]);
     }
 
@@ -54,6 +63,7 @@ class EmployeeController extends Controller
             'availability_days' => $data['availability_days'],
             'availability_start_time' => $data['availability_start_time'],
             'availability_end_time' => $data['availability_end_time'],
+            'availability_schedule' => $data['availability_schedule'],
             'email_verified_at' => now(),
         ]);
 
@@ -74,6 +84,7 @@ class EmployeeController extends Controller
             'availability_days' => $data['availability_days'],
             'availability_start_time' => $data['availability_start_time'],
             'availability_end_time' => $data['availability_end_time'],
+            'availability_schedule' => $data['availability_schedule'],
         ]);
 
         if (!empty($data['password'])) {
@@ -103,9 +114,12 @@ class EmployeeController extends Controller
      */
     private function validatedEmployee(Request $request, bool $isCreate, ?int $userId = null): array
     {
+        $this->ensureTeams();
         $emailRule = ['required', 'email', 'max:255', 'unique:users,email'];
+        $nameRule = ['required', 'string', 'max:255', 'unique:users,name'];
         if ($userId) {
             $emailRule = ['required', 'email', 'max:255', 'unique:users,email,'.$userId];
+            $nameRule = ['required', 'string', 'max:255', 'unique:users,name,'.$userId];
         }
 
         $passwordRule = $isCreate
@@ -113,26 +127,72 @@ class EmployeeController extends Controller
             : ['nullable', 'string', 'min:8'];
 
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'name' => $nameRule,
             'email' => $emailRule,
             'password' => $passwordRule,
             'role' => ['required', 'in:admin,lead,member'],
             'is_bookable' => ['nullable', 'boolean'],
-            'availability_days' => ['required', 'array', 'min:1'],
-            'availability_days.*' => ['integer', 'between:0,6'],
-            'availability_start_time' => ['required', 'date_format:H:i'],
-            'availability_end_time' => ['required', 'date_format:H:i', 'after:availability_start_time'],
+            'availability_schedule' => ['required', 'array', 'size:7'],
+            'availability_schedule.*.day' => ['required', 'integer', 'between:0,6'],
+            'availability_schedule.*.enabled' => ['required', 'boolean'],
+            'availability_schedule.*.start' => ['nullable', 'date_format:H:i'],
+            'availability_schedule.*.end' => ['nullable', 'date_format:H:i'],
             'teams' => ['nullable', 'array'],
             'teams.*.id' => ['required', 'exists:teams,id'],
             'teams.*.allocation_percent' => ['nullable', 'integer', 'min:0', 'max:100'],
             'teams.*.is_lead' => ['nullable', 'boolean'],
         ]);
 
-        $data['availability_days'] = collect($data['availability_days'])
-            ->map(fn ($v) => (int) $v)
-            ->unique()
-            ->values()
-            ->all();
+        $schedule = [];
+        $enabledDays = [];
+        $firstStart = null;
+        $firstEnd = null;
+
+        foreach ($data['availability_schedule'] as $row) {
+            $day = (int) ($row['day'] ?? -1);
+            if ($day < 0 || $day > 6) {
+                continue;
+            }
+
+            $enabled = (bool) ($row['enabled'] ?? false);
+            $start = $enabled ? ($row['start'] ?? null) : null;
+            $end = $enabled ? ($row['end'] ?? null) : null;
+
+            if ($enabled) {
+                if (!$start || !$end) {
+                    throw ValidationException::withMessages([
+                        "availability_schedule.$day.start" => 'حدد وقت البداية والنهاية لهذا اليوم.',
+                    ]);
+                }
+
+                if ($start >= $end) {
+                    throw ValidationException::withMessages([
+                        "availability_schedule.$day.end" => 'وقت النهاية يجب أن يكون بعد البداية.',
+                    ]);
+                }
+
+                $enabledDays[] = $day;
+                $firstStart ??= $start;
+                $firstEnd ??= $end;
+            }
+
+            $schedule[(string) $day] = [
+                'enabled' => $enabled,
+                'start' => $start,
+                'end' => $end,
+            ];
+        }
+
+        if (!count($enabledDays)) {
+            throw ValidationException::withMessages([
+                'availability_schedule' => 'يجب اختيار يوم توفر واحد على الأقل.',
+            ]);
+        }
+
+        $data['availability_schedule'] = $schedule;
+        $data['availability_days'] = array_values(array_unique($enabledDays));
+        $data['availability_start_time'] = $firstStart;
+        $data['availability_end_time'] = $firstEnd;
 
         return $data;
     }
@@ -160,5 +220,58 @@ class EmployeeController extends Controller
         }
 
         return $payload;
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, Team>
+     */
+    private function ensureTeams()
+    {
+        if (Team::query()->exists()) {
+            return Team::query()->orderBy('sort_order')->get(['id', 'name', 'slug']);
+        }
+
+        $defaults = [
+            ['name' => 'الكتابة', 'slug' => 'writing', 'sort_order' => 10],
+            ['name' => 'الميديا باير', 'slug' => 'media-buyer', 'sort_order' => 20],
+            ['name' => 'أكاونت', 'slug' => 'account', 'sort_order' => 30],
+            ['name' => 'المبيعات', 'slug' => 'sales', 'sort_order' => 40],
+            ['name' => 'الموارد البشرية', 'slug' => 'hr', 'sort_order' => 50],
+            ['name' => 'المحاسبة', 'slug' => 'accounting', 'sort_order' => 60],
+        ];
+
+        foreach ($defaults as $team) {
+            Team::query()->firstOrCreate(['slug' => $team['slug']], $team);
+        }
+
+        return Team::query()->orderBy('sort_order')->get(['id', 'name', 'slug']);
+    }
+
+    /**
+     * @param array<string, mixed>|null $schedule
+     * @param array<int, int> $days
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeAvailabilitySchedule(?array $schedule, array $days, string $defaultStart, string $defaultEnd): array
+    {
+        $normalized = [];
+
+        for ($day = 0; $day <= 6; $day++) {
+            $current = Arr::get($schedule ?? [], (string) $day, []);
+            $enabled = isset($current['enabled'])
+                ? (bool) $current['enabled']
+                : in_array($day, $days, true);
+            $start = $enabled ? (($current['start'] ?? $defaultStart) ?: $defaultStart) : null;
+            $end = $enabled ? (($current['end'] ?? $defaultEnd) ?: $defaultEnd) : null;
+
+            $normalized[] = [
+                'day' => $day,
+                'enabled' => $enabled,
+                'start' => $start ? substr((string) $start, 0, 5) : null,
+                'end' => $end ? substr((string) $end, 0, 5) : null,
+            ];
+        }
+
+        return $normalized;
     }
 }
