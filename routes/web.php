@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\AcademyController;
-use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MeetingController;
@@ -72,10 +71,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/clients/{client}/stage', [ClientController::class, 'updateStage'])->name('clients.stage');
     Route::get('/academy', [AcademyController::class, 'index'])->name('academy.index');
     Route::get('/academy/sales-training', [AcademyController::class, 'salesTraining'])->name('academy.sales-training');
-    Route::get('/ai', [AiChatController::class, 'index'])->name('ai.index');
-    Route::post('/ai/conversations', [AiChatController::class, 'createConversation'])->name('ai.conversations.store');
-    Route::get('/ai/conversations/{aiConversation}', [AiChatController::class, 'showConversation'])->name('ai.conversations.show');
-    Route::post('/ai/chat', [AiChatController::class, 'chat'])->name('ai.chat');
 
     Route::middleware('can:manage-employees')->group(function () {
         Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');

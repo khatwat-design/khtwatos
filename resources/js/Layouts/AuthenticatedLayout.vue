@@ -14,7 +14,6 @@ const nav = [
     { label: 'الدردشة', routeName: 'chat.index', match: 'chat.*' },
     { label: 'الاجتماعات', routeName: 'meetings.index', match: 'meetings.*' },
     { label: 'العملاء', routeName: 'clients.index', match: 'clients.*' },
-    { label: 'خطوة', routeName: 'ai.index', match: 'ai.*' },
     { label: 'الأكاديمية', routeName: 'academy.index', match: 'academy.index' },
     ...(page.props.auth?.can?.manageEmployees
         ? [{ label: 'الموظفين', routeName: 'employees.index', match: 'employees.*' }]
