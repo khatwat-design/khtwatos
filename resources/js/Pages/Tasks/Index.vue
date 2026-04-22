@@ -20,6 +20,7 @@ const props = defineProps({
 });
 const page = usePage();
 const canDeleteRecords = computed(() => Boolean(page.props.auth?.can?.deleteRecords));
+const maxAttachmentSizeBytes = 10 * 1024 * 1024;
 
 const teamLabelMap = {
     writing: 'فريق الكتابة',
@@ -68,6 +69,17 @@ const boardState = reactive({
     name: '',
     columns: [],
 });
+
+const clientOptions = computed(() =>
+    (props.clients || []).map((client) => {
+        const base = client?.name || client?.company || `عميل #${client?.id}`;
+        const stageHint = client?.stage_key === 'lead' ? ' • عميل محتمل' : '';
+        return {
+            id: client.id,
+            label: `${base}${stageHint}`,
+        };
+    }),
+);
 
 watch(
     () => props.board,
@@ -214,6 +226,7 @@ const taskMessageSending = ref(false);
 const taskMessageError = ref('');
 const taskMessageBody = ref('');
 const taskAttachmentUploading = ref(false);
+const taskAttachmentProgress = ref(0);
 const taskAttachmentError = ref('');
 const taskAttachmentFile = ref(null);
 const attachmentInputRef = ref(null);
@@ -247,6 +260,7 @@ function openEdit(task) {
     taskMessageBody.value = '';
     taskMessageError.value = '';
     taskAttachmentError.value = '';
+    taskAttachmentProgress.value = 0;
     taskAttachmentFile.value = null;
     if (attachmentInputRef.value) {
         attachmentInputRef.value.value = '';
@@ -285,6 +299,7 @@ function closeEditModal() {
     taskMessageBody.value = '';
     taskMessageError.value = '';
     taskAttachmentError.value = '';
+    taskAttachmentProgress.value = 0;
     taskAttachmentFile.value = null;
     editMention.open = false;
 }
@@ -479,7 +494,23 @@ function formatFileSize(size) {
 }
 
 function onTaskAttachmentSelected(event) {
-    taskAttachmentFile.value = event.target?.files?.[0] || null;
+    const selected = event.target?.files?.[0] || null;
+    if (!selected) {
+        taskAttachmentFile.value = null;
+        return;
+    }
+
+    if (Number(selected.size || 0) > maxAttachmentSizeBytes) {
+        taskAttachmentFile.value = null;
+        taskAttachmentError.value = 'حجم الملف أكبر من 10MB. اختر ملفًا أصغر.';
+        if (attachmentInputRef.value) {
+            attachmentInputRef.value.value = '';
+        }
+        return;
+    }
+
+    taskAttachmentError.value = '';
+    taskAttachmentFile.value = selected;
 }
 
 async function uploadTaskAttachment() {
@@ -488,6 +519,7 @@ async function uploadTaskAttachment() {
     }
 
     taskAttachmentUploading.value = true;
+    taskAttachmentProgress.value = 0;
     taskAttachmentError.value = '';
 
     try {
@@ -502,6 +534,14 @@ async function uploadTaskAttachment() {
                     Accept: 'application/json',
                     'Content-Type': 'multipart/form-data',
                 },
+                timeout: 120000,
+                onUploadProgress: (event) => {
+                    const total = Number(event?.total || 0);
+                    if (!total) {
+                        return;
+                    }
+                    taskAttachmentProgress.value = Math.min(100, Math.round((Number(event.loaded || 0) / total) * 100));
+                },
             },
         );
 
@@ -512,6 +552,7 @@ async function uploadTaskAttachment() {
             if (attachmentInputRef.value) {
                 attachmentInputRef.value.value = '';
             }
+            taskAttachmentProgress.value = 0;
         }
     } catch (error) {
         taskAttachmentError.value = error?.response?.data?.message || 'تعذر رفع المرفق، حاول مرة أخرى.';
@@ -837,11 +878,11 @@ function toggleChecklistItem(item) {
                             >
                                 <option :value="null">—</option>
                                 <option
-                                    v-for="c in clients || []"
+                                    v-for="c in clientOptions"
                                     :key="c.id"
                                     :value="c.id"
                                 >
-                                    {{ c.name }}
+                                    {{ c.label }}
                                 </option>
                             </select>
                             <InputError class="mt-1" :message="taskForm.errors.client_id" />
@@ -974,11 +1015,11 @@ function toggleChecklistItem(item) {
                         >
                             <option :value="null">—</option>
                             <option
-                                v-for="c in clients || []"
+                                v-for="c in clientOptions"
                                 :key="c.id"
                                 :value="c.id"
                             >
-                                {{ c.name }}
+                                {{ c.label }}
                             </option>
                         </select>
                         <InputError class="mt-1" :message="editForm.errors.client_id" />
@@ -1077,6 +1118,7 @@ function toggleChecklistItem(item) {
                                         </p>
                                     </div>
                                     <button
+                                        v-if="canDeleteRecords"
                                         type="button"
                                         class="text-xs text-red-600 hover:underline"
                                         @click="deleteTaskAttachment(attachment)"
@@ -1103,6 +1145,13 @@ function toggleChecklistItem(item) {
                                 class="block w-full text-xs text-gray-600 file:me-2 file:rounded-md file:border-0 file:bg-gray-100 file:px-2 file:py-1 file:text-xs file:font-medium"
                                 @change="onTaskAttachmentSelected"
                             />
+                            <p class="text-[11px] text-gray-500">الحد الأقصى لحجم المرفق: 10MB</p>
+                            <div v-if="taskAttachmentUploading" class="h-1.5 overflow-hidden rounded-full bg-gray-100">
+                                <div
+                                    class="h-full rounded-full bg-blue-600 transition-all"
+                                    :style="{ width: `${taskAttachmentProgress}%` }"
+                                />
+                            </div>
                             <div class="flex items-center justify-between gap-2">
                                 <p v-if="taskAttachmentError" class="text-xs text-red-600">{{ taskAttachmentError }}</p>
                                 <button

@@ -62,7 +62,10 @@ class HomeController extends Controller
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        $teams = Team::query()->orderBy('sort_order')->get(['id', 'name']);
+        $teams = Team::query()
+            ->where('slug', '!=', 'khatwat')
+            ->orderBy('sort_order')
+            ->get(['id', 'name']);
         $employeesByTeam = $teams->map(function (Team $team) {
             $all = $team->users()->count();
             $leads = $team->users()->wherePivot('is_lead', true)->count();

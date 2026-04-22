@@ -20,6 +20,7 @@ class PublicBookingController extends Controller
     public function index(): Response
     {
         $teams = Team::query()
+            ->where('slug', '!=', 'khatwat')
             ->with(['users' => fn ($q) => $q->where('is_bookable', true)->orderBy('name')])
             ->orderBy('sort_order')
             ->get();
@@ -77,6 +78,7 @@ class PublicBookingController extends Controller
 
         $team = Team::query()
             ->where('slug', $data['team_slug'])
+            ->where('slug', '!=', 'khatwat')
             ->with(['users' => fn ($q) => $q->where('is_bookable', true)->orderBy('name')])
             ->firstOrFail();
 

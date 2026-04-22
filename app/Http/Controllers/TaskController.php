@@ -134,7 +134,16 @@ class TaskController extends Controller
                     ]),
                 ]),
             ] : null,
-            'clients' => Client::query()->orderBy('name')->get(['id', 'name']),
+            'clients' => Client::query()
+                ->leftJoin('pipeline_stages', 'pipeline_stages.id', '=', 'clients.current_pipeline_stage_id')
+                ->orderByRaw('COALESCE(clients.name, clients.company, "")')
+                ->get([
+                    'clients.id',
+                    'clients.name',
+                    'clients.company',
+                    'pipeline_stages.key as stage_key',
+                    'pipeline_stages.label as stage_label',
+                ]),
             'users' => User::query()->orderBy('name')->get(['id', 'name']),
             'filters' => [
                 'client_id' => $clientId,
@@ -353,7 +362,7 @@ class TaskController extends Controller
     public function addAttachment(Request $request, Task $task)
     {
         $data = $request->validate([
-            'file' => ['required', 'file', 'max:20480'],
+            'file' => ['required', 'file', 'max:10240'],
         ]);
 
         $file = $data['file'];
@@ -392,7 +401,7 @@ class TaskController extends Controller
     public function deleteAttachment(Request $request, TaskAttachment $taskAttachment)
     {
         $user = $request->user();
-        if (!$user || (!$user->isAdmin() && (int) $taskAttachment->user_id !== (int) $user->id)) {
+        if (!$user || !$user->isAdmin()) {
             abort(403, 'لا تملك صلاحية حذف هذا المرفق.');
         }
 

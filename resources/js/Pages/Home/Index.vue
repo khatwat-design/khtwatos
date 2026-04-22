@@ -137,9 +137,6 @@ const todayDateLabel = computed(() =>
                 <div class="grid gap-4 p-5 md:grid-cols-[1fr,auto] md:items-center">
                     <div>
                         <h2 class="text-lg font-black md:text-xl">لوحة التحكم الإدارية</h2>
-                        <p class="mt-1 text-sm text-neutral-200">
-                            متابعة موحدة للأداء اليومي: العملاء، المهام، الاجتماعات، والموظفين ضمن نفس الهوية.
-                        </p>
                     </div>
                     <div class="grid grid-cols-2 gap-2 text-xs md:min-w-64">
                         <div class="rounded-lg bg-white/10 px-3 py-2 backdrop-blur-sm">
