@@ -30,5 +30,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('manage-employees', function (User $user): bool {
             return $user->isAdmin() || $user->isHrManager();
         });
+
+        Gate::define('view-admin-home', function (User $user): bool {
+            return $user->isAdmin();
+        });
     }
 }

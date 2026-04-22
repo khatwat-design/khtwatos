@@ -7,10 +7,14 @@ import { Link, usePage } from '@inertiajs/vue3';
 const page = usePage();
 
 const nav = [
+    ...(page.props.auth?.can?.viewAdminHome
+        ? [{ label: 'الرئيسية', routeName: 'home.index', match: 'home.*' }]
+        : []),
     { label: 'المهام', routeName: 'tasks.index', match: 'tasks.*' },
     { label: 'الدردشة', routeName: 'chat.index', match: 'chat.*' },
     { label: 'الاجتماعات', routeName: 'meetings.index', match: 'meetings.*' },
     { label: 'العملاء', routeName: 'clients.index', match: 'clients.*' },
+    { label: 'خطوة', routeName: 'ai.index', match: 'ai.*' },
     { label: 'الأكاديمية', routeName: 'academy.index', match: 'academy.index' },
     ...(page.props.auth?.can?.manageEmployees
         ? [{ label: 'الموظفين', routeName: 'employees.index', match: 'employees.*' }]
@@ -29,7 +33,7 @@ function active(match) {
                 class="hidden w-56 shrink-0 flex-col border-s border-neutral-800 bg-black text-white md:flex"
             >
                 <div class="flex h-44 items-center justify-center border-b border-neutral-800 px-4">
-                    <Link :href="route('tasks.index')" class="flex w-full items-center justify-center">
+                    <Link :href="route('dashboard')" class="flex w-full items-center justify-center">
                         <img
                             src="/images/logo-sidebar.png"
                             alt="خارج المخزون"
@@ -62,7 +66,7 @@ function active(match) {
                     class="flex h-14 items-center justify-between border-b border-gray-200 bg-white px-4 md:px-6"
                 >
                     <div class="flex items-center gap-3 md:hidden">
-                        <Link :href="route('tasks.index')">
+                        <Link :href="route('dashboard')">
                             <ApplicationLogo class="!h-8 max-h-8" />
                         </Link>
                         <div class="text-sm font-semibold text-gray-800">

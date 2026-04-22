@@ -5,14 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\BoardColumn;
 use App\Models\Client;
 use App\Models\Task;
+use App\Models\TaskAttachment;
 use App\Models\TaskBoard;
+use App\Models\TaskChecklistItem;
 use App\Models\TaskMessage;
+use App\Models\TaskReassignment;
 use App\Models\TaskStatusHistory;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -43,6 +47,10 @@ class TaskController extends Controller
                             'assignees:id,name',
                             'client:id,name',
                             'messages.user:id,name',
+                            'reassignments.assignedBy:id,name',
+                            'reassignments.assignedTo:id,name',
+                            'checklistItems.createdBy:id,name',
+                            'attachments.user:id,name',
                         ])
                         ->orderBy('position')
                         ->orderBy('id');
@@ -87,6 +95,41 @@ class TaskController extends Controller
                                 'id' => $message->user->id,
                                 'name' => $message->user->name,
                             ] : null,
+                        ])->values(),
+                        'reassignments' => $t->reassignments->map(fn (TaskReassignment $row) => [
+                            'id' => $row->id,
+                            'due_at' => $row->due_at?->toIso8601String(),
+                            'note' => $row->note,
+                            'assigned_by' => $row->assignedBy ? [
+                                'id' => $row->assignedBy->id,
+                                'name' => $row->assignedBy->name,
+                            ] : null,
+                            'assigned_to' => $row->assignedTo ? [
+                                'id' => $row->assignedTo->id,
+                                'name' => $row->assignedTo->name,
+                            ] : null,
+                        ])->values(),
+                        'checklist_items' => $t->checklistItems->map(fn (TaskChecklistItem $item) => [
+                            'id' => $item->id,
+                            'title' => $item->title,
+                            'is_done' => (bool) $item->is_done,
+                            'created_by' => $item->createdBy ? [
+                                'id' => $item->createdBy->id,
+                                'name' => $item->createdBy->name,
+                            ] : null,
+                        ])->values(),
+                        'attachments' => $t->attachments->map(fn (TaskAttachment $attachment) => [
+                            'id' => $attachment->id,
+                            'name' => $attachment->name,
+                            'mime' => $attachment->mime,
+                            'size' => $attachment->size,
+                            'url' => Storage::disk('public')->url($attachment->path),
+                            'is_image' => is_string($attachment->mime) && str_starts_with($attachment->mime, 'image/'),
+                            'uploaded_by' => $attachment->user ? [
+                                'id' => $attachment->user->id,
+                                'name' => $attachment->user->name,
+                            ] : null,
+                            'created_at' => $attachment->created_at->toIso8601String(),
                         ])->values(),
                     ]),
                 ]),
@@ -134,9 +177,9 @@ class TaskController extends Controller
     private function ensureTeams()
     {
         $defaults = [
-            ['name' => 'الكتابة', 'slug' => 'writing', 'sort_order' => 10],
-            ['name' => 'الميديا باير', 'slug' => 'media-buyer', 'sort_order' => 20],
-            ['name' => 'أكاونت', 'slug' => 'account', 'sort_order' => 30],
+            ['name' => 'فريق الكتابة', 'slug' => 'writing', 'sort_order' => 10],
+            ['name' => 'مدراء الحملات', 'slug' => 'media-buyer', 'sort_order' => 20],
+            ['name' => 'مدراء الحسابات', 'slug' => 'account', 'sort_order' => 30],
             ['name' => 'المبيعات', 'slug' => 'sales', 'sort_order' => 40],
             ['name' => 'الموارد البشرية', 'slug' => 'hr', 'sort_order' => 50],
             ['name' => 'المحاسبة', 'slug' => 'accounting', 'sort_order' => 60],
@@ -307,6 +350,160 @@ class TaskController extends Controller
         return redirect()->back();
     }
 
+    public function addAttachment(Request $request, Task $task)
+    {
+        $data = $request->validate([
+            'file' => ['required', 'file', 'max:20480'],
+        ]);
+
+        $file = $data['file'];
+        $path = $file->store('task-attachments', 'public');
+
+        $attachment = TaskAttachment::query()->create([
+            'task_id' => $task->id,
+            'user_id' => $request->user()->id,
+            'path' => $path,
+            'name' => $file->getClientOriginalName(),
+            'mime' => $file->getMimeType(),
+            'size' => $file->getSize(),
+        ])->load('user:id,name');
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'attachment' => [
+                    'id' => $attachment->id,
+                    'name' => $attachment->name,
+                    'mime' => $attachment->mime,
+                    'size' => $attachment->size,
+                    'url' => Storage::disk('public')->url($attachment->path),
+                    'is_image' => is_string($attachment->mime) && str_starts_with($attachment->mime, 'image/'),
+                    'uploaded_by' => $attachment->user ? [
+                        'id' => $attachment->user->id,
+                        'name' => $attachment->user->name,
+                    ] : null,
+                    'created_at' => $attachment->created_at->toIso8601String(),
+                ],
+            ]);
+        }
+
+        return redirect()->back();
+    }
+
+    public function deleteAttachment(Request $request, TaskAttachment $taskAttachment)
+    {
+        $user = $request->user();
+        if (!$user || (!$user->isAdmin() && (int) $taskAttachment->user_id !== (int) $user->id)) {
+            abort(403, 'لا تملك صلاحية حذف هذا المرفق.');
+        }
+
+        if ($taskAttachment->path) {
+            Storage::disk('public')->delete($taskAttachment->path);
+        }
+        $taskAttachment->delete();
+
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
+        return redirect()->back();
+    }
+
+    public function destroy(Request $request, Task $task): RedirectResponse
+    {
+        $this->ensureAdmin($request);
+        foreach ($task->attachments()->get(['path']) as $attachment) {
+            if ($attachment->path) {
+                Storage::disk('public')->delete($attachment->path);
+            }
+        }
+        $task->delete();
+
+        return redirect()->back();
+    }
+
+    public function addReassignment(Request $request, Task $task): RedirectResponse
+    {
+        $this->ensureCanManageTask($request, $task);
+
+        $data = $request->validate([
+            'assigned_to_id' => ['required', 'exists:users,id'],
+            'due_at' => ['nullable', 'date'],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $task->reassignments()->create([
+            'assigned_by_id' => $request->user()->id,
+            'assigned_to_id' => (int) $data['assigned_to_id'],
+            'due_at' => $data['due_at'] ?? null,
+            'note' => isset($data['note']) ? trim($data['note']) : null,
+        ]);
+
+        $assigneeIds = $task->assignees()->pluck('users.id')->all();
+        $assigneeIds[] = (int) $data['assigned_to_id'];
+        $assigneeIds = array_values(array_unique(array_map('intval', $assigneeIds)));
+
+        $task->assignees()->sync($assigneeIds);
+        $task->assignee_id = $assigneeIds[0] ?? $task->assignee_id;
+        if (!empty($data['due_at'])) {
+            $task->due_at = $data['due_at'];
+        }
+        $task->save();
+
+        return redirect()->back();
+    }
+
+    public function addChecklistItem(Request $request, Task $task): RedirectResponse
+    {
+        $this->ensureCanManageTask($request, $task);
+
+        $data = $request->validate([
+            'title' => ['nullable', 'string', 'max:500'],
+            'titles' => ['nullable', 'array'],
+            'titles.*' => ['string', 'max:500'],
+        ]);
+
+        $titles = collect($data['titles'] ?? []);
+        if ($titles->isEmpty() && !empty($data['title'])) {
+            $titles = collect([$data['title']]);
+        }
+
+        $normalized = $titles
+            ->map(fn ($title) => trim((string) $title))
+            ->filter(fn ($title) => $title !== '')
+            ->unique()
+            ->values();
+
+        if ($normalized->isEmpty()) {
+            return redirect()->back()->withErrors([
+                'title' => 'أدخل عنصر checklist واحد على الأقل.',
+            ]);
+        }
+
+        foreach ($normalized as $title) {
+            $task->checklistItems()->create([
+                'title' => $title,
+                'created_by_id' => $request->user()->id,
+            ]);
+        }
+
+        return redirect()->back();
+    }
+
+    public function toggleChecklistItem(Request $request, TaskChecklistItem $taskChecklistItem): RedirectResponse
+    {
+        $this->ensureCanManageTask($request, $taskChecklistItem->task);
+
+        $data = $request->validate([
+            'is_done' => ['required', 'boolean'],
+        ]);
+
+        $taskChecklistItem->update([
+            'is_done' => (bool) $data['is_done'],
+        ]);
+
+        return redirect()->back();
+    }
+
     /**
      * @return array<int, int>
      */
@@ -340,5 +537,48 @@ class TaskController extends Controller
         }
 
         return [];
+    }
+
+    private function ensureCanManageTask(Request $request, Task $task): void
+    {
+        $user = $request->user();
+        if (!$user) {
+            abort(403);
+        }
+
+        if ($user->isAdmin()) {
+            return;
+        }
+
+        if ($user->role === 'lead') {
+            return;
+        }
+
+        $teamId = $task->taskBoard?->team_id;
+        if (!$teamId) {
+            $task->loadMissing('taskBoard');
+            $teamId = $task->taskBoard?->team_id;
+        }
+
+        if (!$teamId) {
+            abort(403, 'لا يمكن إدارة هذه المهمة.');
+        }
+
+        $isLeadOfTeam = $user->teams()
+            ->where('teams.id', $teamId)
+            ->wherePivot('is_lead', true)
+            ->exists();
+
+        if (!$isLeadOfTeam) {
+            abort(403, 'هذه العملية مسموحة لمدراء الأقسام فقط.');
+        }
+    }
+
+    private function ensureAdmin(Request $request): void
+    {
+        $user = $request->user();
+        if (!$user || !$user->isAdmin()) {
+            abort(403, 'هذه العملية متاحة لمدير النظام فقط.');
+        }
     }
 }

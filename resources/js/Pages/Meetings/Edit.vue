@@ -11,6 +11,7 @@ const props = defineProps({
     meeting: Object,
     hosts: Array,
     clients: Array,
+    teams: Array,
 });
 
 const employeeNameMap = {
@@ -44,6 +45,8 @@ const form = useForm({
     invitee_name: props.meeting.invitee_name || '',
     invitee_email: props.meeting.invitee_email || '',
     status: props.meeting.status,
+    team_ids: props.meeting.team_ids || [],
+    participant_ids: props.meeting.participant_ids || [],
 });
 
 function submit() {
@@ -87,7 +90,7 @@ function destroyMeeting() {
                                 :key="h.id"
                                 :value="h.id"
                             >
-                                {{ arabicEmployeeName(h.name) }}
+                                {{ arabicEmployeeName(h.name) }}{{ h.role === 'lead' ? ' • مدير قسم' : '' }}
                             </option>
                         </select>
                         <InputError class="mt-1" :message="form.errors.user_id" />
@@ -110,6 +113,46 @@ function destroyMeeting() {
                             </option>
                         </select>
                         <InputError class="mt-1" :message="form.errors.client_id" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="team_ids" value="الاجتماع مع قسم كامل (اختياري)" />
+                        <select
+                            id="team_ids"
+                            v-model="form.team_ids"
+                            multiple
+                            size="4"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                        >
+                            <option
+                                v-for="team in teams"
+                                :key="team.id"
+                                :value="team.id"
+                            >
+                                {{ team.name }}
+                            </option>
+                        </select>
+                        <InputError class="mt-1" :message="form.errors.team_ids" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="participant_ids" value="موظفون محددون (اختياري)" />
+                        <select
+                            id="participant_ids"
+                            v-model="form.participant_ids"
+                            multiple
+                            size="5"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                        >
+                            <option
+                                v-for="h in hosts"
+                                :key="`edit-participant-${h.id}`"
+                                :value="h.id"
+                            >
+                                {{ arabicEmployeeName(h.name) }}{{ h.role === 'lead' ? ' • مدير قسم' : '' }}
+                            </option>
+                        </select>
+                        <InputError class="mt-1" :message="form.errors.participant_ids" />
                     </div>
 
                     <div>

@@ -36,6 +36,8 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
                 'can' => [
                     'manageEmployees' => $request->user() ? Gate::forUser($request->user())->allows('manage-employees') : false,
+                    'deleteRecords' => $request->user() ? $request->user()->isAdmin() : false,
+                    'viewAdminHome' => $request->user() ? Gate::forUser($request->user())->allows('view-admin-home') : false,
                 ],
             ],
         ];

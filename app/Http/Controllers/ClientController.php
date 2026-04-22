@@ -16,13 +16,17 @@ use Inertia\Response;
 
 class ClientController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $stages = $this->ensurePipelineStages();
+        $stageId = $request->filled('stage_id') ? (int) $request->query('stage_id') : null;
+
         $clients = Client::query()
             ->with(['currentStage', 'accountManager:id,name'])
             ->withCount([
                 'tasks as open_tasks_count' => fn ($q) => $q->whereHas('column', fn ($c) => $c->where('name', '!=', 'تم')),
             ])
+            ->when($stageId, fn ($q) => $q->where('current_pipeline_stage_id', $stageId))
             ->orderBy('name')
             ->get();
 
@@ -40,6 +44,10 @@ class ClientController extends Controller
                 'open_tasks_count' => (int) $c->open_tasks_count,
                 'updated_at' => $c->updated_at->toIso8601String(),
             ]),
+            'stages' => $stages,
+            'filters' => [
+                'stage_id' => $stageId,
+            ],
         ]);
     }
 
@@ -203,6 +211,17 @@ class ClientController extends Controller
         });
 
         return redirect()->route('clients.show', $client);
+    }
+
+    public function destroy(Request $request, Client $client): RedirectResponse
+    {
+        if (!$request->user()?->isAdmin()) {
+            abort(403, 'هذه العملية متاحة لمدير النظام فقط.');
+        }
+
+        $client->delete();
+
+        return redirect()->route('clients.index');
     }
 
     /**

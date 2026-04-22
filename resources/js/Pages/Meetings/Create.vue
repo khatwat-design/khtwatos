@@ -9,6 +9,7 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 const props = defineProps({
     hosts: Array,
     clients: Array,
+    teams: Array,
     defaults: Object,
 });
 
@@ -41,6 +42,8 @@ const form = useForm({
     reason: '',
     invitee_name: '',
     invitee_email: '',
+    team_ids: props.defaults.team_ids || [],
+    participant_ids: props.defaults.participant_ids || [],
 });
 
 function submit() {
@@ -82,10 +85,52 @@ function submit() {
                                 :key="h.id"
                                 :value="h.id"
                             >
-                                {{ arabicEmployeeName(h.name) }}
+                                {{ arabicEmployeeName(h.name) }}{{ h.role === 'lead' ? ' • مدير قسم' : '' }}
                             </option>
                         </select>
                         <InputError class="mt-1" :message="form.errors.user_id" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="team_ids" value="الاجتماع مع قسم كامل (اختياري)" />
+                        <select
+                            id="team_ids"
+                            v-model="form.team_ids"
+                            multiple
+                            size="4"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                        >
+                            <option
+                                v-for="team in teams"
+                                :key="team.id"
+                                :value="team.id"
+                            >
+                                {{ team.name }}
+                            </option>
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">يمكن اختيار أكثر من قسم.</p>
+                        <InputError class="mt-1" :message="form.errors.team_ids" />
+                    </div>
+
+                    <div>
+                        <InputLabel for="participant_ids" value="أو اختيار موظفين محددين (اختياري)" />
+                        <select
+                            id="participant_ids"
+                            v-model="form.participant_ids"
+                            multiple
+                            size="5"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                        >
+                            <option
+                                v-for="h in hosts"
+                                :key="`participant-${h.id}`"
+                                :value="h.id"
+                            >
+                                {{ arabicEmployeeName(h.name) }}{{ h.role === 'lead' ? ' • مدير قسم' : '' }}
+                            </option>
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">سيتم ضم المضيف تلقائياً.</p>
+                        <InputError class="mt-1" :message="form.errors.participant_ids" />
                     </div>
 
                     <div>

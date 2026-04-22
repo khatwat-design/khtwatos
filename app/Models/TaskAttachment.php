@@ -5,30 +5,27 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class TeamChatMessage extends Model
+class TaskAttachment extends Model
 {
     protected $fillable = [
-        'team_id',
+        'task_id',
         'user_id',
-        'body',
-        'edited_at',
-        'attachment_path',
-        'attachment_name',
-        'attachment_mime',
-        'attachment_size',
+        'path',
+        'name',
+        'mime',
+        'size',
     ];
 
     protected function casts(): array
     {
         return [
-            'edited_at' => 'datetime',
-            'attachment_size' => 'integer',
+            'size' => 'integer',
         ];
     }
 
-    public function team(): BelongsTo
+    public function task(): BelongsTo
     {
-        return $this->belongsTo(Team::class);
+        return $this->belongsTo(Task::class);
     }
 
     public function user(): BelongsTo

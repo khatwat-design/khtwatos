@@ -63,4 +63,19 @@ class Task extends Model
     {
         return $this->hasMany(TaskMessage::class)->orderBy('created_at');
     }
+
+    public function reassignments(): HasMany
+    {
+        return $this->hasMany(TaskReassignment::class)->orderByDesc('created_at');
+    }
+
+    public function checklistItems(): HasMany
+    {
+        return $this->hasMany(TaskChecklistItem::class)->orderBy('created_at');
+    }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(TaskAttachment::class)->orderByDesc('created_at');
+    }
 }

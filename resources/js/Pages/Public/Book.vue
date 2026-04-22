@@ -33,7 +33,8 @@ function arabicEmployeeName(name) {
 
 const form = useForm({
     team_slug: props.teams?.[0]?.slug || '',
-    user_id: null,
+    selection_mode: 'members',
+    participant_ids: [],
     invitee_name: '',
     invitee_email: '',
     start_at: '',
@@ -46,19 +47,71 @@ const selectedTeam = computed(
 );
 
 const hosts = computed(() => selectedTeam.value?.members || []);
-const selectedHost = computed(() => hosts.value.find((h) => h.id === form.user_id) || null);
-const availableSlots = computed(() => selectedHost.value?.slots || []);
+
+const selectedMembers = computed(() => {
+    if (!hosts.value.length) {
+        return [];
+    }
+
+    if (form.selection_mode === 'team') {
+        return hosts.value;
+    }
+
+    const selectedIds = new Set((form.participant_ids || []).map((id) => Number(id)));
+    return hosts.value.filter((h) => selectedIds.has(Number(h.id)));
+});
+
+const availableSlots = computed(() => {
+    if (!selectedMembers.value.length) {
+        return [];
+    }
+
+    const slotMaps = selectedMembers.value.map((member) => {
+        const map = new Map();
+        for (const slot of member.slots || []) {
+            map.set(slot.value, slot.label);
+        }
+        return map;
+    });
+
+    if (!slotMaps.length) {
+        return [];
+    }
+
+    const firstMap = slotMaps[0];
+    const result = [];
+    for (const [value, label] of firstMap.entries()) {
+        const existsForAll = slotMaps.every((map) => map.has(value));
+        if (existsForAll) {
+            result.push({ value, label });
+        }
+    }
+
+    return result;
+});
 
 watch(
     () => form.team_slug,
     () => {
-        form.user_id = hosts.value[0]?.id ?? null;
+        form.participant_ids = form.selection_mode === 'team'
+            ? hosts.value.map((m) => m.id)
+            : (hosts.value[0]?.id ? [hosts.value[0].id] : []);
     },
     { immediate: true },
 );
 
 watch(
-    () => form.user_id,
+    () => form.selection_mode,
+    () => {
+        form.participant_ids = form.selection_mode === 'team'
+            ? hosts.value.map((m) => m.id)
+            : (hosts.value[0]?.id ? [hosts.value[0].id] : []);
+    },
+    { immediate: true },
+);
+
+watch(
+    () => availableSlots.value,
     () => {
         form.start_at = availableSlots.value[0]?.value || '';
     },
@@ -91,7 +144,7 @@ function submit() {
             <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
                 <h2 class="text-xl font-bold">احجز مباشرة مع الفريق</h2>
                 <p class="mt-1 text-sm text-gray-600">
-                    اختر القسم والموظف وحدد الموعد، وسيتم تسجيله مباشرة داخل النظام.
+                    اختر قسماً كاملاً أو أكثر من موظف، وحدد موعداً مشتركاً متاحاً للجميع.
                 </p>
 
                 <form class="mt-6 space-y-4" @submit.prevent="submit">
@@ -114,11 +167,27 @@ function submit() {
                     </div>
 
                     <div>
-                        <InputLabel for="user_id" value="الموظف" />
+                        <InputLabel for="selection_mode" value="طريقة اختيار الحضور" />
                         <select
-                            id="user_id"
-                            v-model="form.user_id"
+                            id="selection_mode"
+                            v-model="form.selection_mode"
                             class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                            required
+                        >
+                            <option value="members">اختيار موظفين محددين</option>
+                            <option value="team">اختيار القسم بالكامل</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <InputLabel for="participant_ids" :value="form.selection_mode === 'team' ? 'حضور الاجتماع (القسم بالكامل)' : 'الموظفون المشاركون'" />
+                        <select
+                            id="participant_ids"
+                            v-model="form.participant_ids"
+                            class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                            :multiple="form.selection_mode !== 'team'"
+                            :size="form.selection_mode !== 'team' ? 6 : 1"
+                            :disabled="form.selection_mode === 'team'"
                             required
                         >
                             <option
@@ -126,10 +195,13 @@ function submit() {
                                 :key="m.id"
                                 :value="m.id"
                             >
-                                {{ arabicEmployeeName(m.name) }}
+                                {{ arabicEmployeeName(m.name) }}{{ m.is_lead || m.role === 'lead' ? ' • مدير قسم' : '' }}
                             </option>
                         </select>
-                        <InputError class="mt-1" :message="form.errors.user_id" />
+                        <p class="mt-1 text-xs text-gray-500">
+                            {{ form.selection_mode === 'team' ? 'سيتم حجز الاجتماع مع جميع أفراد القسم.' : 'يمكنك اختيار أكثر من موظف (Ctrl/Cmd + Click).' }}
+                        </p>
+                        <InputError class="mt-1" :message="form.errors.participant_ids" />
                     </div>
 
                     <div class="grid gap-4 sm:grid-cols-2">
@@ -177,7 +249,7 @@ function submit() {
                                 v-if="!availableSlots.length"
                                 class="mt-1 text-xs text-amber-700"
                             >
-                                لا توجد أوقات متاحة حالياً لهذا الموظف. اختر موظفاً آخر.
+                                لا توجد أوقات مشتركة متاحة حالياً للموظفين المحددين. غيّر الاختيار أو القسم.
                             </p>
                             <InputError class="mt-1" :message="form.errors.start_at" />
                         </div>

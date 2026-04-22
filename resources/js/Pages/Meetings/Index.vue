@@ -10,6 +10,7 @@ const props = defineProps({
     meetings: Array,
     hosts: Array,
     clients: Array,
+    teams: Array,
     filters: Object,
 });
 
@@ -21,6 +22,7 @@ const statusLabels = {
 
 const sourceLabels = {
     internal: 'داخلي',
+    calendly: 'Calendly',
 };
 
 const employeeNameMap = {
@@ -54,6 +56,8 @@ function setHost(userId) {
     goIndex({
         user_id: userId || undefined,
         client_id: props.filters.client_id || undefined,
+        status: props.filters.status || undefined,
+        scope: props.filters.scope || undefined,
     });
 }
 
@@ -69,6 +73,28 @@ function setClient(event) {
     goIndex({
         user_id: props.filters.user_id || undefined,
         client_id: clientId,
+        status: props.filters.status || undefined,
+        scope: props.filters.scope || undefined,
+    });
+}
+
+function setStatus(event) {
+    const raw = event.target.value;
+    goIndex({
+        user_id: props.filters.user_id || undefined,
+        client_id: props.filters.client_id || undefined,
+        status: raw || undefined,
+        scope: props.filters.scope || undefined,
+    });
+}
+
+function setScope(event) {
+    const raw = event.target.value;
+    goIndex({
+        user_id: props.filters.user_id || undefined,
+        client_id: props.filters.client_id || undefined,
+        status: props.filters.status || undefined,
+        scope: raw || undefined,
     });
 }
 
@@ -126,7 +152,7 @@ function submitComplete() {
             <div
                 class="flex flex-col gap-3 rounded-lg bg-white p-4 shadow ring-1 ring-gray-200 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
             >
-                <div class="grid w-full gap-3 sm:grid-cols-2">
+                <div class="grid w-full gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div class="flex items-center gap-2">
                         <label class="text-sm text-gray-600" for="host_filter">المضيف:</label>
                         <select
@@ -141,7 +167,7 @@ function submitComplete() {
                                 :key="h.id"
                                 :value="h.id"
                             >
-                                {{ arabicEmployeeName(h.name) }}
+                                {{ arabicEmployeeName(h.name) }}{{ h.role === 'lead' ? ' • مدير قسم' : '' }}
                             </option>
                         </select>
                     </div>
@@ -161,6 +187,33 @@ function submitComplete() {
                             >
                                 {{ c.name }}
                             </option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm text-gray-600" for="status_filter">الحالة:</label>
+                        <select
+                            id="status_filter"
+                            class="w-full rounded-md border-gray-300 text-sm shadow-sm"
+                            :value="filters.status ?? ''"
+                            @change="setStatus"
+                        >
+                            <option value="">الكل</option>
+                            <option value="scheduled">مجدول</option>
+                            <option value="completed">منتهي</option>
+                            <option value="canceled">ملغى</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm text-gray-600" for="scope_filter">النوع:</label>
+                        <select
+                            id="scope_filter"
+                            class="w-full rounded-md border-gray-300 text-sm shadow-sm"
+                            :value="filters.scope ?? ''"
+                            @change="setScope"
+                        >
+                            <option value="">الكل</option>
+                            <option value="internal">داخلية</option>
+                            <option value="client">اجتماعات العملاء</option>
                         </select>
                     </div>
                 </div>
@@ -191,7 +244,17 @@ function submitComplete() {
                     </div>
                     <div class="mt-2 text-xs text-gray-600">{{ formatDt(m.start_at) }}</div>
                     <div class="mt-2 text-sm text-gray-700">
-                        المضيف: {{ m.host ? arabicEmployeeName(m.host.name) : '—' }}
+                        المضيف:
+                        {{ m.host ? arabicEmployeeName(m.host.name) : '—' }}
+                        <span
+                            v-if="m.host?.is_team_manager"
+                            class="ms-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] text-indigo-700"
+                        >
+                            مدير قسم
+                        </span>
+                    </div>
+                    <div class="mt-1 text-sm text-gray-700">
+                        المشاركون: {{ m.participants?.length || 0 }}
                     </div>
                     <div class="mt-1 text-sm text-gray-700">
                         الضيف: {{ m.invitee_name || '—' }}
@@ -249,6 +312,9 @@ function submitComplete() {
                                 السبب
                             </th>
                             <th class="px-4 py-2 text-start font-medium text-gray-600">
+                                المشاركون
+                            </th>
+                            <th class="px-4 py-2 text-start font-medium text-gray-600">
                                 الملخص
                             </th>
                             <th class="px-4 py-2 text-start font-medium text-gray-600">
@@ -276,7 +342,15 @@ function submitComplete() {
                                 </div>
                             </td>
                             <td class="px-4 py-2 text-gray-700">
-                                {{ m.host ? arabicEmployeeName(m.host.name) : '—' }}
+                                <div class="flex flex-wrap items-center gap-1">
+                                    <span>{{ m.host ? arabicEmployeeName(m.host.name) : '—' }}</span>
+                                    <span
+                                        v-if="m.host?.is_team_manager"
+                                        class="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] text-indigo-700"
+                                    >
+                                        مدير قسم
+                                    </span>
+                                </div>
                             </td>
                             <td class="px-4 py-2">
                                 <Link
@@ -290,6 +364,15 @@ function submitComplete() {
                             </td>
                             <td class="max-w-xs truncate px-4 py-2 text-gray-600">
                                 {{ m.reason || '—' }}
+                            </td>
+                            <td class="max-w-xs px-4 py-2 text-gray-600">
+                                <div class="line-clamp-2">
+                                    {{
+                                        (m.participants || [])
+                                            .map((p) => arabicEmployeeName(p.name))
+                                            .join('، ') || '—'
+                                    }}
+                                </div>
                             </td>
                             <td class="max-w-xs truncate px-4 py-2 text-emerald-700">
                                 {{ m.summary || '—' }}
@@ -335,7 +418,7 @@ function submitComplete() {
                             </td>
                         </tr>
                         <tr v-if="!meetings.length">
-                            <td colspan="9" class="px-4 py-8 text-center text-gray-500">
+                            <td colspan="10" class="px-4 py-8 text-center text-gray-500">
                                 <p>لا توجد اجتماعات مطابقة للفلتر.</p>
                                 <p class="mt-2 text-sm">
                                     أنشئ اجتماعاً واربطه بموظف وعميل مباشرة من داخل النظام.

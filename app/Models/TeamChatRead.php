@@ -5,24 +5,20 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class TeamChatMessage extends Model
+class TeamChatRead extends Model
 {
     protected $fillable = [
         'team_id',
         'user_id',
-        'body',
-        'edited_at',
-        'attachment_path',
-        'attachment_name',
-        'attachment_mime',
-        'attachment_size',
+        'last_read_message_id',
+        'last_read_at',
     ];
 
     protected function casts(): array
     {
         return [
-            'edited_at' => 'datetime',
-            'attachment_size' => 'integer',
+            'last_read_message_id' => 'integer',
+            'last_read_at' => 'datetime',
         ];
     }
 

@@ -5,7 +5,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import draggable from 'vuedraggable';
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 
@@ -18,15 +18,17 @@ const props = defineProps({
     filters: Object,
     filterClient: Object,
 });
+const page = usePage();
+const canDeleteRecords = computed(() => Boolean(page.props.auth?.can?.deleteRecords));
 
 const teamLabelMap = {
-    writing: 'الكتابة',
-    'media-buyer': 'الميديا باير',
-    account: 'الأكاونت',
+    writing: 'فريق الكتابة',
+    'media-buyer': 'مدراء الحملات',
+    account: 'مدراء الحسابات',
     sales: 'المبيعات',
     hr: 'الموارد البشرية',
     accounting: 'المحاسبة',
-    'media buyer': 'الميديا باير',
+    'media buyer': 'مدراء الحملات',
 };
 
 const columnLabelMap = {
@@ -165,6 +167,25 @@ function submitTask() {
     });
 }
 
+function deleteTask(taskId) {
+    if (!canDeleteRecords.value) {
+        return;
+    }
+
+    if (!confirm('حذف هذه المهمة؟ لا يمكن التراجع.')) {
+        return;
+    }
+
+    router.delete(route('tasks.destroy', taskId), {
+        preserveScroll: true,
+        onSuccess: () => {
+            if (editingTask.value?.id === taskId) {
+                closeEditModal();
+            }
+        },
+    });
+}
+
 let syncTimer;
 function onDragEnd() {
     if (!boardState.id) {
@@ -188,9 +209,22 @@ function onDragEnd() {
 const editModalOpen = ref(false);
 const editingTask = ref(null);
 const taskMessages = ref([]);
+const taskAttachments = ref([]);
 const taskMessageSending = ref(false);
 const taskMessageError = ref('');
 const taskMessageBody = ref('');
+const taskAttachmentUploading = ref(false);
+const taskAttachmentError = ref('');
+const taskAttachmentFile = ref(null);
+const attachmentInputRef = ref(null);
+const quickActionModalOpen = ref(false);
+const quickActionTask = ref(null);
+const quickActionForm = useForm({
+    assigned_to_id: '',
+    due_at: '',
+    note: '',
+    checklist_titles: [''],
+});
 
 const editForm = useForm({
     title: '',
@@ -209,8 +243,14 @@ function toDatetimeLocal(iso) {
 function openEdit(task) {
     editingTask.value = task;
     taskMessages.value = [...(task.messages || [])];
+    taskAttachments.value = [...(task.attachments || [])];
     taskMessageBody.value = '';
     taskMessageError.value = '';
+    taskAttachmentError.value = '';
+    taskAttachmentFile.value = null;
+    if (attachmentInputRef.value) {
+        attachmentInputRef.value.value = '';
+    }
     editForm.title = task.title;
     editForm.description = task.description || '';
     editForm.assignee_ids = (task.assignees || []).map((u) => u.id);
@@ -224,12 +264,28 @@ function openEdit(task) {
     editModalOpen.value = true;
 }
 
+function openQuickAction(task) {
+    quickActionTask.value = task;
+    quickActionForm.reset();
+    quickActionForm.checklist_titles = [''];
+    quickActionForm.clearErrors();
+    quickActionModalOpen.value = true;
+}
+
+function closeQuickActionModal() {
+    quickActionModalOpen.value = false;
+    quickActionTask.value = null;
+}
+
 function closeEditModal() {
     editModalOpen.value = false;
     editingTask.value = null;
     taskMessages.value = [];
+    taskAttachments.value = [];
     taskMessageBody.value = '';
     taskMessageError.value = '';
+    taskAttachmentError.value = '';
+    taskAttachmentFile.value = null;
     editMention.open = false;
 }
 
@@ -414,6 +470,139 @@ async function sendTaskMessage() {
         taskMessageSending.value = false;
     }
 }
+
+function formatFileSize(size) {
+    const value = Number(size || 0);
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function onTaskAttachmentSelected(event) {
+    taskAttachmentFile.value = event.target?.files?.[0] || null;
+}
+
+async function uploadTaskAttachment() {
+    if (!editingTask.value || !taskAttachmentFile.value || taskAttachmentUploading.value) {
+        return;
+    }
+
+    taskAttachmentUploading.value = true;
+    taskAttachmentError.value = '';
+
+    try {
+        const payload = new FormData();
+        payload.append('file', taskAttachmentFile.value);
+
+        const response = await window.axios.post(
+            route('tasks.attachments.store', editingTask.value.id),
+            payload,
+            {
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'multipart/form-data',
+                },
+            },
+        );
+
+        if (response?.data?.attachment) {
+            taskAttachments.value.unshift(response.data.attachment);
+            editingTask.value.attachments = [...taskAttachments.value];
+            taskAttachmentFile.value = null;
+            if (attachmentInputRef.value) {
+                attachmentInputRef.value.value = '';
+            }
+        }
+    } catch (error) {
+        taskAttachmentError.value = error?.response?.data?.message || 'تعذر رفع المرفق، حاول مرة أخرى.';
+    } finally {
+        taskAttachmentUploading.value = false;
+    }
+}
+
+async function deleteTaskAttachment(attachment) {
+    if (!attachment?.id || !confirm('حذف هذا المرفق؟')) {
+        return;
+    }
+
+    try {
+        await window.axios.delete(route('tasks.attachments.destroy', attachment.id), {
+            headers: { Accept: 'application/json' },
+        });
+        taskAttachments.value = taskAttachments.value.filter((item) => item.id !== attachment.id);
+        if (editingTask.value) {
+            editingTask.value.attachments = [...taskAttachments.value];
+        }
+    } catch {
+        taskAttachmentError.value = 'تعذر حذف المرفق، حاول مرة أخرى.';
+    }
+}
+
+function submitReassignment() {
+    if (!quickActionTask.value) {
+        return;
+    }
+
+    quickActionForm
+        .transform((data) => ({
+            assigned_to_id: data.assigned_to_id || null,
+            due_at: data.due_at || null,
+            note: data.note || null,
+        }))
+        .post(route('tasks.reassignments.store', quickActionTask.value.id), {
+            preserveScroll: true,
+            onSuccess: () => {
+                closeQuickActionModal();
+            },
+        });
+}
+
+function submitChecklistItem() {
+    if (!quickActionTask.value) {
+        return;
+    }
+
+    const titles = (quickActionForm.checklist_titles || [])
+        .map((line) => String(line || '').trim())
+        .filter((line) => line.length);
+
+    if (!titles.length) {
+        return;
+    }
+
+    quickActionForm
+        .transform((data) => ({
+            titles: (data.checklist_titles || [])
+                .map((line) => String(line || '').trim())
+                .filter((line) => line.length),
+        }))
+        .post(route('tasks.checklist-items.store', quickActionTask.value.id), {
+            preserveScroll: true,
+            onSuccess: () => {
+                quickActionForm.checklist_titles = [''];
+            },
+        });
+}
+
+function addChecklistField() {
+    quickActionForm.checklist_titles.push('');
+}
+
+function removeChecklistField(index) {
+    if (quickActionForm.checklist_titles.length <= 1) {
+        quickActionForm.checklist_titles = [''];
+        return;
+    }
+    quickActionForm.checklist_titles.splice(index, 1);
+}
+
+function toggleChecklistItem(item) {
+    router.patch(
+        route('tasks.checklist-items.toggle', item.id),
+        { is_done: !item.is_done },
+        { preserveScroll: true },
+    );
+}
 </script>
 
 <template>
@@ -506,8 +695,38 @@ async function sendTaskMessage() {
                         >
                             <template #item="{ element }">
                                 <div
-                                    class="relative cursor-grab rounded-md border border-gray-100 bg-gray-50 p-2 pe-9 text-sm active:cursor-grabbing"
+                                    class="relative cursor-grab rounded-md border border-gray-100 bg-gray-50 p-2 pe-16 text-sm active:cursor-grabbing"
                                 >
+                                    <button
+                                        v-if="canDeleteRecords"
+                                        type="button"
+                                        class="absolute end-14 top-1 rounded p-1 text-red-500 hover:bg-red-50 hover:text-red-700"
+                                        title="حذف المهمة"
+                                        @click.stop="deleteTask(element.id)"
+                                    >
+                                        <span class="sr-only">حذف</span>
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2h.293l.91 10.11A2 2 0 007.196 18h5.608a2 2 0 001.993-1.89L15.707 6H16a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zm-1 5a1 1 0 012 0v7a1 1 0 11-2 0V7zm4-1a1 1 0 00-1 1v7a1 1 0 102 0V7a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="absolute end-7 top-1 rounded p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
+                                        title="إعادة تعيين / قائمة تحقق"
+                                        @click.stop="openQuickAction(element)"
+                                    >
+                                        <span class="sr-only">إضافة متابعة</span>
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="h-4 w-4"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                        </svg>
+                                    </button>
                                     <button
                                         type="button"
                                         class="absolute end-1 top-1 rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-700"
@@ -553,6 +772,18 @@ async function sendTaskMessage() {
                                         class="mt-1 max-h-16 overflow-hidden text-xs text-gray-600"
                                         v-html="renderTaskDescription(element.description)"
                                     />
+                                    <p v-if="element.due_at" class="mt-1 text-[11px] text-orange-700">
+                                        الاستحقاق: {{ formatMessageTime(element.due_at) }}
+                                    </p>
+                                    <p
+                                        v-if="element.checklist_items?.length"
+                                        class="mt-1 text-[11px] text-gray-500"
+                                    >
+                                        قائمة التحقق: {{ element.checklist_items.filter((i) => i.is_done).length }}/{{ element.checklist_items.length }}
+                                    </p>
+                                    <p v-if="element.attachments?.length" class="mt-1 text-[11px] text-blue-700">
+                                        مرفقات: {{ element.attachments.length }}
+                                    </p>
                                 </div>
                             </template>
                         </draggable>
@@ -823,10 +1054,124 @@ async function sendTaskMessage() {
                         </div>
                     </div>
 
+                    <div class="space-y-2 rounded-md border border-gray-200 p-3">
+                        <div class="text-sm font-semibold text-gray-800">مرفقات المهمة</div>
+                        <div class="max-h-44 space-y-2 overflow-y-auto rounded bg-gray-50 p-2">
+                            <div
+                                v-for="attachment in taskAttachments"
+                                :key="`task-attachment-${attachment.id}`"
+                                class="rounded bg-white p-2 ring-1 ring-gray-200"
+                            >
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="min-w-0">
+                                        <a
+                                            :href="attachment.url"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="truncate text-xs font-semibold text-brand-600 hover:underline"
+                                        >
+                                            {{ attachment.name }}
+                                        </a>
+                                        <p class="mt-0.5 text-[11px] text-gray-500">
+                                            {{ attachment.mime || 'ملف' }} • {{ formatFileSize(attachment.size) }}
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="text-xs text-red-600 hover:underline"
+                                        @click="deleteTaskAttachment(attachment)"
+                                    >
+                                        حذف
+                                    </button>
+                                </div>
+                                <img
+                                    v-if="attachment.is_image"
+                                    :src="attachment.url"
+                                    alt="مرفق المهمة"
+                                    class="mt-2 max-h-40 rounded border border-gray-200"
+                                />
+                            </div>
+                            <p v-if="!taskAttachments.length" class="text-center text-xs text-gray-500">
+                                لا توجد مرفقات بعد.
+                            </p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <input
+                                ref="attachmentInputRef"
+                                type="file"
+                                class="block w-full text-xs text-gray-600 file:me-2 file:rounded-md file:border-0 file:bg-gray-100 file:px-2 file:py-1 file:text-xs file:font-medium"
+                                @change="onTaskAttachmentSelected"
+                            />
+                            <div class="flex items-center justify-between gap-2">
+                                <p v-if="taskAttachmentError" class="text-xs text-red-600">{{ taskAttachmentError }}</p>
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                                    :disabled="taskAttachmentUploading || !taskAttachmentFile"
+                                    @click="uploadTaskAttachment"
+                                >
+                                    {{ taskAttachmentUploading ? 'جاري الرفع...' : 'رفع مرفق' }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2 rounded-md border border-gray-200 p-3">
+                        <div class="text-sm font-semibold text-gray-800">سجل إعادة التعيين</div>
+                        <div class="max-h-36 space-y-2 overflow-y-auto rounded bg-gray-50 p-2">
+                            <div
+                                v-for="row in (editingTask?.reassignments || [])"
+                                :key="`reassign-${row.id}`"
+                                class="rounded bg-white px-2 py-1 text-xs ring-1 ring-gray-200"
+                            >
+                                <div class="text-gray-700">
+                                    {{ row.assigned_by?.name || '—' }} → {{ row.assigned_to?.name || '—' }}
+                                </div>
+                                <div class="text-gray-500">
+                                    {{ row.due_at ? `استحقاق: ${formatMessageTime(row.due_at)}` : 'بدون استحقاق' }}
+                                </div>
+                            </div>
+                            <p v-if="!(editingTask?.reassignments || []).length" class="text-center text-xs text-gray-500">
+                                لا يوجد سجل إعادة تعيين بعد.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2 rounded-md border border-gray-200 p-3">
+                        <div class="text-sm font-semibold text-gray-800">قائمة تحقق المهمة</div>
+                        <div class="max-h-36 space-y-1 overflow-y-auto rounded bg-gray-50 p-2">
+                            <label
+                                v-for="item in (editingTask?.checklist_items || [])"
+                                :key="`check-${item.id}`"
+                                class="flex items-center gap-2 text-xs text-gray-700"
+                            >
+                                <input
+                                    type="checkbox"
+                                    class="rounded border-gray-300 text-brand-600"
+                                    :checked="item.is_done"
+                                    @change="toggleChecklistItem(item)"
+                                />
+                                <span :class="item.is_done ? 'line-through text-gray-400' : ''">{{ item.title }}</span>
+                            </label>
+                            <p v-if="!(editingTask?.checklist_items || []).length" class="text-center text-xs text-gray-500">
+                                لا توجد قائمة تحقق بعد.
+                            </p>
+                        </div>
+                    </div>
+
                     <div class="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:flex-wrap">
                         <PrimaryButton :disabled="editForm.processing" type="submit" class="w-full justify-center sm:w-auto">
                             حفظ
                         </PrimaryButton>
+                        <button
+                            v-if="canDeleteRecords && editingTask"
+                            type="button"
+                            class="inline-flex w-full items-center justify-center rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm hover:bg-red-50 sm:w-auto"
+                            @click="deleteTask(editingTask.id)"
+                        >
+                            حذف المهمة
+                        </button>
                         <button
                             type="button"
                             class="inline-flex w-full items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 sm:w-auto"
@@ -835,6 +1180,97 @@ async function sendTaskMessage() {
                             إلغاء
                         </button>
                     </div>
+                </form>
+            </div>
+        </Modal>
+
+        <Modal :show="quickActionModalOpen" @close="closeQuickActionModal">
+            <div class="p-4 sm:p-6">
+                <h2 class="text-lg font-semibold text-gray-900">إضافة متابعة للمهمة</h2>
+                <p class="mt-1 text-sm text-gray-600">{{ quickActionTask?.title || '' }}</p>
+
+                <form class="mt-4 space-y-4" @submit.prevent="submitReassignment">
+                    <div class="rounded-md border border-gray-200 p-3">
+                        <h3 class="text-sm font-semibold text-gray-800">إعادة تعيين لموظف + استحقاق</h3>
+                        <div class="mt-2 space-y-2">
+                            <div>
+                                <InputLabel for="qa_assignee" value="الموظف" />
+                                <select
+                                    id="qa_assignee"
+                                    v-model="quickActionForm.assigned_to_id"
+                                    class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                                    required
+                                >
+                                    <option value="">اختر موظف</option>
+                                    <option v-for="u in users || []" :key="`qa-user-${u.id}`" :value="u.id">
+                                        {{ u.name }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div>
+                                <InputLabel for="qa_due" value="تاريخ الاستحقاق (اختياري)" />
+                                <TextInput
+                                    id="qa_due"
+                                    v-model="quickActionForm.due_at"
+                                    type="datetime-local"
+                                    class="mt-1 block w-full"
+                                />
+                            </div>
+                            <div>
+                                <InputLabel for="qa_note" value="ملاحظة (اختياري)" />
+                                <textarea
+                                    id="qa_note"
+                                    v-model="quickActionForm.note"
+                                    rows="2"
+                                    class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                                />
+                            </div>
+                            <InputError class="mt-1" :message="quickActionForm.errors.assigned_to_id || quickActionForm.errors.due_at || quickActionForm.errors.note" />
+                            <PrimaryButton :disabled="quickActionForm.processing" type="submit">
+                                حفظ إعادة التعيين
+                            </PrimaryButton>
+                        </div>
+                    </div>
+                </form>
+
+                <form class="mt-4 space-y-3 rounded-md border border-gray-200 p-3" @submit.prevent="submitChecklistItem">
+                    <h3 class="text-sm font-semibold text-gray-800">إضافة قائمة تحقق متعددة</h3>
+                    <div class="space-y-2">
+                        <div
+                            v-for="(item, index) in quickActionForm.checklist_titles"
+                            :key="`checklist-input-${index}`"
+                            class="flex items-center gap-2"
+                        >
+                            <TextInput
+                                :id="`qa_checklist_${index}`"
+                                v-model="quickActionForm.checklist_titles[index]"
+                                type="text"
+                                class="block w-full"
+                                placeholder="اكتب عنصر قائمة التحقق"
+                            />
+                            <button
+                                type="button"
+                                class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-lg font-semibold text-gray-700 hover:bg-gray-50"
+                                title="إضافة حقل جديد"
+                                @click="addChecklistField"
+                            >
+                                +
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-red-200 text-lg font-semibold text-red-700 hover:bg-red-50"
+                                title="حذف هذا الحقل"
+                                @click="removeChecklistField(index)"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500">استخدم زر + لإضافة عناصر جديدة بنفس الوقت.</p>
+                    <InputError class="mt-1" :message="quickActionForm.errors.titles || quickActionForm.errors.title" />
+                    <PrimaryButton :disabled="quickActionForm.processing" type="submit">
+                        إضافة العناصر
+                    </PrimaryButton>
                 </form>
             </div>
         </Modal>

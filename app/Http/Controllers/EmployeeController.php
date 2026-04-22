@@ -239,9 +239,9 @@ class EmployeeController extends Controller
         }
 
         $defaults = [
-            ['name' => 'الكتابة', 'slug' => 'writing', 'sort_order' => 10],
-            ['name' => 'الميديا باير', 'slug' => 'media-buyer', 'sort_order' => 20],
-            ['name' => 'أكاونت', 'slug' => 'account', 'sort_order' => 30],
+            ['name' => 'فريق الكتابة', 'slug' => 'writing', 'sort_order' => 10],
+            ['name' => 'مدراء الحملات', 'slug' => 'media-buyer', 'sort_order' => 20],
+            ['name' => 'مدراء الحسابات', 'slug' => 'account', 'sort_order' => 30],
             ['name' => 'المبيعات', 'slug' => 'sales', 'sort_order' => 40],
             ['name' => 'الموارد البشرية', 'slug' => 'hr', 'sort_order' => 50],
             ['name' => 'المحاسبة', 'slug' => 'accounting', 'sort_order' => 60],

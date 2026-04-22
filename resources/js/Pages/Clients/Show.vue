@@ -3,7 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 
 const props = defineProps({
     client: Object,
@@ -16,6 +16,7 @@ const props = defineProps({
     metrics: Object,
     accountManagers: Array,
 });
+const canDeleteRecords = Boolean(usePage().props.auth?.can?.deleteRecords);
 
 const clientForm = useForm({
     name: props.client.name,
@@ -42,6 +43,16 @@ function saveStage() {
     });
 }
 
+function deleteClient() {
+    if (!canDeleteRecords) {
+        return;
+    }
+    if (!confirm('حذف هذا العميل؟ سيتم حذف كل البيانات المرتبطة به.')) {
+        return;
+    }
+    router.delete(route('clients.destroy', props.client.id));
+}
+
 function formatDt(iso) {
     return new Date(iso).toLocaleString('ar-SA', {
         dateStyle: 'medium',
@@ -55,13 +66,13 @@ const sourceLabels = {
 };
 
 const teamLabelMap = {
-    writing: 'الكتابة',
-    'media-buyer': 'الميديا باير',
-    account: 'الأكاونت',
+    writing: 'فريق الكتابة',
+    'media-buyer': 'مدراء الحملات',
+    account: 'مدراء الحسابات',
     sales: 'المبيعات',
     hr: 'الموارد البشرية',
     accounting: 'المحاسبة',
-    'media buyer': 'الميديا باير',
+    'media buyer': 'مدراء الحملات',
 };
 
 const columnLabelMap = {
@@ -128,6 +139,14 @@ function localizeColumnName(name) {
                 >
                     جدولة اجتماع داخلي
                 </Link>
+                <button
+                    v-if="canDeleteRecords"
+                    type="button"
+                    class="inline-flex items-center justify-center rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50"
+                    @click="deleteClient"
+                >
+                    حذف العميل
+                </button>
             </div>
 
             <div class="grid gap-4 md:grid-cols-3">

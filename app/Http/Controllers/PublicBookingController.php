@@ -7,6 +7,7 @@ use App\Models\Meeting;
 use App\Models\Team;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Arr;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,16 +31,11 @@ class PublicBookingController extends Controller
 
         $from = now()->startOfDay();
         $to = now()->addDays(21)->endOfDay();
-        $busyByUser = Meeting::query()
-            ->whereIn('user_id', $bookableUsers->pluck('id'))
-            ->where('status', 'scheduled')
-            ->where('start_at', '<=', $to)
-            ->where(function ($q) use ($from) {
-                $q->where('end_at', '>=', $from)
-                    ->orWhereNull('end_at');
-            })
-            ->get()
-            ->groupBy('user_id');
+        $busyByUser = $this->buildBusyByUser(
+            $bookableUsers->pluck('id')->map(fn ($id) => (int) $id)->all(),
+            $from,
+            $to,
+        );
 
         return Inertia::render('Public/Book', [
             'booked' => request()->boolean('booked'),
@@ -51,6 +47,8 @@ class PublicBookingController extends Controller
                     ->map(fn ($user) => [
                         'id' => $user->id,
                         'name' => $user->name,
+                        'role' => $user->role,
+                        'is_lead' => (bool) ($user->pivot?->is_lead),
                         'availability' => [
                             'schedule' => $this->normalizedSchedule($user),
                         ],
@@ -66,7 +64,10 @@ class PublicBookingController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
-            'user_id' => ['required', 'exists:users,id'],
+            'team_slug' => ['required', 'exists:teams,slug'],
+            'selection_mode' => ['required', 'in:team,members'],
+            'participant_ids' => ['nullable', 'array'],
+            'participant_ids.*' => ['integer', 'exists:users,id'],
             'project_name' => ['required', 'string', 'max:255'],
             'invitee_name' => ['required', 'string', 'max:255'],
             'invitee_email' => ['nullable', 'email', 'max:255'],
@@ -74,34 +75,66 @@ class PublicBookingController extends Controller
             'reason' => ['nullable', 'string', 'max:5000'],
         ]);
 
-        $host = User::query()
-            ->whereKey($data['user_id'])
-            ->where('is_bookable', true)
+        $team = Team::query()
+            ->where('slug', $data['team_slug'])
+            ->with(['users' => fn ($q) => $q->where('is_bookable', true)->orderBy('name')])
             ->firstOrFail();
+
+        $teamMembers = $team->users->values();
+        if ($teamMembers->isEmpty()) {
+            throw ValidationException::withMessages([
+                'team_slug' => 'هذا القسم لا يحتوي موظفين متاحين للحجز.',
+            ]);
+        }
+
+        $participantIds = collect($data['participant_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($data['selection_mode'] === 'team') {
+            $selectedUsers = $teamMembers;
+        } else {
+            if ($participantIds->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'participant_ids' => 'اختر موظفًا واحدًا على الأقل.',
+                ]);
+            }
+            $selectedUsers = $teamMembers
+                ->whereIn('id', $participantIds->all())
+                ->values();
+        }
+
+        if ($selectedUsers->isEmpty()) {
+            throw ValidationException::withMessages([
+                'participant_ids' => 'الاختيارات غير صالحة لهذا القسم.',
+            ]);
+        }
 
         $start = Carbon::parse($data['start_at']);
         $end = (clone $start)->addHour();
 
-        if (! $this->isWithinAvailability($host, $start, $end)) {
-            throw ValidationException::withMessages([
-                'start_at' => 'الموعد خارج أوقات توفر الموظف.',
-            ]);
-        }
+        $selectedUserIds = $selectedUsers->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $busyByUser = $this->buildBusyByUser($selectedUserIds, $start->copy()->subDays(1), $end->copy()->addDays(1));
 
-        $hasConflict = Meeting::query()
-            ->where('user_id', $host->id)
-            ->where('status', 'scheduled')
-            ->where('start_at', '<', $end)
-            ->where(function ($q) use ($start) {
-                $q->where('end_at', '>', $start)
-                    ->orWhereNull('end_at');
-            })
-            ->exists();
+        foreach ($selectedUsers as $user) {
+            if (! $this->isWithinAvailability($user, $start, $end)) {
+                throw ValidationException::withMessages([
+                    'start_at' => 'الموعد خارج أوقات توفر بعض الموظفين المحددين.',
+                ]);
+            }
 
-        if ($hasConflict) {
-            throw ValidationException::withMessages([
-                'start_at' => 'هذا الوقت محجوز بالفعل، اختر وقتاً آخر.',
-            ]);
+            $busy = $busyByUser[$user->id] ?? collect();
+            $conflict = $busy->first(function (Meeting $meeting) use ($start, $end) {
+                $meetingEnd = $meeting->end_at ? $meeting->end_at->copy() : $meeting->start_at->copy()->addHour();
+                return $meeting->start_at->lt($end) && $meetingEnd->gt($start);
+            });
+
+            if ($conflict) {
+                throw ValidationException::withMessages([
+                    'start_at' => 'هذا الوقت غير متاح لكل الموظفين المختارين. اختر وقتاً آخر.',
+                ]);
+            }
         }
 
         // If the invitee name matches an existing client, link the meeting to that client.
@@ -109,7 +142,11 @@ class PublicBookingController extends Controller
             ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($data['invitee_name']))])
             ->first();
 
-        Meeting::query()->create([
+        $host = $selectedUsers
+            ->sortByDesc(fn (User $user) => (bool) ($user->pivot?->is_lead))
+            ->first();
+
+        $meeting = Meeting::query()->create([
             'source' => 'internal',
             'external_id' => null,
             'title' => $data['project_name'],
@@ -119,10 +156,12 @@ class PublicBookingController extends Controller
             'invitee_email' => $data['invitee_email'] ?? null,
             'reason' => $data['reason'] ?? null,
             'status' => 'scheduled',
-            'user_id' => $host->id,
+            'user_id' => $host?->id,
             'client_id' => $matchedClient?->id,
             'raw_payload' => null,
         ]);
+
+        $meeting->participants()->sync($selectedUserIds);
 
         return redirect()->route('book.index', ['booked' => 1]);
     }
@@ -236,5 +275,57 @@ class PublicBookingController extends Controller
         }
 
         return ['start' => $start, 'end' => $end];
+    }
+
+    /**
+     * @param array<int, int> $userIds
+     * @return array<int, Collection<int, Meeting>>
+     */
+    private function buildBusyByUser(array $userIds, Carbon $from, Carbon $to): array
+    {
+        $ids = collect($userIds)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($ids)) {
+            return [];
+        }
+
+        $meetings = Meeting::query()
+            ->with('participants:id')
+            ->where('status', 'scheduled')
+            ->where('start_at', '<=', $to)
+            ->where(function ($q) use ($from) {
+                $q->where('end_at', '>=', $from)
+                    ->orWhereNull('end_at');
+            })
+            ->where(function ($q) use ($ids) {
+                $q->whereIn('user_id', $ids)
+                    ->orWhereHas('participants', fn ($q2) => $q2->whereIn('users.id', $ids));
+            })
+            ->get();
+
+        $busyByUser = [];
+        foreach ($ids as $id) {
+            $busyByUser[$id] = collect();
+        }
+
+        foreach ($meetings as $meeting) {
+            $memberIds = collect([$meeting->user_id])
+                ->merge($meeting->participants->pluck('id'))
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->unique();
+
+            foreach ($memberIds as $id) {
+                if (isset($busyByUser[$id])) {
+                    $busyByUser[$id]->push($meeting);
+                }
+            }
+        }
+
+        return $busyByUser;
     }
 }
