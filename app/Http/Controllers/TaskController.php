@@ -135,15 +135,9 @@ class TaskController extends Controller
                 ]),
             ] : null,
             'clients' => Client::query()
-                ->leftJoin('pipeline_stages', 'pipeline_stages.id', '=', 'clients.current_pipeline_stage_id')
-                ->orderByRaw('COALESCE(clients.name, clients.company, "")')
-                ->get([
-                    'clients.id',
-                    'clients.name',
-                    'clients.company',
-                    'pipeline_stages.key as stage_key',
-                    'pipeline_stages.label as stage_label',
-                ]),
+                ->whereDoesntHave('currentStage', fn ($q) => $q->where('key', 'lead'))
+                ->orderByRaw('COALESCE(name, company, "")')
+                ->get(['id', 'name', 'company']),
             'users' => User::query()->orderBy('name')->get(['id', 'name']),
             'filters' => [
                 'client_id' => $clientId,

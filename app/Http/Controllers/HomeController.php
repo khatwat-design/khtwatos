@@ -80,7 +80,12 @@ class HomeController extends Controller
 
         return Inertia::render('Home/Index', [
             'cards' => [
-                'clients_total' => Client::query()->count(),
+                'clients_total' => Client::query()
+                    ->where(function ($q) {
+                        $q->whereNull('current_pipeline_stage_id')
+                            ->orWhereHas('currentStage', fn ($q2) => $q2->where('key', '!=', 'lead'));
+                    })
+                    ->count(),
                 'clients_leads' => Client::query()
                     ->whereHas('currentStage', fn ($q) => $q->where('key', 'lead'))
                     ->count(),

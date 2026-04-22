@@ -73,10 +73,9 @@ const boardState = reactive({
 const clientOptions = computed(() =>
     (props.clients || []).map((client) => {
         const base = client?.name || client?.company || `عميل #${client?.id}`;
-        const stageHint = client?.stage_key === 'lead' ? ' • عميل محتمل' : '';
         return {
             id: client.id,
-            label: `${base}${stageHint}`,
+            label: base,
         };
     }),
 );
