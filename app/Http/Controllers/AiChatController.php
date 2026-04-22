@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
+use Throwable;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -135,7 +136,7 @@ class AiChatController extends Controller
         $history = AiMessage::query()
             ->where('conversation_id', $conversation->id)
             ->orderByDesc('id')
-            ->limit(24)
+            ->limit(8)
             ->get(['role', 'content'])
             ->reverse()
             ->values();
@@ -151,14 +152,26 @@ class AiChatController extends Controller
             ])->all(),
         ];
 
-        $response = Http::timeout(max(10, $timeout))
-            ->acceptJson()
-            ->asJson()
-            ->post($baseUrl.'/api/chat', [
-                'model' => $model,
-                'messages' => $payloadMessages,
-                'stream' => false,
-            ]);
+        try {
+            $response = Http::timeout(max(10, $timeout))
+                ->acceptJson()
+                ->asJson()
+                ->post($baseUrl.'/api/chat', [
+                    'model' => $model,
+                    'messages' => $payloadMessages,
+                    'stream' => false,
+                    'keep_alive' => '15m',
+                    'options' => [
+                        'num_predict' => 220,
+                        'temperature' => 0.4,
+                    ],
+                ]);
+        } catch (Throwable $e) {
+            report($e);
+            return response()->json([
+                'message' => 'خطوة غير متوفر حالياً. حاول بعد قليل.',
+            ], 502);
+        }
 
         if (! $response->successful()) {
             return response()->json([
@@ -229,14 +242,23 @@ class AiChatController extends Controller
             ->map(fn (AiMessage $message) => ($message->role === 'user' ? 'المستخدم' : 'خطوة').': '.$message->content)
             ->implode("\n");
 
-        $titleResponse = Http::timeout(max(8, min(25, $timeout)))
-            ->acceptJson()
-            ->asJson()
-            ->post($baseUrl.'/api/generate', [
-                'model' => $model,
-                'stream' => false,
-                'prompt' => "اقترح عنوانًا عربيًا قصيرًا جدًا (3 إلى 6 كلمات) لهذه المحادثة. أعد العنوان فقط بدون شرح.\n\n".$conversationText,
-            ]);
+        try {
+            $titleResponse = Http::timeout(max(8, min(25, $timeout)))
+                ->acceptJson()
+                ->asJson()
+                ->post($baseUrl.'/api/generate', [
+                    'model' => $model,
+                    'stream' => false,
+                    'keep_alive' => '15m',
+                    'options' => [
+                        'num_predict' => 24,
+                        'temperature' => 0.2,
+                    ],
+                    'prompt' => "اقترح عنوانًا عربيًا قصيرًا جدًا (3 إلى 6 كلمات) لهذه المحادثة. أعد العنوان فقط بدون شرح.\n\n".$conversationText,
+                ]);
+        } catch (Throwable) {
+            return;
+        }
 
         if (! $titleResponse->successful()) {
             return;
