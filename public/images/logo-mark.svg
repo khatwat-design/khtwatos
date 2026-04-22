@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label=".'1, 'DE.2HF">
-  <rect width="512" height="512" rx="96" fill="#000000"/>
-  <path d="M96 240C96 152.8 168.8 80 256 80s160 72.8 160 160h-56c0-56.9-47.1-104-104-104s-104 47.1-104 104z" fill="#B2342E"/>
-  <circle cx="256" cy="302" r="44" fill="#B2342E"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Kharej Almakhزون">
+  <rect width="512" height="512" fill="#121417"/>
+  <path d="M76 256c0-100.6 79.4-180 180-180s180 79.4 180 180h-64c0-64.9-51.1-116-116-116s-116 51.1-116 116z" fill="#B2342E"/>
+  <circle cx="256" cy="316" r="46" fill="#B2342E"/>
 </svg>
 
