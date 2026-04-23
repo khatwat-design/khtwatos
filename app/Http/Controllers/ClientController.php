@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\ClientAttachment;
 use App\Models\ClientStageHistory;
 use App\Models\PipelineStage;
 use App\Models\Task;
@@ -11,6 +12,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -92,6 +94,7 @@ class ClientController extends Controller
             'tasks.assignees:id,name',
             'tasks.column:id,name',
             'meetings' => fn ($q) => $q->with('host:id,name')->orderByDesc('start_at')->limit(20),
+            'attachments.user:id,name',
         ]);
 
         $tasksByTeam = Task::query()
@@ -157,6 +160,19 @@ class ClientController extends Controller
                 'source' => $m->source,
                 'host' => $m->host?->name,
             ]),
+            'attachments' => $client->attachments->map(fn (ClientAttachment $attachment) => [
+                'id' => $attachment->id,
+                'name' => $attachment->name,
+                'mime' => $attachment->mime,
+                'size' => $attachment->size,
+                'url' => Storage::disk('public')->url($attachment->path),
+                'is_image' => is_string($attachment->mime) && str_starts_with($attachment->mime, 'image/'),
+                'uploaded_by' => $attachment->user ? [
+                    'id' => $attachment->user->id,
+                    'name' => $attachment->user->name,
+                ] : null,
+                'created_at' => $attachment->created_at->toIso8601String(),
+            ])->values(),
             'task_status_history' => TaskStatusHistory::query()
                 ->where('client_id', $client->id)
                 ->with(['task:id,title', 'changedBy:id,name'])
@@ -219,9 +235,68 @@ class ClientController extends Controller
             abort(403, 'هذه العملية متاحة لمدير النظام فقط.');
         }
 
+        foreach ($client->attachments()->get(['path']) as $attachment) {
+            if ($attachment->path) {
+                Storage::disk('public')->delete($attachment->path);
+            }
+        }
         $client->delete();
 
         return redirect()->route('clients.index');
+    }
+
+    public function addAttachment(Request $request, Client $client)
+    {
+        $data = $request->validate([
+            'file' => ['required', 'file', 'max:10240'],
+        ]);
+
+        $file = $data['file'];
+        $path = $file->store('client-attachments', 'public');
+
+        $attachment = ClientAttachment::query()->create([
+            'client_id' => $client->id,
+            'user_id' => $request->user()->id,
+            'path' => $path,
+            'name' => $file->getClientOriginalName(),
+            'mime' => $file->getMimeType(),
+            'size' => $file->getSize(),
+        ])->load('user:id,name');
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'attachment' => [
+                    'id' => $attachment->id,
+                    'name' => $attachment->name,
+                    'mime' => $attachment->mime,
+                    'size' => $attachment->size,
+                    'url' => Storage::disk('public')->url($attachment->path),
+                    'is_image' => is_string($attachment->mime) && str_starts_with($attachment->mime, 'image/'),
+                    'uploaded_by' => $attachment->user ? [
+                        'id' => $attachment->user->id,
+                        'name' => $attachment->user->name,
+                    ] : null,
+                    'created_at' => $attachment->created_at->toIso8601String(),
+                ],
+            ]);
+        }
+
+        return redirect()->back();
+    }
+
+    public function deleteAttachment(Request $request, ClientAttachment $clientAttachment): RedirectResponse
+    {
+        $user = $request->user();
+        if (!$user || (!$user->isAdmin() && (int) $clientAttachment->user_id !== (int) $user->id)) {
+            abort(403, 'لا تملك صلاحية حذف هذا المرفق.');
+        }
+
+        if ($clientAttachment->path) {
+            Storage::disk('public')->delete($clientAttachment->path);
+        }
+        $clientAttachment->delete();
+
+        return redirect()->back();
     }
 
     /**

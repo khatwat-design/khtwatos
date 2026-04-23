@@ -1,9 +1,11 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
+import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 const props = defineProps({
     client: Object,
@@ -12,11 +14,20 @@ const props = defineProps({
     tasks_by_team: Array,
     meetings: Array,
     task_status_history: Array,
+    attachments: Array,
     stages: Array,
     metrics: Object,
     accountManagers: Array,
 });
-const canDeleteRecords = Boolean(usePage().props.auth?.can?.deleteRecords);
+const page = usePage();
+const canDeleteRecords = Boolean(page.props.auth?.can?.deleteRecords);
+const clientAttachments = ref([...(props.attachments || [])]);
+const attachmentInputRef = ref(null);
+const attachmentUploading = ref(false);
+const attachmentProgress = ref(0);
+const attachmentError = ref('');
+const attachmentFile = ref(null);
+const maxAttachmentSizeBytes = 10 * 1024 * 1024;
 
 const clientForm = useForm({
     name: props.client.name,
@@ -51,6 +62,104 @@ function deleteClient() {
         return;
     }
     router.delete(route('clients.destroy', props.client.id));
+}
+
+function formatFileSize(size) {
+    const value = Number(size || 0);
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function onAttachmentChange(event) {
+    const selected = event.target?.files?.[0] || null;
+    if (!selected) {
+        attachmentFile.value = null;
+        return;
+    }
+
+    if (Number(selected.size || 0) > maxAttachmentSizeBytes) {
+        attachmentFile.value = null;
+        attachmentError.value = 'حجم الملف أكبر من 10MB. اختر ملفًا أصغر.';
+        if (attachmentInputRef.value) {
+            attachmentInputRef.value.value = '';
+        }
+        return;
+    }
+
+    attachmentError.value = '';
+    attachmentFile.value = selected;
+}
+
+async function uploadClientAttachment() {
+    if (!attachmentFile.value || attachmentUploading.value) {
+        return;
+    }
+
+    attachmentUploading.value = true;
+    attachmentProgress.value = 0;
+    attachmentError.value = '';
+
+    try {
+        const payload = new FormData();
+        payload.append('file', attachmentFile.value);
+
+        const response = await window.axios.post(
+            route('clients.attachments.store', props.client.id),
+            payload,
+            {
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'multipart/form-data',
+                },
+                timeout: 120000,
+                onUploadProgress: (event) => {
+                    const total = Number(event?.total || 0);
+                    if (!total) {
+                        return;
+                    }
+                    attachmentProgress.value = Math.min(100, Math.round((Number(event.loaded || 0) / total) * 100));
+                },
+            },
+        );
+
+        if (response?.data?.attachment) {
+            clientAttachments.value.unshift(response.data.attachment);
+            attachmentFile.value = null;
+            if (attachmentInputRef.value) {
+                attachmentInputRef.value.value = '';
+            }
+            attachmentProgress.value = 0;
+        }
+    } catch (error) {
+        attachmentError.value = error?.response?.data?.message || 'تعذر رفع المرفق، حاول مرة أخرى.';
+    } finally {
+        attachmentUploading.value = false;
+    }
+}
+
+function canDeleteAttachment(attachment) {
+    if (canDeleteRecords) {
+        return true;
+    }
+    const currentUserId = page.props.auth?.user?.id;
+    return Number(attachment?.uploaded_by?.id || 0) === Number(currentUserId || 0);
+}
+
+function deleteClientAttachment(attachment) {
+    if (!attachment?.id || !confirm('حذف هذا المرفق؟')) {
+        return;
+    }
+
+    router.delete(route('clients.attachments.destroy', attachment.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            clientAttachments.value = clientAttachments.value.filter((item) => item.id !== attachment.id);
+        },
+        onError: () => {
+            attachmentError.value = 'تعذر حذف المرفق.';
+        },
+    });
 }
 
 function formatDt(iso) {
@@ -147,6 +256,79 @@ function localizeColumnName(name) {
                 >
                     حذف العميل
                 </button>
+            </div>
+
+            <div class="rounded-lg bg-white p-6 shadow ring-1 ring-gray-200">
+                <h2 class="text-lg font-semibold text-gray-900">مرفقات ومرجع العميل</h2>
+                <div class="mt-4 grid gap-4 lg:grid-cols-[1fr,280px]">
+                    <div class="space-y-2">
+                        <div
+                            v-for="attachment in clientAttachments"
+                            :key="`client-attachment-${attachment.id}`"
+                            class="rounded-md border border-gray-200 bg-gray-50 p-3"
+                        >
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <a
+                                        :href="attachment.url"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="truncate text-sm font-semibold text-brand-600 hover:underline"
+                                    >
+                                        {{ attachment.name }}
+                                    </a>
+                                    <p class="mt-1 text-xs text-gray-500">
+                                        {{ attachment.mime || 'ملف' }} • {{ formatFileSize(attachment.size) }}
+                                        <span v-if="attachment.uploaded_by"> • بواسطة {{ attachment.uploaded_by.name }}</span>
+                                    </p>
+                                </div>
+                                <button
+                                    v-if="canDeleteAttachment(attachment)"
+                                    type="button"
+                                    class="text-xs text-red-600 hover:underline"
+                                    @click="deleteClientAttachment(attachment)"
+                                >
+                                    حذف
+                                </button>
+                            </div>
+                            <img
+                                v-if="attachment.is_image"
+                                :src="attachment.url"
+                                alt="مرفق عميل"
+                                class="mt-2 max-h-44 rounded border border-gray-200"
+                            />
+                        </div>
+                        <p v-if="!clientAttachments.length" class="text-sm text-gray-500">
+                            لا توجد مرفقات بعد لهذا العميل.
+                        </p>
+                    </div>
+
+                    <div class="space-y-3 rounded-md border border-gray-200 p-3">
+                        <InputLabel for="client_attachment_file" value="رفع ملف مرجعي" />
+                        <input
+                            id="client_attachment_file"
+                            ref="attachmentInputRef"
+                            type="file"
+                            class="block w-full text-xs text-gray-600 file:me-2 file:rounded-md file:border-0 file:bg-gray-100 file:px-2 file:py-1 file:text-xs file:font-medium"
+                            @change="onAttachmentChange"
+                        />
+                        <p class="text-[11px] text-gray-500">الحد الأقصى: 10MB</p>
+                        <div v-if="attachmentUploading" class="h-1.5 overflow-hidden rounded-full bg-gray-100">
+                            <div
+                                class="h-full rounded-full bg-brand-600 transition-all"
+                                :style="{ width: `${attachmentProgress}%` }"
+                            />
+                        </div>
+                        <InputError class="mt-1" :message="attachmentError" />
+                        <PrimaryButton
+                            type="button"
+                            :disabled="attachmentUploading || !attachmentFile"
+                            @click="uploadClientAttachment"
+                        >
+                            {{ attachmentUploading ? 'جاري الرفع...' : 'رفع المرفق' }}
+                        </PrimaryButton>
+                    </div>
+                </div>
             </div>
 
             <div class="grid gap-4 md:grid-cols-3">

@@ -67,6 +67,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/clients', [ClientController::class, 'store'])->name('clients.store');
     Route::get('/clients/{client}', [ClientController::class, 'show'])->name('clients.show');
     Route::patch('/clients/{client}', [ClientController::class, 'update'])->name('clients.update');
+    Route::post('/clients/{client}/attachments', [ClientController::class, 'addAttachment'])->name('clients.attachments.store');
+    Route::delete('/client-attachments/{clientAttachment}', [ClientController::class, 'deleteAttachment'])->name('clients.attachments.destroy');
     Route::delete('/clients/{client}', [ClientController::class, 'destroy'])->name('clients.destroy');
     Route::patch('/clients/{client}/stage', [ClientController::class, 'updateStage'])->name('clients.stage');
     Route::get('/academy', [AcademyController::class, 'index'])->name('academy.index');

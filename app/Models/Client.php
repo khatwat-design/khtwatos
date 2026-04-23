@@ -47,4 +47,9 @@ class Client extends Model
     {
         return $this->hasMany(TaskStatusHistory::class)->orderByDesc('created_at');
     }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(ClientAttachment::class)->orderByDesc('created_at');
+    }
 }
