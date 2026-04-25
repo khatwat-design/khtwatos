@@ -34,5 +34,35 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('view-admin-home', function (User $user): bool {
             return $user->isAdmin();
         });
+
+        Gate::define('view-warehouse', function (User $user): bool {
+            if ($user->isAdmin()) {
+                return true;
+            }
+
+            return $user->teams()
+                ->whereIn('slug', ['account', 'media-buyer'])
+                ->exists();
+        });
+
+        Gate::define('manage-campaign-updates', function (User $user): bool {
+            if ($user->isAdmin()) {
+                return true;
+            }
+
+            return $user->teams()
+                ->where('slug', 'media-buyer')
+                ->exists();
+        });
+
+        Gate::define('view-client-portal-link', function (User $user): bool {
+            if ($user->isAdmin()) {
+                return true;
+            }
+
+            return $user->teams()
+                ->where('slug', 'account')
+                ->exists();
+        });
     }
 }

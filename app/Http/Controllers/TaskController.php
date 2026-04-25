@@ -163,15 +163,37 @@ class TaskController extends Controller
             ['name' => 'تم', 'sort_order' => 40],
         ];
 
-        foreach ($columnDefaults as $col) {
-            BoardColumn::query()->firstOrCreate(
-                [
-                    'task_board_id' => $board->id,
-                    'name' => $col['name'],
-                ],
-                ['sort_order' => $col['sort_order']]
-            );
-        }
+        DB::transaction(function () use ($board, $columnDefaults): void {
+            $defaultNames = collect($columnDefaults)->pluck('name')->all();
+            $columnIdsByName = [];
+
+            foreach ($columnDefaults as $col) {
+                $column = BoardColumn::query()->updateOrCreate(
+                    [
+                        'task_board_id' => $board->id,
+                        'name' => $col['name'],
+                    ],
+                    ['sort_order' => $col['sort_order']]
+                );
+                $columnIdsByName[$col['name']] = $column->id;
+            }
+
+            $waitingColumnId = $columnIdsByName['قائمة الانتظار'] ?? null;
+
+            $extraColumns = BoardColumn::query()
+                ->where('task_board_id', $board->id)
+                ->whereNotIn('name', $defaultNames)
+                ->get();
+
+            foreach ($extraColumns as $extraColumn) {
+                if ($waitingColumnId) {
+                    Task::query()
+                        ->where('board_column_id', $extraColumn->id)
+                        ->update(['board_column_id' => $waitingColumnId]);
+                }
+                $extraColumn->delete();
+            }
+        });
     }
 
     /**

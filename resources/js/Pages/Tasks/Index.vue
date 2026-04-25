@@ -128,6 +128,8 @@ watch(
 const createModalOpen = ref(false);
 const createDescriptionRef = ref(null);
 const editDescriptionRef = ref(null);
+const isBoardLoading = ref(false);
+const isBoardSyncing = ref(false);
 
 function openCreateModal() {
     taskForm.clearErrors();
@@ -155,13 +157,20 @@ function teamHref(slug) {
 function setClientFilterFromSelect(event) {
     const raw = event.target.value;
     const clientId = raw === '' ? undefined : Number(raw);
+    isBoardLoading.value = true;
     router.get(
         route('tasks.index'),
         {
             team: props.team?.slug,
             client_id: clientId,
         },
-        { preserveState: true, replace: true },
+        {
+            preserveState: true,
+            replace: true,
+            onFinish: () => {
+                isBoardLoading.value = false;
+            },
+        },
     );
 }
 
@@ -204,6 +213,7 @@ function onDragEnd() {
     }
     clearTimeout(syncTimer);
     syncTimer = setTimeout(() => {
+        isBoardSyncing.value = true;
         router.patch(
             route('task-boards.sync', boardState.id),
             {
@@ -212,7 +222,12 @@ function onDragEnd() {
                     task_ids: c.tasks.map((t) => t.id),
                 })),
             },
-            { preserveScroll: true },
+            {
+                preserveScroll: true,
+                onFinish: () => {
+                    isBoardSyncing.value = false;
+                },
+            },
         );
     }, 80);
 }
@@ -653,11 +668,11 @@ function toggleChecklistItem(item) {
 
         <div class="mx-auto max-w-[1600px]">
             <div
-                class="mb-4 flex flex-col gap-2 rounded-lg bg-white p-3 shadow ring-1 ring-gray-200 sm:flex-row sm:flex-wrap sm:items-center"
+                class="ui-card mb-4 flex flex-col gap-2 p-3 sm:flex-row sm:flex-wrap sm:items-center"
             >
-                <span class="text-sm text-gray-600">العميل:</span>
+                <span class="text-sm text-slate-600">العميل:</span>
                 <select
-                    class="w-full rounded-md border-gray-300 text-sm shadow-sm sm:w-auto"
+                    class="w-full rounded-xl border-slate-200/80 bg-white/80 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200 sm:w-auto"
                     :value="filters?.client_id ?? ''"
                     @change="setClientFilterFromSelect"
                 >
@@ -670,23 +685,23 @@ function toggleChecklistItem(item) {
                         {{ c.name }}
                     </option>
                 </select>
-                <span v-if="filterClient" class="text-sm text-gray-700">
+                <span v-if="filterClient" class="text-sm text-slate-700">
                     عرض مهام:
                     <strong>{{ filterClient.name }}</strong>
                 </span>
             </div>
 
-            <div class="mb-4 flex flex-col gap-3 border-b border-gray-200 pb-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <div class="mb-4 flex flex-col gap-3 border-b border-white/15 pb-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                 <div class="flex gap-2 overflow-x-auto whitespace-nowrap pb-1">
                     <Link
                         v-for="t in teams"
                         :key="t.id"
                         :href="teamHref(t.slug)"
                         :class="[
-                            'rounded-full px-3 py-1 text-sm font-medium',
+                            'rounded-full px-3 py-1 text-sm font-medium transition-all duration-200 ease-out hover:scale-[1.02]',
                             team && team.slug === t.slug
-                                ? 'bg-brand-600 text-white'
-                                : 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50',
+                                ? 'bg-brand-600 text-white shadow-lg shadow-brand-900/30'
+                                : 'bg-white/75 text-slate-700 ring-1 ring-white/40 backdrop-blur hover:bg-white',
                         ]"
                     >
                         {{ localizeTeamName(t.name, t.slug) }}
@@ -705,23 +720,40 @@ function toggleChecklistItem(item) {
 
             <div
                 v-if="!board"
-                class="rounded-lg bg-white p-8 text-center text-gray-600 shadow"
+                class="ui-card p-8 text-center text-slate-600"
             >
                 اختر فريقاً لعرض لوحة المهام.
             </div>
 
             <div v-else class="space-y-4">
+                <div class="flex min-h-6 items-center">
+                    <div v-if="isBoardSyncing" class="inline-flex items-center gap-2 rounded-full border border-brand-200/70 bg-brand-50/85 px-3 py-1 text-[11px] font-medium text-brand-700">
+                        <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-600" />
+                        جار حفظ ترتيب المهام...
+                    </div>
+                </div>
+                <div v-if="isBoardLoading" class="flex gap-3 overflow-x-auto pb-2">
+                    <div v-for="n in 3" :key="`task-skeleton-${n}`" class="ui-card w-[85vw] max-w-sm shrink-0 p-3 sm:w-72">
+                        <div class="skeleton mb-3 h-4 w-32 rounded" />
+                        <div class="space-y-2">
+                            <div class="skeleton h-16 rounded-xl" />
+                            <div class="skeleton h-16 rounded-xl" />
+                            <div class="skeleton h-16 rounded-xl" />
+                        </div>
+                    </div>
+                </div>
                 <div
+                    v-else
                     class="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2"
                     style="min-height: 320px"
                 >
                     <div
                         v-for="col in boardState.columns"
                         :key="col.id"
-                        class="w-[85vw] max-w-sm shrink-0 snap-start rounded-lg bg-white p-3 shadow ring-1 ring-gray-200 sm:w-72"
+                        class="ui-card w-[85vw] max-w-sm shrink-0 snap-start p-3 transition-all duration-200 ease-out sm:w-72"
                     >
                         <h3
-                            class="mb-2 border-b border-gray-100 pb-2 text-sm font-semibold text-gray-800"
+                            class="mb-2 border-b border-slate-200/70 pb-2 text-sm font-semibold text-slate-800"
                         >
                             {{ localizeColumnName(col.name) }}
                         </h3>
@@ -730,17 +762,19 @@ function toggleChecklistItem(item) {
                             group="tasks"
                             item-key="id"
                             class="min-h-40 space-y-2"
-                            ghost-class="opacity-50"
+                            ghost-class="task-ghost"
+                            chosen-class="task-chosen"
+                            drag-class="task-drag"
                             @end="onDragEnd"
                         >
                             <template #item="{ element }">
                                 <div
-                                    class="relative cursor-grab rounded-md border border-gray-100 bg-gray-50 p-2 pe-16 text-sm active:cursor-grabbing"
+                                    class="relative cursor-grab rounded-xl border border-white/40 bg-white/80 p-2 pe-16 text-sm shadow-sm ring-1 ring-slate-200/60 transition-all duration-200 ease-out hover:scale-[1.02] hover:shadow-md active:cursor-grabbing"
                                 >
                                     <button
                                         v-if="canDeleteRecords"
                                         type="button"
-                                        class="absolute end-14 top-1 rounded p-1 text-red-500 hover:bg-red-50 hover:text-red-700"
+                                        class="absolute end-14 top-1 rounded-lg p-1 text-red-500 transition-all duration-200 ease-out hover:bg-red-50 hover:text-red-700"
                                         title="حذف المهمة"
                                         @click.stop="deleteTask(element.id)"
                                     >
@@ -751,7 +785,7 @@ function toggleChecklistItem(item) {
                                     </button>
                                     <button
                                         type="button"
-                                        class="absolute end-7 top-1 rounded p-1 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
+                                        class="absolute end-7 top-1 rounded-lg p-1 text-slate-500 transition-all duration-200 ease-out hover:bg-slate-200 hover:text-slate-700"
                                         title="إعادة تعيين / قائمة تحقق"
                                         @click.stop="openQuickAction(element)"
                                     >
@@ -769,7 +803,7 @@ function toggleChecklistItem(item) {
                                     </button>
                                     <button
                                         type="button"
-                                        class="absolute end-1 top-1 rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-700"
+                                        class="absolute end-1 top-1 rounded-lg p-1 text-slate-400 transition-all duration-200 ease-out hover:bg-slate-200 hover:text-slate-700"
                                         title="تعديل"
                                         @click.stop="openEdit(element)"
                                     >
@@ -789,14 +823,14 @@ function toggleChecklistItem(item) {
                                             />
                                         </svg>
                                     </button>
-                                    <p class="font-medium text-gray-900">
+                                    <p class="font-medium text-slate-900">
                                         {{ element.title }}
                                     </p>
                                     <div class="mt-1 flex flex-wrap gap-1">
                                         <span
                                             v-for="u in (element.assignees?.length ? element.assignees : (element.assignee ? [element.assignee] : []))"
                                             :key="`task-assignee-${element.id}-${u.id}`"
-                                            class="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] text-gray-700"
+                                            class="rounded-full bg-brand-100 px-2 py-0.5 text-[11px] text-brand-800 ring-1 ring-brand-200"
                                         >
                                             {{ u.name }}
                                         </span>
@@ -809,7 +843,7 @@ function toggleChecklistItem(item) {
                                     </p>
                                     <p
                                         v-if="element.description"
-                                        class="mt-1 max-h-16 overflow-hidden text-xs text-gray-600"
+                                        class="mt-1 max-h-16 overflow-hidden text-xs text-slate-600"
                                         v-html="renderTaskDescription(element.description)"
                                     />
                                     <p v-if="element.due_at" class="mt-1 text-[11px] text-orange-700">
@@ -833,8 +867,8 @@ function toggleChecklistItem(item) {
         </div>
 
         <Modal :show="createModalOpen" @close="closeCreateModal">
-            <div class="p-4 sm:p-6" @click.stop>
-                <h2 class="text-lg font-semibold text-gray-900">إضافة مهمة جديدة</h2>
+            <div class="glass-modal light-modal p-4 sm:p-6" @click.stop>
+                <h2 class="text-lg font-semibold text-slate-900">إضافة مهمة جديدة</h2>
                 <form class="mt-4 space-y-3" @submit.prevent="submitTask">
                     <div>
                         <InputLabel for="ct_title" value="عنوان المهمة" />
@@ -853,7 +887,7 @@ function toggleChecklistItem(item) {
                         <select
                             id="ct_column"
                             v-model="taskForm.board_column_id"
-                            class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                            class="mt-1 block w-full rounded-xl border-slate-200 text-sm shadow-sm"
                             required
                         >
                             <option
@@ -873,7 +907,7 @@ function toggleChecklistItem(item) {
                             <select
                                 id="ct_client"
                                 v-model="taskForm.client_id"
-                                class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                                class="mt-1 block w-full rounded-xl border-slate-200 text-sm shadow-sm"
                             >
                                 <option :value="null">—</option>
                                 <option
@@ -894,7 +928,7 @@ function toggleChecklistItem(item) {
                                 v-model="taskForm.assignee_ids"
                                 multiple
                                 size="4"
-                                class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                                class="mt-1 block w-full rounded-xl border-slate-200 text-sm shadow-sm"
                             >
                                 <option
                                     v-for="u in users || []"
@@ -916,7 +950,7 @@ function toggleChecklistItem(item) {
                             ref="createDescriptionRef"
                             v-model="taskForm.description"
                             rows="4"
-                            class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                            class="mt-1 block w-full rounded-xl border-slate-200 text-sm shadow-sm"
                             placeholder="اكتب ملاحظات المهمة... واستخدم @ للمنشن"
                             @input="onCreateDescriptionInput"
                             @keydown="onCreateDescriptionKeydown"
@@ -926,13 +960,13 @@ function toggleChecklistItem(item) {
 
                         <div
                             v-if="createMention.open && createMentionSuggestions.length"
-                            class="absolute z-20 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg"
+                            class="absolute z-20 mt-1 w-full rounded-xl border border-white/30 bg-white/90 shadow-xl backdrop-blur"
                         >
                             <button
                                 v-for="u in createMentionSuggestions"
                                 :key="`create-mention-${u.id}`"
                                 type="button"
-                                class="flex w-full items-center justify-between px-3 py-2 text-start text-sm hover:bg-gray-50"
+                                class="flex w-full items-center justify-between px-3 py-2 text-start text-sm transition-colors duration-200 hover:bg-slate-50"
                                 @mousedown.prevent="insertMention(taskForm, createMention, createDescriptionRef, u)"
                             >
                                 <span>{{ u.name }}</span>
@@ -947,7 +981,7 @@ function toggleChecklistItem(item) {
                         </PrimaryButton>
                         <button
                             type="button"
-                            class="inline-flex w-full items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 sm:w-auto"
+                            class="inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-slate-50 sm:w-auto"
                             @click="closeCreateModal"
                         >
                             إلغاء
@@ -958,7 +992,7 @@ function toggleChecklistItem(item) {
         </Modal>
 
         <Modal :show="editModalOpen" @close="closeEditModal">
-            <div class="p-4 sm:p-6" @click.stop>
+            <div class="glass-modal p-4 sm:p-6" @click.stop>
                 <h2 class="text-lg font-semibold text-gray-900">تعديل المهمة</h2>
                 <form class="mt-4 space-y-3" @submit.prevent="saveTaskEdit">
                     <div>
@@ -980,7 +1014,7 @@ function toggleChecklistItem(item) {
                             ref="editDescriptionRef"
                             v-model="editForm.description"
                             rows="3"
-                            class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                            class="mt-1 block w-full rounded-xl border-slate-200 text-sm shadow-sm"
                             placeholder="استخدم @ للمنشن"
                             @input="onEditDescriptionInput"
                             @keydown="onEditDescriptionKeydown"
@@ -990,13 +1024,13 @@ function toggleChecklistItem(item) {
 
                         <div
                             v-if="editMention.open && editMentionSuggestions.length"
-                            class="absolute z-20 mt-1 w-full rounded-md border border-gray-200 bg-white shadow-lg"
+                            class="absolute z-20 mt-1 w-full rounded-xl border border-white/30 bg-white/90 shadow-xl backdrop-blur"
                         >
                             <button
                                 v-for="u in editMentionSuggestions"
                                 :key="`edit-mention-${u.id}`"
                                 type="button"
-                                class="flex w-full items-center justify-between px-3 py-2 text-start text-sm hover:bg-gray-50"
+                                class="flex w-full items-center justify-between px-3 py-2 text-start text-sm transition-colors duration-200 hover:bg-slate-50"
                                 @mousedown.prevent="insertMention(editForm, editMention, editDescriptionRef, u)"
                             >
                                 <span>{{ u.name }}</span>
@@ -1010,7 +1044,7 @@ function toggleChecklistItem(item) {
                         <select
                             id="et_client"
                             v-model="editForm.client_id"
-                            class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                            class="mt-1 block w-full rounded-xl border-slate-200 text-sm shadow-sm"
                         >
                             <option :value="null">—</option>
                             <option
@@ -1056,13 +1090,13 @@ function toggleChecklistItem(item) {
                         <InputError class="mt-1" :message="editForm.errors.due_at" />
                     </div>
 
-                    <div class="space-y-2 rounded-md border border-gray-200 p-3">
+                    <div class="space-y-2 rounded-xl border border-white/30 bg-white/70 p-3 backdrop-blur">
                         <div class="text-sm font-semibold text-gray-800">محادثة المهمة</div>
-                        <div class="max-h-48 space-y-2 overflow-y-auto rounded bg-gray-50 p-2">
+                        <div class="max-h-48 space-y-2 overflow-y-auto rounded-xl bg-slate-50/80 p-2">
                             <div
                                 v-for="msg in taskMessages"
                                 :key="`task-message-${msg.id}`"
-                                class="rounded bg-white px-2 py-1.5 text-sm ring-1 ring-gray-200"
+                                class="rounded-xl bg-white px-2 py-1.5 text-sm ring-1 ring-slate-200/70"
                             >
                                 <div class="flex items-center justify-between gap-2">
                                     <span class="font-medium text-gray-900">{{ msg.user?.name || 'عضو' }}</span>
@@ -1094,13 +1128,13 @@ function toggleChecklistItem(item) {
                         </div>
                     </div>
 
-                    <div class="space-y-2 rounded-md border border-gray-200 p-3">
+                    <div class="space-y-2 rounded-xl border border-white/30 bg-white/70 p-3 backdrop-blur">
                         <div class="text-sm font-semibold text-gray-800">مرفقات المهمة</div>
-                        <div class="max-h-44 space-y-2 overflow-y-auto rounded bg-gray-50 p-2">
+                        <div class="max-h-44 space-y-2 overflow-y-auto rounded-xl bg-slate-50/80 p-2">
                             <div
                                 v-for="attachment in taskAttachments"
                                 :key="`task-attachment-${attachment.id}`"
-                                class="rounded bg-white p-2 ring-1 ring-gray-200"
+                                class="rounded-xl bg-white p-2 ring-1 ring-slate-200/70"
                             >
                                 <div class="flex items-start justify-between gap-2">
                                     <div class="min-w-0">
@@ -1155,7 +1189,7 @@ function toggleChecklistItem(item) {
                                 <p v-if="taskAttachmentError" class="text-xs text-red-600">{{ taskAttachmentError }}</p>
                                 <button
                                     type="button"
-                                    class="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                                    class="inline-flex items-center rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-blue-700 disabled:opacity-60"
                                     :disabled="taskAttachmentUploading || !taskAttachmentFile"
                                     @click="uploadTaskAttachment"
                                 >
@@ -1165,13 +1199,13 @@ function toggleChecklistItem(item) {
                         </div>
                     </div>
 
-                    <div class="space-y-2 rounded-md border border-gray-200 p-3">
+                    <div class="space-y-2 rounded-xl border border-white/30 bg-white/70 p-3 backdrop-blur">
                         <div class="text-sm font-semibold text-gray-800">سجل إعادة التعيين</div>
-                        <div class="max-h-36 space-y-2 overflow-y-auto rounded bg-gray-50 p-2">
+                        <div class="max-h-36 space-y-2 overflow-y-auto rounded-xl bg-slate-50/80 p-2">
                             <div
                                 v-for="row in (editingTask?.reassignments || [])"
                                 :key="`reassign-${row.id}`"
-                                class="rounded bg-white px-2 py-1 text-xs ring-1 ring-gray-200"
+                                class="rounded-xl bg-white px-2 py-1 text-xs ring-1 ring-slate-200/70"
                             >
                                 <div class="text-gray-700">
                                     {{ row.assigned_by?.name || '—' }} → {{ row.assigned_to?.name || '—' }}
@@ -1186,9 +1220,9 @@ function toggleChecklistItem(item) {
                         </div>
                     </div>
 
-                    <div class="space-y-2 rounded-md border border-gray-200 p-3">
+                    <div class="space-y-2 rounded-xl border border-white/30 bg-white/70 p-3 backdrop-blur">
                         <div class="text-sm font-semibold text-gray-800">قائمة تحقق المهمة</div>
-                        <div class="max-h-36 space-y-1 overflow-y-auto rounded bg-gray-50 p-2">
+                        <div class="max-h-36 space-y-1 overflow-y-auto rounded-xl bg-slate-50/80 p-2">
                             <label
                                 v-for="item in (editingTask?.checklist_items || [])"
                                 :key="`check-${item.id}`"
@@ -1215,14 +1249,14 @@ function toggleChecklistItem(item) {
                         <button
                             v-if="canDeleteRecords && editingTask"
                             type="button"
-                            class="inline-flex w-full items-center justify-center rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm hover:bg-red-50 sm:w-auto"
+                            class="inline-flex w-full items-center justify-center rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-red-50 sm:w-auto"
                             @click="deleteTask(editingTask.id)"
                         >
                             حذف المهمة
                         </button>
                         <button
                             type="button"
-                            class="inline-flex w-full items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 sm:w-auto"
+                            class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-gray-50 sm:w-auto"
                             @click="closeEditModal"
                         >
                             إلغاء
@@ -1233,12 +1267,12 @@ function toggleChecklistItem(item) {
         </Modal>
 
         <Modal :show="quickActionModalOpen" @close="closeQuickActionModal">
-            <div class="p-4 sm:p-6">
+            <div class="glass-modal p-4 sm:p-6">
                 <h2 class="text-lg font-semibold text-gray-900">إضافة متابعة للمهمة</h2>
                 <p class="mt-1 text-sm text-gray-600">{{ quickActionTask?.title || '' }}</p>
 
                 <form class="mt-4 space-y-4" @submit.prevent="submitReassignment">
-                    <div class="rounded-md border border-gray-200 p-3">
+                    <div class="rounded-xl border border-white/30 bg-white/70 p-3 backdrop-blur">
                         <h3 class="text-sm font-semibold text-gray-800">إعادة تعيين لموظف + استحقاق</h3>
                         <div class="mt-2 space-y-2">
                             <div>
@@ -1246,7 +1280,7 @@ function toggleChecklistItem(item) {
                                 <select
                                     id="qa_assignee"
                                     v-model="quickActionForm.assigned_to_id"
-                                    class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                                    class="mt-1 block w-full rounded-xl border-gray-300 text-sm shadow-sm"
                                     required
                                 >
                                     <option value="">اختر موظف</option>
@@ -1270,7 +1304,7 @@ function toggleChecklistItem(item) {
                                     id="qa_note"
                                     v-model="quickActionForm.note"
                                     rows="2"
-                                    class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                                    class="mt-1 block w-full rounded-xl border-gray-300 text-sm shadow-sm"
                                 />
                             </div>
                             <InputError class="mt-1" :message="quickActionForm.errors.assigned_to_id || quickActionForm.errors.due_at || quickActionForm.errors.note" />
@@ -1281,7 +1315,7 @@ function toggleChecklistItem(item) {
                     </div>
                 </form>
 
-                <form class="mt-4 space-y-3 rounded-md border border-gray-200 p-3" @submit.prevent="submitChecklistItem">
+                <form class="mt-4 space-y-3 rounded-xl border border-white/30 bg-white/70 p-3 backdrop-blur" @submit.prevent="submitChecklistItem">
                     <h3 class="text-sm font-semibold text-gray-800">إضافة قائمة تحقق متعددة</h3>
                     <div class="space-y-2">
                         <div
@@ -1298,7 +1332,7 @@ function toggleChecklistItem(item) {
                             />
                             <button
                                 type="button"
-                                class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-lg font-semibold text-gray-700 hover:bg-gray-50"
+                                class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-300 text-lg font-semibold text-gray-700 transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-gray-50"
                                 title="إضافة حقل جديد"
                                 @click="addChecklistField"
                             >
@@ -1306,7 +1340,7 @@ function toggleChecklistItem(item) {
                             </button>
                             <button
                                 type="button"
-                                class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-red-200 text-lg font-semibold text-red-700 hover:bg-red-50"
+                                class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-red-200 text-lg font-semibold text-red-700 transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-red-50"
                                 title="حذف هذا الحقل"
                                 @click="removeChecklistField(index)"
                             >
@@ -1324,3 +1358,82 @@ function toggleChecklistItem(item) {
         </Modal>
     </AuthenticatedLayout>
 </template>
+
+<style scoped>
+.task-ghost {
+    opacity: 0.5;
+    transform: scale(0.98);
+}
+
+.task-chosen {
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.18);
+}
+
+.task-drag {
+    transform: rotate(1deg);
+}
+
+.glass-modal {
+    border-radius: 1.25rem;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(12px);
+    animation: modal-in 240ms ease-out;
+}
+
+.skeleton {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: rgba(241, 245, 249, 0.85);
+}
+
+.skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent);
+    animation: shimmer 1.15s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    to {
+        transform: translateX(100%);
+    }
+}
+
+.light-modal {
+    color: #111111;
+}
+
+.light-modal :deep(.text-gray-900),
+.light-modal :deep(.text-slate-900),
+.light-modal :deep(.text-gray-800),
+.light-modal :deep(.text-slate-800),
+.light-modal :deep(.text-gray-700),
+.light-modal :deep(.text-slate-700),
+.light-modal :deep(.text-gray-600),
+.light-modal :deep(.text-slate-600),
+.light-modal :deep(.text-gray-500),
+.light-modal :deep(.text-slate-500) {
+    color: #111111 !important;
+}
+
+.light-modal :deep(label),
+.light-modal :deep(p),
+.light-modal :deep(span) {
+    color: #111111 !important;
+}
+
+@keyframes modal-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+</style>

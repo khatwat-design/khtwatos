@@ -29,6 +29,7 @@ const searchTerm = ref('');
 const selectedTeamSlug = ref(props.selectedTeam?.slug || '');
 const editingMessageId = ref(null);
 const editingBody = ref('');
+const pendingMessages = ref([]);
 let pollingTimer = null;
 let typingTimer = null;
 let typingUsersTimer = null;
@@ -38,16 +39,39 @@ function submitMessage() {
         return;
     }
 
+    const tempId = `pending-${Date.now()}`;
+    const optimisticMessage = {
+        id: tempId,
+        body: form.body,
+        created_at: new Date().toISOString(),
+        user: { id: currentUserId.value, name: page.props.auth?.user?.name || 'أنا' },
+        attachment: form.attachment
+            ? {
+                  name: form.attachment.name,
+                  mime: form.attachment.type || 'ملف',
+                  size: form.attachment.size || 0,
+                  is_image: String(form.attachment.type || '').startsWith('image/'),
+              }
+            : null,
+        is_pending: true,
+    };
+    pendingMessages.value.push(optimisticMessage);
+    nextTick(() => scrollToBottom());
+
     form.post(route('chat.store'), {
         preserveScroll: true,
         forceFormData: true,
         onSuccess: () => {
+            pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
             form.body = '';
             form.attachment = null;
             if (attachmentInputRef.value) {
                 attachmentInputRef.value.value = '';
             }
             pullMessages();
+        },
+        onError: () => {
+            pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
         },
     });
 }
@@ -237,7 +261,8 @@ function teamUnreadCount(teamId) {
 
 function teamLabelWithUnread(team) {
     const count = teamUnreadCount(team.id);
-    return count > 0 ? `${team.name} (${count})` : team.name;
+    const displayName = String(team.name || '').trim() === 'خطوات' ? 'خارج المخزون' : team.name;
+    return count > 0 ? `${displayName} (${count})` : displayName;
 }
 
 function isMine(msg) {
@@ -280,6 +305,21 @@ const filteredMessages = computed(() => {
     });
 });
 
+const displayedMessages = computed(() => {
+    const term = searchTerm.value.trim().toLowerCase();
+    if (!term) {
+        return [...filteredMessages.value, ...pendingMessages.value];
+    }
+
+    const pendingMatches = pendingMessages.value.filter((msg) => {
+        const inBody = String(msg.body || '').toLowerCase().includes(term);
+        const inName = String(msg.user?.name || '').toLowerCase().includes(term);
+        return inBody || inName;
+    });
+
+    return [...filteredMessages.value, ...pendingMatches];
+});
+
 onMounted(() => {
     unreadCountsState.value = { ...(props.unreadCounts || {}) };
     selectedTeamSlug.value = props.selectedTeam?.slug || '';
@@ -296,7 +336,7 @@ onBeforeUnmount(() => {
 });
 
 watch(
-    () => messagesState.value.length,
+    () => [messagesState.value.length, pendingMessages.value.length],
     () => {
         nextTick(() => scrollToBottom());
     },
@@ -310,15 +350,15 @@ watch(
         <template #title>دردشة الفريق</template>
 
         <div class="mx-auto max-w-5xl">
-            <div class="rounded-xl bg-white p-4 shadow ring-1 ring-gray-200 lg:h-[78vh] lg:overflow-hidden lg:p-0">
-                <div class="border-b border-gray-100 p-4">
+            <div class="ui-card rounded-3xl p-4 shadow-2xl max-lg:min-h-[calc(100dvh-9rem)] lg:h-[78vh] lg:overflow-hidden lg:p-0">
+                <div class="border-b border-white/20 bg-white/50 p-4 backdrop-blur">
                     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div class="flex w-full flex-col gap-1 sm:w-auto">
-                            <label for="team_select" class="text-xs text-gray-500">اختر غرفة الدردشة</label>
+                            <label for="team_select" class="text-xs text-slate-500">اختر غرفة الدردشة</label>
                             <select
                                 id="team_select"
                                 :value="selectedTeamSlug"
-                                class="w-full rounded-md border-gray-300 text-sm shadow-sm sm:w-80"
+                                class="w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200 sm:w-80"
                                 @change="onTeamChange"
                             >
                                 <option v-for="team in teams" :key="`opt-${team.id}`" :value="team.slug">
@@ -326,58 +366,60 @@ watch(
                                 </option>
                             </select>
                         </div>
-                        <div class="text-sm text-gray-600">
+                        <div class="text-sm text-white/80">
                             الغرفة الحالية:
-                            <span class="font-semibold text-gray-900">{{ selectedTeam?.name }}</span>
+                            <span class="font-semibold text-white">
+                                {{ String(selectedTeam?.name || '').trim() === 'خطوات' ? 'خارج المخزون' : selectedTeam?.name }}
+                            </span>
                         </div>
                         <TextInput
                             v-model="searchTerm"
                             type="text"
-                            class="w-full sm:w-72"
+                            class="w-full rounded-xl border-slate-200 bg-white/90 sm:w-72"
                             placeholder="بحث في الرسائل..."
                         />
                     </div>
                 </div>
 
-                <div ref="messagesContainerRef" class="h-[48vh] space-y-3 overflow-y-auto bg-gray-50 p-4 lg:h-[52vh]">
+                <div ref="messagesContainerRef" class="h-[56dvh] space-y-3 overflow-y-auto bg-slate-50/80 p-4 max-lg:h-[58dvh] lg:h-[52vh]">
                     <div
-                        v-for="msg in filteredMessages"
+                        v-for="msg in displayedMessages"
                         :key="msg.id"
                         :class="[
                             'flex items-start gap-2',
                             isMine(msg) ? 'justify-end' : 'justify-start',
                         ]"
                     >
-                        <div v-if="!isMine(msg)" class="mt-1 h-7 w-7 shrink-0 rounded-full bg-gray-200 text-center text-xs font-bold leading-7 text-gray-700">
+                        <div v-if="!isMine(msg)" class="mt-1 h-7 w-7 shrink-0 rounded-full bg-slate-200 text-center text-xs font-bold leading-7 text-slate-700 ring-1 ring-white/60">
                             {{ userInitial(msg.user?.name) }}
                         </div>
 
                         <div
                             :class="[
-                                'w-full max-w-[90%] rounded-xl p-3 text-sm shadow-sm ring-1',
+                                'w-full max-w-[90%] rounded-2xl p-3 text-sm shadow-md ring-1 transition-all duration-200 ease-out',
                                 isMine(msg)
-                                    ? 'bg-brand-50 ring-brand-100'
-                                    : 'bg-white ring-gray-200',
+                                    ? 'bg-brand-50/90 ring-brand-200/60'
+                                    : 'bg-white/90 ring-slate-200/70',
                             ]"
                         >
                             <div class="mb-1 flex items-center justify-between gap-2">
-                                <span class="font-semibold text-gray-900">{{ msg.user?.name || 'عضو' }}</span>
+                                <span class="font-semibold text-black">{{ msg.user?.name || 'عضو' }}</span>
                                 <div class="flex items-center gap-2">
-                                    <span class="text-[11px] text-gray-500">
+                                    <span class="text-[11px] text-black/70">
                                         {{ formatDt(msg.created_at) }}<span v-if="msg.edited_at"> (تم التعديل)</span>
                                     </span>
                                     <button
-                                        v-if="canManageMessage(msg)"
+                                        v-if="!msg.is_pending && canManageMessage(msg)"
                                         type="button"
-                                        class="text-[11px] text-gray-500 hover:underline"
+                                        class="text-[11px] text-black/70 transition-colors duration-200 hover:text-black hover:underline"
                                         @click="startEdit(msg)"
                                     >
                                         تعديل
                                     </button>
                                     <button
-                                        v-if="canManageMessage(msg)"
+                                        v-if="!msg.is_pending && canManageMessage(msg)"
                                         type="button"
-                                        class="text-[11px] text-red-600 hover:underline"
+                                        class="text-[11px] text-red-300 transition-colors duration-200 hover:text-red-200 hover:underline"
                                         @click="removeMessage(msg)"
                                     >
                                         حذف
@@ -385,17 +427,17 @@ watch(
                                 </div>
                             </div>
 
-                            <div v-if="editingMessageId === msg.id" class="mt-2 space-y-2">
+                            <div v-if="!msg.is_pending && editingMessageId === msg.id" class="mt-2 space-y-2">
                                 <textarea
                                     v-model="editingBody"
                                     rows="3"
-                                    class="block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                                    class="block w-full rounded-xl border-gray-300 text-sm shadow-sm"
                                 />
                                 <div class="flex gap-2">
                                     <PrimaryButton type="button" @click="saveEdit(msg)">حفظ</PrimaryButton>
                                     <button
                                         type="button"
-                                        class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                                        class="inline-flex items-center rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-700 transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-gray-50"
                                         @click="cancelEdit"
                                     >
                                         إلغاء
@@ -403,36 +445,45 @@ watch(
                                 </div>
                             </div>
 
-                            <p v-if="msg.body" class="whitespace-pre-wrap text-gray-700">{{ msg.body }}</p>
-                            <div v-if="msg.attachment" class="mt-2 rounded-md bg-gray-50 p-2 ring-1 ring-gray-200">
+                            <p v-if="msg.body" class="whitespace-pre-wrap text-black">{{ msg.body }}</p>
+                            <p v-if="msg.is_pending" class="mt-1 inline-flex items-center gap-1 text-[11px] text-brand-700">
+                                <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-600" />
+                                جار الإرسال...
+                            </p>
+                            <div v-if="msg.attachment" class="mt-2 rounded-xl bg-slate-50 p-2 ring-1 ring-slate-200/70">
                                 <a
                                     :href="msg.attachment.url"
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    class="text-xs font-medium text-brand-600 hover:underline"
+                                    class="text-xs font-medium text-brand-600 transition-colors duration-200 hover:text-brand-700 hover:underline"
                                 >
                                     📎 {{ msg.attachment.name || 'مرفق' }}
                                 </a>
-                                <p class="mt-1 text-[11px] text-gray-500">
+                                <p class="mt-1 text-[11px] text-black/70">
                                     {{ msg.attachment.mime || 'ملف' }} • {{ formatFileSize(msg.attachment.size) }}
                                 </p>
                                 <img
-                                    v-if="msg.attachment.is_image"
+                                    v-if="msg.attachment.is_image && msg.attachment.url"
                                     :src="msg.attachment.url"
                                     alt="مرفق"
-                                    class="mt-2 max-h-52 rounded border border-gray-200"
+                                    class="mt-2 max-h-52 rounded-xl border border-slate-200/70"
                                 />
                             </div>
                         </div>
                     </div>
 
-                    <p v-if="!filteredMessages?.length" class="text-center text-sm text-gray-500">
-                        لا توجد رسائل بعد. ابدأ الدردشة مع فريقك.
-                    </p>
+                    <div v-if="!displayedMessages?.length" class="space-y-3">
+                        <div class="skeleton h-16 w-3/4 rounded-2xl" />
+                        <div class="skeleton h-16 w-2/3 rounded-2xl ms-auto" />
+                        <div class="skeleton h-16 w-4/5 rounded-2xl" />
+                        <p class="pt-2 text-center text-sm text-white/70">
+                            لا توجد رسائل بعد. ابدأ الدردشة مع فريقك.
+                        </p>
+                    </div>
                 </div>
 
-                <div class="border-t border-gray-100 p-4">
-                    <p v-if="typingUsers.length" class="mb-2 text-xs text-gray-500">
+                <div class="border-t border-white/20 bg-white/50 p-4 backdrop-blur">
+                    <p v-if="typingUsers.length" class="mb-2 text-xs text-white/70">
                         {{ typingUsers.map((u) => u.name).join('، ') }} يكتب الآن...
                     </p>
 
@@ -440,7 +491,7 @@ watch(
                         <textarea
                             v-model="form.body"
                             rows="3"
-                            class="block w-full rounded-lg border-gray-300 text-sm shadow-sm"
+                            class="block w-full rounded-2xl border-slate-200 bg-white/90 text-sm text-white placeholder:text-white/55 shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200"
                             placeholder="اكتب رسالة للفريق..."
                             @input="notifyTyping"
                         />
@@ -449,10 +500,10 @@ watch(
                                 <input
                                     ref="attachmentInputRef"
                                     type="file"
-                                    class="block w-full text-xs text-gray-600 file:me-2 file:rounded-md file:border-0 file:bg-gray-100 file:px-2 file:py-1 file:text-xs file:font-medium"
+                                    class="block w-full text-xs text-slate-600 file:me-2 file:rounded-xl file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-xs file:font-medium"
                                     @change="onAttachmentChange"
                                 />
-                                <div v-if="form.attachment" class="mt-1 flex items-center gap-2 text-[11px] text-gray-600">
+                                <div v-if="form.attachment" class="mt-1 flex items-center gap-2 text-[11px] text-slate-600">
                                     <span>المرفق: {{ form.attachment.name }}</span>
                                     <button type="button" class="text-red-600 hover:underline" @click="clearAttachment">إزالة</button>
                                 </div>
@@ -465,4 +516,28 @@ watch(
         </div>
     </AuthenticatedLayout>
 </template>
+
+<style scoped>
+.skeleton {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    background: rgba(255, 255, 255, 0.65);
+}
+
+.skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+    animation: shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    100% {
+        transform: translateX(100%);
+    }
+}
+</style>
 

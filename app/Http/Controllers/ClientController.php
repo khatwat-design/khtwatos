@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\ClientAttachment;
+use App\Models\ClientCampaignUpdate;
+use App\Models\ClientDailySale;
+use App\Models\ClientProduct;
 use App\Models\ClientStageHistory;
 use App\Models\PipelineStage;
 use App\Models\Task;
@@ -12,7 +15,12 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -24,7 +32,7 @@ class ClientController extends Controller
         $stageId = $request->filled('stage_id') ? (int) $request->query('stage_id') : null;
 
         $clients = Client::query()
-            ->with(['currentStage', 'accountManager:id,name'])
+            ->with(['currentStage', 'accountManager:id,name', 'campaignManager:id,name'])
             ->withCount([
                 'tasks as open_tasks_count' => fn ($q) => $q->whereHas('column', fn ($c) => $c->where('name', '!=', 'تم')),
             ])
@@ -43,6 +51,7 @@ class ClientController extends Controller
                     'label' => $c->currentStage->label,
                 ] : null,
                 'account_manager' => $c->accountManager ? ['id' => $c->accountManager->id, 'name' => $c->accountManager->name] : null,
+                'campaign_manager' => $c->campaignManager ? ['id' => $c->campaignManager->id, 'name' => $c->campaignManager->name] : null,
                 'open_tasks_count' => (int) $c->open_tasks_count,
                 'updated_at' => $c->updated_at->toIso8601String(),
             ]),
@@ -60,6 +69,7 @@ class ClientController extends Controller
         return Inertia::render('Clients/Create', [
             'stages' => $stages,
             'accountManagers' => User::orderBy('name')->get(['id', 'name']),
+            'campaignManagers' => $this->campaignManagers(),
         ]);
     }
 
@@ -69,7 +79,10 @@ class ClientController extends Controller
         $stageId = $data['current_pipeline_stage_id'];
 
         $client = DB::transaction(function () use ($data, $stageId, $request) {
-            $client = Client::query()->create($data);
+            $client = Client::query()->create([
+                ...$data,
+                'portal_token' => Str::random(48),
+            ]);
             ClientStageHistory::query()->create([
                 'client_id' => $client->id,
                 'pipeline_stage_id' => $stageId,
@@ -83,11 +96,12 @@ class ClientController extends Controller
         return redirect()->route('clients.show', $client);
     }
 
-    public function show(Client $client): Response
+    public function show(Request $request, Client $client): Response
     {
         $client->load([
             'currentStage',
             'accountManager:id,name',
+            'campaignManager:id,name',
             'stageHistories.stage',
             'stageHistories.user:id,name',
             'tasks.assignee:id,name',
@@ -95,6 +109,11 @@ class ClientController extends Controller
             'tasks.column:id,name',
             'meetings' => fn ($q) => $q->with('host:id,name')->orderByDesc('start_at')->limit(20),
             'attachments.user:id,name',
+            'dailySales.submittedBy:id,name',
+            'dailySales.items',
+            'campaignUpdates.updatedBy:id,name',
+            'products',
+            'portalNotes' => fn ($q) => $q->where('expires_at', '>', now())->orderByDesc('created_at')->limit(12),
         ]);
 
         $tasksByTeam = Task::query()
@@ -123,6 +142,7 @@ class ClientController extends Controller
                     'label' => $client->currentStage->label,
                 ] : null,
                 'account_manager' => $client->accountManager ? ['id' => $client->accountManager->id, 'name' => $client->accountManager->name] : null,
+                'campaign_manager' => $client->campaignManager ? ['id' => $client->campaignManager->id, 'name' => $client->campaignManager->name] : null,
                 'updated_at' => $client->updated_at->toIso8601String(),
             ],
             'history' => $client->stageHistories->map(fn (ClientStageHistory $h) => [
@@ -189,7 +209,63 @@ class ClientController extends Controller
                 ]),
             'stages' => PipelineStage::orderBy('sort_order')->get(['id', 'key', 'label']),
             'metrics' => $metrics,
+            'portal' => $this->canViewPortalLink($request->user(), $client) ? [
+                'url' => route('portal.login'),
+                'username' => $client->portal_username,
+                'has_credentials' => !empty($client->portal_username) && !empty($client->portal_password),
+            ] : null,
+            'daily_sales' => $client->dailySales
+                ->take(15)
+                ->map(fn (ClientDailySale $row) => [
+                    'id' => $row->id,
+                    'sales_date' => $row->sales_date?->toDateString(),
+                    'orders_count' => $row->orders_count,
+                    'revenue' => (float) $row->revenue,
+                    'notes' => $row->notes,
+                    'source' => $row->source,
+                    'submitted_by' => $row->submittedBy?->name ?: $row->submitted_by_name,
+                    'items' => $row->items->map(fn ($item) => [
+                        'id' => $item->id,
+                        'product_name' => $item->product_name,
+                        'unit_price' => (float) $item->unit_price,
+                        'quantity' => $item->quantity,
+                        'subtotal' => (float) $item->subtotal,
+                    ])->values(),
+                ])->values(),
+            'campaign_updates' => $client->campaignUpdates
+                ->take(15)
+                ->map(fn (ClientCampaignUpdate $row) => [
+                    'id' => $row->id,
+                    'report_date' => $row->report_date?->toDateString(),
+                    'ad_spend' => (float) $row->ad_spend,
+                    'messages_count' => $row->messages_count,
+                    'clicks_count' => $row->clicks_count,
+                    'leads_count' => $row->leads_count,
+                    'purchases_count' => $row->purchases_count,
+                    'campaign_revenue' => $row->campaign_revenue !== null ? (float) $row->campaign_revenue : null,
+                    'roas' => $row->roas !== null ? (float) $row->roas : null,
+                    'cpa' => $row->cpa !== null ? (float) $row->cpa : null,
+                    'cvr' => $row->cvr !== null ? (float) $row->cvr : null,
+                    'summary' => $row->summary,
+                    'actions_taken' => $row->actions_taken,
+                    'updated_by' => $row->updatedBy?->name,
+                ])->values(),
+            'products' => $client->products->map(fn (ClientProduct $product) => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'unit_price' => (float) $product->unit_price,
+                'stock_quantity' => $product->stock_quantity,
+                'details' => $product->details,
+                'is_active' => (bool) $product->is_active,
+            ])->values(),
+            'portal_notes' => $client->portalNotes->map(fn ($note) => [
+                'id' => $note->id,
+                'note' => $note->note,
+                'expires_at' => $note->expires_at?->toIso8601String(),
+                'created_at' => $note->created_at?->toIso8601String(),
+            ])->values(),
             'accountManagers' => User::orderBy('name')->get(['id', 'name']),
+            'campaignManagers' => $this->campaignManagers(),
         ]);
     }
 
@@ -202,6 +278,7 @@ class ClientController extends Controller
             'phone' => ['nullable', 'string', 'max:64'],
             'notes' => ['nullable', 'string', 'max:10000'],
             'account_manager_id' => ['nullable', 'exists:users,id'],
+            'campaign_manager_id' => ['nullable', 'exists:users,id'],
         ]);
 
         $client->update($data);
@@ -299,6 +376,87 @@ class ClientController extends Controller
         return redirect()->back();
     }
 
+    public function storeProduct(Request $request, Client $client): RedirectResponse
+    {
+        $user = $request->user();
+        $isAssignedAccountManager = (int) $client->account_manager_id === (int) $user?->id;
+        if (!$user || (!$user->isAdmin() && !$isAssignedAccountManager && !Gate::forUser($user)->allows('view-client-portal-link'))) {
+            abort(403, 'لا تملك صلاحية إدارة منتجات هذا العميل.');
+        }
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'unit_price' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
+            'stock_quantity' => ['nullable', 'integer', 'min:0', 'max:1000000000'],
+            'details' => ['nullable', 'string', 'max:5000'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        ClientProduct::query()->create([
+            'client_id' => $client->id,
+            'name' => $data['name'],
+            'unit_price' => $data['unit_price'],
+            'stock_quantity' => $data['stock_quantity'] ?? null,
+            'details' => $data['details'] ?? null,
+            'is_active' => array_key_exists('is_active', $data) ? (bool) $data['is_active'] : true,
+        ]);
+
+        return redirect()->back();
+    }
+
+    public function updatePortalCredentials(Request $request, Client $client): RedirectResponse
+    {
+        $user = $request->user();
+        if (!$this->canViewPortalLink($user, $client)) {
+            abort(403, 'لا تملك صلاحية إدارة دخول بوابة العميل.');
+        }
+
+        $data = $request->validate([
+            'portal_username' => [
+                'required',
+                'string',
+                'max:120',
+                Rule::unique('clients', 'portal_username')->ignore($client->id),
+            ],
+            'portal_password' => ['nullable', 'string', 'min:6', 'max:255', 'confirmed'],
+        ]);
+
+        if (empty($client->portal_password) && empty($data['portal_password'])) {
+            throw ValidationException::withMessages([
+                'portal_password' => 'أدخل كلمة سر للبوابة.',
+            ]);
+        }
+
+        $payload = [
+            'portal_username' => $data['portal_username'],
+        ];
+
+        if (!empty($data['portal_password'])) {
+            $payload['portal_password'] = Hash::make($data['portal_password']);
+        }
+
+        $client->update($payload);
+
+        return redirect()->back();
+    }
+
+    public function destroyProduct(Request $request, ClientProduct $clientProduct): RedirectResponse
+    {
+        $user = $request->user();
+        if (!$user) {
+            abort(403);
+        }
+
+        $isAssignedAccountManager = (int) $clientProduct->client?->account_manager_id === (int) $user->id;
+        if (!$user->isAdmin() && !$isAssignedAccountManager) {
+            abort(403, 'لا تملك صلاحية حذف المنتج.');
+        }
+
+        $clientProduct->delete();
+
+        return redirect()->back();
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -313,8 +471,17 @@ class ClientController extends Controller
             'phone' => ['nullable', 'string', 'max:64'],
             'notes' => ['nullable', 'string', 'max:10000'],
             'account_manager_id' => ['nullable', 'exists:users,id'],
+            'campaign_manager_id' => ['nullable', 'exists:users,id'],
             'current_pipeline_stage_id' => ['required', 'exists:pipeline_stages,id'],
         ]);
+    }
+
+    private function campaignManagers()
+    {
+        return User::query()
+            ->whereHas('teams', fn ($q) => $q->where('slug', 'media-buyer'))
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 
     /**
@@ -332,6 +499,7 @@ class ClientController extends Controller
             ['key' => 'content_production', 'label' => 'إنتاج المحتوى', 'sort_order' => 70],
             ['key' => 'campaign_launch', 'label' => 'إطلاق الحملة', 'sort_order' => 80],
             ['key' => 'optimization', 'label' => 'تحسين', 'sort_order' => 90],
+            ['key' => 'paused', 'label' => 'متوقف', 'sort_order' => 100],
         ];
 
         foreach ($defaults as $stage) {
@@ -342,5 +510,18 @@ class ClientController extends Controller
             ->whereIn('key', collect($defaults)->pluck('key'))
             ->orderBy('sort_order')
             ->get(['id', 'key', 'label']);
+    }
+
+    private function canViewPortalLink(?User $user, Client $client): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ((int) $client->account_manager_id === (int) $user->id) {
+            return true;
+        }
+
+        return Gate::forUser($user)->allows('view-client-portal-link');
     }
 }

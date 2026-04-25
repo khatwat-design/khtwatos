@@ -38,6 +38,9 @@ class HandleInertiaRequests extends Middleware
                     'manageEmployees' => $request->user() ? Gate::forUser($request->user())->allows('manage-employees') : false,
                     'deleteRecords' => $request->user() ? $request->user()->isAdmin() : false,
                     'viewAdminHome' => $request->user() ? Gate::forUser($request->user())->allows('view-admin-home') : false,
+                    'viewWarehouse' => $request->user() ? Gate::forUser($request->user())->allows('view-warehouse') : false,
+                    'manageCampaignUpdates' => $request->user() ? Gate::forUser($request->user())->allows('manage-campaign-updates') : false,
+                    'viewClientPortalLink' => $request->user() ? Gate::forUser($request->user())->allows('view-client-portal-link') : false,
                 ],
             ],
         ];

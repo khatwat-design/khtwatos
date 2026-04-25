@@ -180,8 +180,8 @@ function deleteEmployee(employee) {
     <AuthenticatedLayout>
         <template #title>الموظفين</template>
 
-        <div class="mx-auto max-w-6xl space-y-4">
-            <div class="flex flex-col gap-3 rounded-lg bg-white p-4 shadow ring-1 ring-gray-200 sm:flex-row sm:items-center sm:justify-between">
+        <div class="employees-page mx-auto max-w-6xl space-y-4">
+            <div class="ui-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <p class="text-sm text-gray-600">
                     إدارة كاملة لبيانات الموظفين، فرقهم، الصلاحيات، وتوفرهم للحجز.
                 </p>
@@ -192,7 +192,7 @@ function deleteEmployee(employee) {
                 <div
                     v-for="emp in employees"
                     :key="`mobile-${emp.id}`"
-                    class="rounded-lg bg-white p-4 shadow ring-1 ring-gray-200"
+                    class="ui-card p-4"
                 >
                     <div class="flex items-start justify-between gap-3">
                         <div>
@@ -246,12 +246,12 @@ function deleteEmployee(employee) {
                         </DangerButton>
                     </div>
                 </div>
-                <div v-if="!employees.length" class="rounded-lg bg-white p-6 text-center text-sm text-gray-500 shadow ring-1 ring-gray-200">
+                <div v-if="!employees.length" class="ui-card p-6 text-center text-sm text-gray-500">
                     لا يوجد موظفون.
                 </div>
             </div>
 
-            <div class="hidden overflow-hidden rounded-lg bg-white shadow ring-1 ring-gray-200 md:block">
+            <div class="ui-card hidden overflow-hidden md:block">
                 <table class="min-w-full divide-y divide-gray-200 text-sm">
                     <thead class="bg-gray-50">
                         <tr>
@@ -328,7 +328,7 @@ function deleteEmployee(employee) {
         </div>
 
         <Modal :show="createModalOpen" @close="closeCreateModal">
-            <div class="p-4 sm:p-6">
+            <div class="glass-modal employee-light-modal p-4 sm:p-6">
                 <h2 class="text-lg font-semibold text-gray-900">إضافة موظف جديد</h2>
                 <form class="mt-4 space-y-4" @submit.prevent="submitCreate">
                     <div class="grid gap-3 sm:grid-cols-2">
@@ -460,7 +460,7 @@ function deleteEmployee(employee) {
         </Modal>
 
         <Modal :show="editModalOpen" @close="closeEditModal">
-            <div class="p-4 sm:p-6">
+            <div class="glass-modal employee-light-modal p-4 sm:p-6">
                 <h2 class="text-lg font-semibold text-gray-900">تعديل الموظف</h2>
                 <form class="mt-4 space-y-4" @submit.prevent="submitEdit">
                     <div class="grid gap-3 sm:grid-cols-2">
@@ -592,3 +592,67 @@ function deleteEmployee(employee) {
         </Modal>
     </AuthenticatedLayout>
 </template>
+
+<style scoped>
+.glass-modal {
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.2);
+    animation: modal-in 220ms ease-out;
+}
+
+.employee-light-modal {
+    color: #111111;
+}
+
+.employee-light-modal :deep(input),
+.employee-light-modal :deep(select),
+.employee-light-modal :deep(textarea),
+.employee-light-modal :deep(label),
+.employee-light-modal :deep(p),
+.employee-light-modal :deep(span),
+.employee-light-modal :deep(.text-gray-900),
+.employee-light-modal :deep(.text-gray-800),
+.employee-light-modal :deep(.text-gray-700),
+.employee-light-modal :deep(.text-gray-600),
+.employee-light-modal :deep(.text-gray-500) {
+    color: #111111 !important;
+}
+
+.employees-page :deep(.bg-white),
+.employees-page :deep(.bg-white\/70),
+.employees-page :deep(.bg-white\/75),
+.employees-page :deep(.bg-white\/80),
+.employees-page :deep(.bg-gray-50),
+.employees-page :deep(.bg-gray-100) {
+    color: #111111 !important;
+}
+
+.employees-page :deep(.bg-white a),
+.employees-page :deep(.bg-white\/70 a),
+.employees-page :deep(.bg-white\/75 a),
+.employees-page :deep(.bg-white\/80 a),
+.employees-page :deep(.bg-gray-50 a),
+.employees-page :deep(.bg-gray-100 a) {
+    color: #111111 !important;
+}
+
+.employees-page :deep(select),
+.employees-page :deep(input),
+.employees-page :deep(textarea) {
+    color: #111111;
+}
+
+@keyframes modal-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+</style>

@@ -1,6 +1,11 @@
 import defaultTheme from 'tailwindcss/defaultTheme';
 import forms from '@tailwindcss/forms';
 
+const withOpacity = (cssVar) => ({ opacityValue }) =>
+    opacityValue === undefined
+        ? `rgb(var(${cssVar}) / 1)`
+        : `rgb(var(${cssVar}) / ${opacityValue})`;
+
 /** @type {import('tailwindcss').Config} */
 export default {
     content: [
@@ -14,17 +19,40 @@ export default {
         extend: {
             colors: {
                 brand: {
-                    50: '#fdf4f3',
-                    100: '#fce8e6',
-                    200: '#f7cfcb',
-                    300: '#eda8a2',
-                    400: '#e07870',
-                    500: '#c94a42',
-                    600: '#B2342E',
-                    700: '#942a25',
-                    800: '#7b2420',
-                    900: '#66211e',
-                    950: '#3f1310',
+                    50: withOpacity('--color-brand-50'),
+                    100: withOpacity('--color-brand-100'),
+                    200: withOpacity('--color-brand-200'),
+                    300: withOpacity('--color-brand-300'),
+                    400: withOpacity('--color-brand-400'),
+                    500: withOpacity('--color-brand-500'),
+                    600: withOpacity('--color-brand-600'),
+                    700: withOpacity('--color-brand-700'),
+                    800: withOpacity('--color-brand-800'),
+                    900: withOpacity('--color-brand-900'),
+                    950: withOpacity('--color-brand-950'),
+                },
+                app: {
+                    bg: {
+                        primary: withOpacity('--color-bg-primary'),
+                        secondary: withOpacity('--color-bg-secondary'),
+                    },
+                    surface: {
+                        DEFAULT: withOpacity('--color-surface'),
+                        strong: withOpacity('--color-surface-strong'),
+                        border: withOpacity('--color-surface-border'),
+                    },
+                    text: {
+                        primary: withOpacity('--color-text-primary'),
+                        secondary: withOpacity('--color-text-secondary'),
+                        muted: withOpacity('--color-text-muted'),
+                    },
+                    light: {
+                        text: {
+                            primary: withOpacity('--color-light-text-primary'),
+                            secondary: withOpacity('--color-light-text-secondary'),
+                        },
+                        border: withOpacity('--color-light-border'),
+                    },
                 },
             },
             fontFamily: {

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -15,8 +16,21 @@ class Client extends Model
         'phone',
         'current_pipeline_stage_id',
         'account_manager_id',
+        'campaign_manager_id',
         'notes',
+        'portal_token',
+        'portal_username',
+        'portal_password',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Client $client): void {
+            if (!$client->portal_token) {
+                $client->portal_token = Str::random(48);
+            }
+        });
+    }
 
     public function currentStage(): BelongsTo
     {
@@ -26,6 +40,11 @@ class Client extends Model
     public function accountManager(): BelongsTo
     {
         return $this->belongsTo(User::class, 'account_manager_id');
+    }
+
+    public function campaignManager(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'campaign_manager_id');
     }
 
     public function stageHistories(): HasMany
@@ -51,5 +70,25 @@ class Client extends Model
     public function attachments(): HasMany
     {
         return $this->hasMany(ClientAttachment::class)->orderByDesc('created_at');
+    }
+
+    public function dailySales(): HasMany
+    {
+        return $this->hasMany(ClientDailySale::class)->orderByDesc('sales_date');
+    }
+
+    public function campaignUpdates(): HasMany
+    {
+        return $this->hasMany(ClientCampaignUpdate::class)->orderByDesc('report_date');
+    }
+
+    public function products(): HasMany
+    {
+        return $this->hasMany(ClientProduct::class)->orderBy('name');
+    }
+
+    public function portalNotes(): HasMany
+    {
+        return $this->hasMany(ClientPortalNote::class)->orderByDesc('created_at');
     }
 }

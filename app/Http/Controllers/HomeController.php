@@ -78,6 +78,17 @@ class HomeController extends Controller
             ];
         })->values();
 
+        $campaignManagers = User::query()
+            ->whereHas('teams', fn ($q) => $q->where('slug', 'media-buyer'))
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        $clientsByCampaignManager = Client::query()
+            ->selectRaw('campaign_manager_id, COUNT(*) as total')
+            ->whereNotNull('campaign_manager_id')
+            ->groupBy('campaign_manager_id')
+            ->pluck('total', 'campaign_manager_id');
+
         return Inertia::render('Home/Index', [
             'cards' => [
                 'clients_total' => Client::query()
@@ -118,6 +129,11 @@ class HomeController extends Controller
                 'leads' => User::query()->where('role', 'lead')->count(),
                 'members' => User::query()->where('role', 'member')->count(),
                 'byTeam' => $employeesByTeam,
+                'campaignManagers' => $campaignManagers->map(fn (User $manager) => [
+                    'id' => $manager->id,
+                    'name' => $manager->name,
+                    'clients' => (int) ($clientsByCampaignManager[$manager->id] ?? 0),
+                ])->values(),
             ],
         ]);
     }

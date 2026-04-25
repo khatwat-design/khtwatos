@@ -9,6 +9,7 @@ import { Head, useForm } from '@inertiajs/vue3';
 const props = defineProps({
     stages: Array,
     accountManagers: Array,
+    campaignManagers: Array,
 });
 
 const form = useForm({
@@ -18,6 +19,7 @@ const form = useForm({
     phone: '',
     notes: '',
     account_manager_id: null,
+    campaign_manager_id: null,
     current_pipeline_stage_id: props.stages[0]?.id ?? null,
 });
 
@@ -32,7 +34,7 @@ function submit() {
     <AuthenticatedLayout>
         <template #title>عميل جديد</template>
 
-        <div class="mx-auto max-w-xl rounded-lg bg-white p-6 shadow ring-1 ring-gray-200">
+        <div class="ui-card mx-auto max-w-xl p-6">
             <form class="space-y-4" @submit.prevent="submit">
                 <div>
                     <InputLabel for="name" value="الاسم" />
@@ -40,7 +42,7 @@ function submit() {
                         id="name"
                         v-model="form.name"
                         type="text"
-                        class="mt-1 block w-full"
+                        class="mt-1 block w-full text-black"
                         required
                     />
                     <InputError class="mt-1" :message="form.errors.name" />
@@ -51,7 +53,7 @@ function submit() {
                         id="company"
                         v-model="form.company"
                         type="text"
-                        class="mt-1 block w-full"
+                        class="mt-1 block w-full text-black"
                     />
                     <InputError class="mt-1" :message="form.errors.company" />
                 </div>
@@ -61,7 +63,7 @@ function submit() {
                         id="email"
                         v-model="form.email"
                         type="email"
-                        class="mt-1 block w-full"
+                        class="mt-1 block w-full text-black"
                     />
                     <InputError class="mt-1" :message="form.errors.email" />
                 </div>
@@ -71,7 +73,7 @@ function submit() {
                         id="phone"
                         v-model="form.phone"
                         type="text"
-                        class="mt-1 block w-full"
+                        class="mt-1 block w-full text-black"
                     />
                     <InputError class="mt-1" :message="form.errors.phone" />
                 </div>
@@ -80,7 +82,7 @@ function submit() {
                     <select
                         id="account_manager_id"
                         v-model="form.account_manager_id"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-500 focus:ring-brand-500"
+                        class="mt-1 block w-full rounded-md border-gray-300 text-black shadow-sm focus:border-brand-500 focus:ring-brand-500"
                     >
                         <option :value="null">—</option>
                         <option
@@ -101,7 +103,7 @@ function submit() {
                     <select
                         id="stage"
                         v-model="form.current_pipeline_stage_id"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-500 focus:ring-brand-500"
+                        class="mt-1 block w-full rounded-md border-gray-300 text-black shadow-sm focus:border-brand-500 focus:ring-brand-500"
                         required
                     >
                         <option v-if="!stages?.length" :value="null" disabled>
@@ -121,12 +123,33 @@ function submit() {
                     />
                 </div>
                 <div>
+                    <InputLabel for="campaign_manager_id" value="مدير الحملة المسؤول" />
+                    <select
+                        id="campaign_manager_id"
+                        v-model="form.campaign_manager_id"
+                        class="mt-1 block w-full rounded-md border-gray-300 text-black shadow-sm focus:border-brand-500 focus:ring-brand-500"
+                    >
+                        <option :value="null">—</option>
+                        <option
+                            v-for="u in campaignManagers"
+                            :key="`campaign-manager-${u.id}`"
+                            :value="u.id"
+                        >
+                            {{ u.name }}
+                        </option>
+                    </select>
+                    <InputError
+                        class="mt-1"
+                        :message="form.errors.campaign_manager_id"
+                    />
+                </div>
+                <div>
                     <InputLabel for="notes" value="ملاحظات" />
                     <textarea
                         id="notes"
                         v-model="form.notes"
                         rows="3"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-500 focus:ring-brand-500"
+                        class="mt-1 block w-full rounded-md border-gray-300 text-black shadow-sm focus:border-brand-500 focus:ring-brand-500"
                     />
                     <InputError class="mt-1" :message="form.errors.notes" />
                 </div>

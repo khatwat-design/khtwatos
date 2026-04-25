@@ -40,6 +40,12 @@ class PublicBookingController extends Controller
 
         return Inertia::render('Public/Book', [
             'booked' => request()->boolean('booked'),
+            'prefill' => [
+                'invitee_name' => (string) request()->query('invitee_name', ''),
+                'invitee_email' => (string) request()->query('invitee_email', ''),
+                'project_name' => (string) request()->query('project_name', ''),
+                'client_token' => (string) request()->query('client_token', ''),
+            ],
             'teams' => $teams->map(fn (Team $team) => [
                 'name' => $team->name,
                 'slug' => $team->slug,

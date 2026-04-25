@@ -1,3 +1,249 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+    :root {
+        color-scheme: dark;
+        /* Semantic tokens */
+        --bg-primary: #0f1115;
+        --bg-secondary: #151821;
+        --surface: rgba(255, 255, 255, 0.045);
+        --surface-strong: rgba(255, 255, 255, 0.065);
+        --surface-soft: rgba(255, 255, 255, 0.03);
+        --surface-border: rgba(255, 255, 255, 0.1);
+        --text-primary: rgba(255, 255, 255, 0.92);
+        --text-secondary: rgba(255, 255, 255, 0.7);
+        --text-muted: rgba(255, 255, 255, 0.48);
+        --accent: #e5484d;
+        --accent-hover: #f25f63;
+        --accent-soft: rgba(229, 72, 77, 0.12);
+        /* RGB channel tokens (Tailwind-ready) */
+        --color-bg-primary: 15 17 21;
+        --color-bg-secondary: 21 24 33;
+        --color-surface: 255 255 255;
+        --color-surface-strong: 255 255 255;
+        --color-surface-border: 255 255 255;
+        --color-text-primary: 255 255 255;
+        --color-text-secondary: 255 255 255;
+        --color-text-muted: 255 255 255;
+        --color-light-text-primary: 17 17 17;
+        --color-light-text-secondary: 85 85 85;
+        --color-light-border: 0 0 0;
+
+        --color-brand-50: 254 241 242;
+        --color-brand-100: 254 227 228;
+        --color-brand-200: 253 207 209;
+        --color-brand-300: 249 169 173;
+        --color-brand-400: 242 95 99;
+        --color-brand-500: 229 72 77;
+        --color-brand-600: 207 62 67;
+        --color-brand-700: 173 51 56;
+        --color-brand-800: 143 46 50;
+        --color-brand-900: 119 44 47;
+        --color-brand-950: 65 19 21;
+    }
+
+    html,
+    body {
+        background: radial-gradient(1200px 700px at 10% -10%, rgba(229, 72, 77, 0.1), transparent 60%), var(--bg-primary);
+        color: var(--text-primary);
+    }
+}
+
+@layer components {
+    .ui-card {
+        border: 1px solid var(--surface-border);
+        background: var(--surface);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+        backdrop-filter: blur(12px);
+        color: var(--text-primary);
+        @apply rounded-2xl;
+    }
+
+    .ui-card-soft {
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: var(--surface-soft);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+        color: var(--text-primary);
+        @apply rounded-xl;
+    }
+
+    .ui-card-hover {
+        @apply transition-all duration-200 ease-out;
+    }
+
+    .ui-card-hover:hover {
+        border-color: rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.06);
+        box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
+    }
+
+    /* Dark-card contrast mapping */
+    .ui-card .text-gray-900,
+    .ui-card .text-slate-900,
+    .ui-card .text-gray-800,
+    .ui-card .text-slate-800,
+    .ui-card .text-white,
+    .ui-card .text-white\/90 {
+        color: var(--text-primary) !important;
+    }
+
+    .ui-card .text-gray-700,
+    .ui-card .text-slate-700,
+    .ui-card .text-gray-600,
+    .ui-card .text-slate-600,
+    .ui-card .text-gray-500,
+    .ui-card .text-slate-500 {
+        color: var(--text-secondary) !important;
+    }
+
+    .ui-card .text-gray-400,
+    .ui-card .text-slate-400 {
+        color: var(--text-muted) !important;
+    }
+
+    .ui-card .border-gray-200,
+    .ui-card .border-gray-100,
+    .ui-card .border-slate-200,
+    .ui-card .ring-gray-200,
+    .ui-card .ring-slate-200 {
+        border-color: rgba(255, 255, 255, 0.1) !important;
+        --tw-ring-color: rgba(255, 255, 255, 0.1) !important;
+    }
+}
+
+@layer utilities {
+    .bg-slate-950,
+    .bg-black {
+        background-color: var(--bg-primary) !important;
+    }
+
+    .bg-slate-900\/55,
+    .bg-slate-900\/40,
+    .bg-slate-900\/50 {
+        background-color: rgba(21, 24, 33, 0.82) !important;
+    }
+
+    /* Unify cards/surfaces across app */
+    .bg-white {
+        background-color: var(--surface) !important;
+    }
+
+    .bg-white\/90 {
+        background-color: var(--surface-strong) !important;
+    }
+
+    .bg-white\/85 {
+        background-color: var(--surface-strong) !important;
+    }
+
+    .bg-white\/80 {
+        background-color: var(--surface-strong) !important;
+    }
+
+    .bg-white\/75 {
+        background-color: var(--surface) !important;
+    }
+
+    .bg-white\/70 {
+        background-color: var(--surface) !important;
+    }
+
+    .bg-white\/50 {
+        background-color: var(--surface-soft) !important;
+    }
+
+    .bg-white,
+    .bg-white\/90,
+    .bg-white\/85,
+    .bg-white\/80,
+    .bg-white\/75,
+    .bg-white\/70,
+    .bg-white\/50 {
+        border-color: var(--surface-border) !important;
+    }
+
+    .border-gray-200,
+    .border-gray-100,
+    .border-slate-200,
+    .border-slate-100,
+    .border-white\/10,
+    .border-white\/20 {
+        border-color: var(--surface-border) !important;
+    }
+
+    .ring-gray-200,
+    .ring-slate-200,
+    .ring-white\/35,
+    .ring-white\/30 {
+        --tw-ring-color: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    /* Unified text hierarchy */
+    .text-white,
+    .text-white\/90,
+    .text-gray-900,
+    .text-slate-900,
+    .text-gray-800,
+    .text-slate-800 {
+        color: var(--text-primary) !important;
+    }
+
+    .text-gray-700,
+    .text-slate-700,
+    .text-gray-600,
+    .text-slate-600,
+    .text-gray-500,
+    .text-slate-500 {
+        color: var(--text-secondary) !important;
+    }
+
+    .text-gray-400,
+    .text-slate-400 {
+        color: var(--text-muted) !important;
+    }
+
+    /* Red accent (controlled usage) */
+    .bg-brand-600,
+    .bg-brand-500 {
+        background-color: var(--accent) !important;
+    }
+
+    .hover\:bg-brand-700:hover,
+    .hover\:bg-brand-600:hover {
+        background-color: var(--accent-hover) !important;
+        color: rgba(255, 255, 255, 0.96) !important;
+    }
+
+    .hover\:text-brand-700:hover,
+    .hover\:text-brand-600:hover {
+        color: var(--accent-hover) !important;
+    }
+
+    .text-brand-600,
+    .text-brand-700,
+    .text-brand-800 {
+        color: var(--accent) !important;
+    }
+
+    .bg-brand-50,
+    .bg-brand-100 {
+        background-color: var(--accent-soft) !important;
+    }
+
+    .ring-brand-100,
+    .ring-brand-200,
+    .border-brand-200 {
+        --tw-ring-color: rgba(229, 72, 77, 0.24) !important;
+        border-color: rgba(229, 72, 77, 0.24) !important;
+    }
+
+    .focus\:ring-brand-200:focus,
+    .focus\:ring-brand-500:focus,
+    .focus\:border-brand-300:focus,
+    .focus\:border-brand-500:focus {
+        --tw-ring-color: rgba(229, 72, 77, 0.3) !important;
+        border-color: rgba(229, 72, 77, 0.36) !important;
+    }
+}

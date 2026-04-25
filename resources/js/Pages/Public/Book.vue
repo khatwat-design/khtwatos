@@ -9,6 +9,7 @@ import { computed, watch } from 'vue';
 const props = defineProps({
     teams: Array,
     booked: Boolean,
+    prefill: Object,
 });
 
 const employeeNameMap = {
@@ -35,10 +36,10 @@ const form = useForm({
     team_slug: props.teams?.[0]?.slug || '',
     selection_mode: 'members',
     participant_ids: [],
-    invitee_name: '',
-    invitee_email: '',
+    invitee_name: props.prefill?.invitee_name || '',
+    invitee_email: props.prefill?.invitee_email || '',
     start_at: '',
-    project_name: '',
+    project_name: props.prefill?.project_name || '',
     reason: '',
 });
 
@@ -126,24 +127,34 @@ function submit() {
 <template>
     <Head title="حجز موعد" />
 
-    <div class="min-h-screen bg-gray-100 text-gray-900">
-        <header class="border-b border-gray-200 bg-white">
+    <div class="min-h-screen bg-slate-950 text-slate-100">
+        <div class="pointer-events-none absolute inset-0">
+            <div class="absolute -left-24 top-0 h-80 w-80 rounded-full bg-brand-500/20 blur-3xl" />
+            <div class="absolute right-0 top-24 h-72 w-72 rounded-full bg-indigo-500/15 blur-3xl" />
+        </div>
+        <header class="relative border-b border-white/10 bg-slate-900/55 backdrop-blur-xl">
             <div class="mx-auto max-w-3xl px-4 py-4">
-                <h1 class="text-lg font-semibold">حجز موعد</h1>
+                <h1 class="text-lg font-semibold tracking-tight text-white">حجز موعد</h1>
             </div>
         </header>
 
-        <main class="mx-auto max-w-3xl px-4 py-10">
+        <main class="relative mx-auto max-w-3xl px-4 py-10">
+            <div
+                v-if="prefill?.client_token"
+                class="mb-6 rounded-2xl border border-brand-200/60 bg-brand-50/90 px-4 py-3 text-brand-800"
+            >
+                تم فتح الحجز من بوابة العميل. البيانات الأساسية معبأة تلقائيًا.
+            </div>
             <div
                 v-if="booked"
-                class="mb-6 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800"
+                class="mb-6 rounded-2xl border border-emerald-200/70 bg-emerald-50/90 px-4 py-3 text-emerald-800"
             >
                 تم إرسال الحجز بنجاح. سيتواصل معك الموظف في الموعد المحدد.
             </div>
 
-            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-                <h2 class="text-xl font-bold">احجز مباشرة مع الفريق</h2>
-                <p class="mt-1 text-sm text-gray-600">
+            <div class="booking-light rounded-3xl border border-white/20 bg-white/75 p-6 shadow-2xl shadow-slate-900/10 ring-1 ring-white/35 backdrop-blur-xl">
+                <h2 class="text-xl font-bold text-slate-900">احجز مباشرة مع الفريق</h2>
+                <p class="mt-1 text-sm text-slate-600">
                     اختر قسماً كاملاً أو أكثر من موظف، وحدد موعداً مشتركاً متاحاً للجميع.
                 </p>
 
@@ -153,7 +164,7 @@ function submit() {
                         <select
                             id="team_slug"
                             v-model="form.team_slug"
-                            class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                            class="mt-1 block w-full rounded-xl border-slate-200 text-sm shadow-sm"
                             required
                         >
                             <option
@@ -171,7 +182,7 @@ function submit() {
                         <select
                             id="selection_mode"
                             v-model="form.selection_mode"
-                            class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                            class="mt-1 block w-full rounded-xl border-slate-200 text-sm shadow-sm"
                             required
                         >
                             <option value="members">اختيار موظفين محددين</option>
@@ -184,7 +195,7 @@ function submit() {
                         <select
                             id="participant_ids"
                             v-model="form.participant_ids"
-                            class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                            class="mt-1 block w-full rounded-xl border-slate-200 text-sm shadow-sm"
                             :multiple="form.selection_mode !== 'team'"
                             :size="form.selection_mode !== 'team' ? 6 : 1"
                             :disabled="form.selection_mode === 'team'"
@@ -234,7 +245,7 @@ function submit() {
                             <select
                                 id="start_at"
                                 v-model="form.start_at"
-                                class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                                class="mt-1 block w-full rounded-xl border-slate-200 text-sm shadow-sm"
                                 required
                             >
                                 <option
@@ -272,7 +283,7 @@ function submit() {
                             id="reason"
                             v-model="form.reason"
                             rows="3"
-                            class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                            class="mt-1 block w-full rounded-xl border-slate-200 text-sm shadow-sm"
                         />
                         <InputError class="mt-1" :message="form.errors.reason" />
                     </div>
@@ -285,3 +296,23 @@ function submit() {
         </main>
     </div>
 </template>
+
+<style scoped>
+.booking-light,
+.booking-light :deep(*) {
+    color: #111111;
+}
+
+.booking-light :deep(input),
+.booking-light :deep(select),
+.booking-light :deep(textarea),
+.booking-light :deep(option),
+.booking-light :deep(label) {
+    color: #111111 !important;
+}
+
+.booking-light :deep(input::placeholder),
+.booking-light :deep(textarea::placeholder) {
+    color: #555555 !important;
+}
+</style>

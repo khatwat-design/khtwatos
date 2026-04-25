@@ -112,7 +112,7 @@ const maxWidthClass = computed(() => {
             >
                 <div
                     v-show="show"
-                    class="mb-6 transform overflow-hidden rounded-lg bg-white shadow-xl transition-all sm:mx-auto sm:w-full"
+                    class="modal-content-light mb-6 transform overflow-hidden rounded-lg bg-white shadow-xl transition-all sm:mx-auto sm:w-full"
                     :class="maxWidthClass"
                 >
                     <slot v-if="showSlot" />
@@ -121,3 +121,47 @@ const maxWidthClass = computed(() => {
         </div>
     </dialog>
 </template>
+
+<style scoped>
+.modal-content-light {
+    color: #111111;
+}
+
+.modal-content-light :deep(.text-white),
+.modal-content-light :deep(.text-white\/90),
+.modal-content-light :deep(.text-white\/80),
+.modal-content-light :deep(.text-slate-900),
+.modal-content-light :deep(.text-slate-800),
+.modal-content-light :deep(.text-slate-700),
+.modal-content-light :deep(.text-slate-600),
+.modal-content-light :deep(.text-slate-500),
+.modal-content-light :deep(.text-slate-400),
+.modal-content-light :deep(.text-gray-900),
+.modal-content-light :deep(.text-gray-800),
+.modal-content-light :deep(.text-gray-700),
+.modal-content-light :deep(.text-gray-600),
+.modal-content-light :deep(.text-gray-500),
+.modal-content-light :deep(.text-gray-400),
+.modal-content-light :deep(label),
+.modal-content-light :deep(h1),
+.modal-content-light :deep(h2),
+.modal-content-light :deep(h3),
+.modal-content-light :deep(h4),
+.modal-content-light :deep(h5),
+.modal-content-light :deep(h6),
+.modal-content-light :deep(p),
+.modal-content-light :deep(span) {
+    color: #111111 !important;
+}
+
+.modal-content-light :deep(input),
+.modal-content-light :deep(select),
+.modal-content-light :deep(textarea) {
+    color: #111111 !important;
+}
+
+.modal-content-light :deep(input::placeholder),
+.modal-content-light :deep(textarea::placeholder) {
+    color: #6b7280 !important;
+}
+</style>
