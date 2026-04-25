@@ -496,9 +496,9 @@ const roasBars = computed(() => {
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
             @click.self="showCampaignModal = false"
         >
-            <div class="glass-modal campaign-light-modal w-full max-w-2xl overflow-hidden p-0">
-                <div class="flex items-center justify-between gap-2 border-b border-gray-200/80 px-5 py-4">
-                    <h3 class="text-lg font-semibold text-gray-900">إضافة بيانات الحملة - اليوم</h3>
+            <div class="glass-modal campaign-light-modal w-full max-w-2xl p-5">
+                <div class="flex items-center justify-between gap-2">
+                    <h3 class="text-lg font-semibold text-gray-900">إضافة بيانات الحملة</h3>
                     <button
                         type="button"
                         class="rounded-xl px-2 py-1 text-sm text-gray-500 transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-gray-100"
@@ -507,8 +507,8 @@ const roasBars = computed(() => {
                         إغلاق
                     </button>
                 </div>
-                <form class="grid gap-4 px-5 py-4 md:grid-cols-2" @submit.prevent="submitCampaign">
-                    <div class="md:col-span-2 -mt-1 text-xs text-gray-600">
+                <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="submitCampaign">
+                    <div class="md:col-span-2 text-xs text-gray-600">
                         أدخل بيانات الحملة اليومية ليتم احتساب التحليلات تلقائيًا مع مبيعات العميل.
                     </div>
                     <div>
@@ -537,7 +537,7 @@ const roasBars = computed(() => {
                         <InputLabel for="actions_taken_modal" value="الإجراءات التي تمت (اختياري)" />
                         <textarea id="actions_taken_modal" v-model="campaignForm.actions_taken" rows="3" class="mt-1 block w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200" />
                     </div>
-                    <div class="md:col-span-2 flex justify-end gap-2 border-t border-gray-200/80 pt-3">
+                    <div class="md:col-span-2 flex justify-end gap-2">
                         <button
                             type="button"
                             class="rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-700 transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-gray-50"
