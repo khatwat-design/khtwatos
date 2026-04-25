@@ -36,13 +36,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         Gate::define('view-warehouse', function (User $user): bool {
-            if ($user->isAdmin()) {
-                return true;
-            }
-
-            return $user->teams()
-                ->whereIn('slug', ['account', 'media-buyer'])
-                ->exists();
+            return (bool) $user->id;
         });
 
         Gate::define('manage-campaign-updates', function (User $user): bool {

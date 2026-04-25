@@ -496,7 +496,7 @@ const roasBars = computed(() => {
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
             @click.self="showCampaignModal = false"
         >
-            <div class="glass-modal w-full max-w-2xl p-5">
+            <div class="glass-modal campaign-light-modal w-full max-w-2xl p-5">
                 <div class="flex items-center justify-between gap-2">
                     <h3 class="text-lg font-semibold text-gray-900">بيانات الحملة - اليوم</h3>
                     <button
@@ -568,6 +568,17 @@ const roasBars = computed(() => {
     backdrop-filter: blur(12px);
     box-shadow: 0 20px 45px rgba(15, 23, 42, 0.2);
     animation: modal-in 220ms ease-out;
+}
+
+.campaign-light-modal,
+.campaign-light-modal :deep(*) {
+    color: #111111;
+}
+
+.campaign-light-modal :deep(input),
+.campaign-light-modal :deep(select),
+.campaign-light-modal :deep(textarea) {
+    color: #111111 !important;
 }
 
 @keyframes modal-in {
