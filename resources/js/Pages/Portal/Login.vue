@@ -41,13 +41,13 @@ function submit() {
 
             <form v-else class="mt-5 space-y-4" @submit.prevent="submit">
                 <div>
-                    <InputLabel for="username" value="اسم المستخدم" />
-                    <TextInput id="username" v-model="form.username" class="mt-1 block w-full" required autofocus />
+                    <InputLabel for="username" value="اسم المستخدم" class="text-black" />
+                    <TextInput id="username" v-model="form.username" class="mt-1 block w-full text-black placeholder:text-gray-500" required autofocus />
                     <InputError class="mt-1" :message="form.errors.username" />
                 </div>
                 <div>
-                    <InputLabel for="password" value="كلمة السر" />
-                    <TextInput id="password" v-model="form.password" type="password" class="mt-1 block w-full" required />
+                    <InputLabel for="password" value="كلمة السر" class="text-black" />
+                    <TextInput id="password" v-model="form.password" type="password" class="mt-1 block w-full text-black placeholder:text-gray-500" required />
                     <InputError class="mt-1" :message="form.errors.password" />
                 </div>
                 <PrimaryButton :disabled="form.processing">دخول البوابة</PrimaryButton>

@@ -39,12 +39,12 @@ const submit = () => {
 
         <form @submit.prevent="submit">
             <div>
-                <InputLabel for="username" value="اسم المستخدم" />
+                <InputLabel for="username" value="اسم المستخدم" class="text-black" />
 
                 <TextInput
                     id="username"
                     type="text"
-                    class="mt-1 block w-full"
+                    class="mt-1 block w-full text-black placeholder:text-gray-500"
                     v-model="form.username"
                     required
                     autofocus
@@ -55,12 +55,12 @@ const submit = () => {
             </div>
 
             <div class="mt-4">
-                <InputLabel for="password" value="كلمة المرور" />
+                <InputLabel for="password" value="كلمة المرور" class="text-black" />
 
                 <TextInput
                     id="password"
                     type="password"
-                    class="mt-1 block w-full"
+                    class="mt-1 block w-full text-black placeholder:text-gray-500"
                     v-model="form.password"
                     required
                     autocomplete="current-password"
@@ -72,7 +72,7 @@ const submit = () => {
             <div class="mt-4 block">
                 <label class="flex items-center">
                     <Checkbox name="remember" v-model:checked="form.remember" />
-                    <span class="ms-2 text-sm text-gray-600">تذكرني</span>
+                    <span class="ms-2 text-sm text-black">تذكرني</span>
                 </label>
             </div>
 
