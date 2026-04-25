@@ -496,9 +496,9 @@ const roasBars = computed(() => {
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
             @click.self="showCampaignModal = false"
         >
-            <div class="glass-modal campaign-light-modal w-full max-w-2xl p-5">
-                <div class="flex items-center justify-between gap-2">
-                    <h3 class="text-lg font-semibold text-gray-900">بيانات الحملة - اليوم</h3>
+            <div class="glass-modal campaign-light-modal w-full max-w-2xl overflow-hidden p-0">
+                <div class="flex items-center justify-between gap-2 border-b border-gray-200/80 px-5 py-4">
+                    <h3 class="text-lg font-semibold text-gray-900">إضافة بيانات الحملة - اليوم</h3>
                     <button
                         type="button"
                         class="rounded-xl px-2 py-1 text-sm text-gray-500 transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-gray-100"
@@ -507,10 +507,13 @@ const roasBars = computed(() => {
                         إغلاق
                     </button>
                 </div>
-                <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="submitCampaign">
+                <form class="grid gap-4 px-5 py-4 md:grid-cols-2" @submit.prevent="submitCampaign">
+                    <div class="md:col-span-2 -mt-1 text-xs text-gray-600">
+                        أدخل بيانات الحملة اليومية ليتم احتساب التحليلات تلقائيًا مع مبيعات العميل.
+                    </div>
                     <div>
                         <InputLabel for="client_id_modal" value="العميل" />
-                        <select id="client_id_modal" v-model="campaignForm.client_id" class="mt-1 block w-full rounded-xl border-gray-300 text-sm shadow-sm" required>
+                        <select id="client_id_modal" v-model="campaignForm.client_id" class="mt-1 block w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200" required>
                             <option value="" disabled>اختر العميل</option>
                             <option v-for="client in clients" :key="`campaign-modal-client-${client.id}`" :value="client.id">
                                 {{ client.name }}
@@ -520,21 +523,21 @@ const roasBars = computed(() => {
                     </div>
                     <div>
                         <InputLabel for="ad_spend_modal" value="الإنفاق الإعلاني" />
-                        <TextInput id="ad_spend_modal" v-model="campaignForm.ad_spend" type="number" min="0" step="0.01" class="mt-1 block w-full" required />
+                        <TextInput id="ad_spend_modal" v-model="campaignForm.ad_spend" type="number" min="0" step="0.01" class="mt-1 block w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200" required />
                     </div>
                     <div>
                         <InputLabel for="messages_count_modal" value="عدد الرسائل" />
-                        <TextInput id="messages_count_modal" v-model="campaignForm.messages_count" type="number" min="0" class="mt-1 block w-full" required />
+                        <TextInput id="messages_count_modal" v-model="campaignForm.messages_count" type="number" min="0" class="mt-1 block w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200" required />
                     </div>
                     <div>
                         <InputLabel for="clicks_count_modal" value="عدد النقرات (اختياري)" />
-                        <TextInput id="clicks_count_modal" v-model="campaignForm.clicks_count" type="number" min="0" class="mt-1 block w-full" />
+                        <TextInput id="clicks_count_modal" v-model="campaignForm.clicks_count" type="number" min="0" class="mt-1 block w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200" />
                     </div>
                     <div class="md:col-span-2">
                         <InputLabel for="actions_taken_modal" value="الإجراءات التي تمت (اختياري)" />
-                        <textarea id="actions_taken_modal" v-model="campaignForm.actions_taken" rows="3" class="mt-1 block w-full rounded-xl border-gray-300 text-sm shadow-sm" />
+                        <textarea id="actions_taken_modal" v-model="campaignForm.actions_taken" rows="3" class="mt-1 block w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200" />
                     </div>
-                    <div class="md:col-span-2 flex justify-end gap-2">
+                    <div class="md:col-span-2 flex justify-end gap-2 border-t border-gray-200/80 pt-3">
                         <button
                             type="button"
                             class="rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-700 transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-gray-50"
