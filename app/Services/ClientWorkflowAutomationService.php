@@ -143,6 +143,8 @@ class ClientWorkflowAutomationService
             }
 
             $this->moveClientToStage($client, 'strategy_delivered', $actorId, 'تحويل تلقائي بعد إكمال مهمة الاستراتيجية');
+            $this->moveClientToStage($client, 'payment', $actorId, 'تحويل تلقائي إلى الدفع بعد تسليم الاستراتيجية');
+            $this->createAccountingTaskForClient($client->fresh(), 'التواصل مع العميل بخصوص الدفع');
             return;
         }
 
