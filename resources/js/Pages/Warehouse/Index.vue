@@ -575,12 +575,20 @@ const roasBars = computed(() => {
 
 .campaign-light-modal,
 .campaign-light-modal :deep(*) {
-    color: #111111;
+    color: #111111 !important;
 }
 
 .campaign-light-modal :deep(input),
 .campaign-light-modal :deep(select),
-.campaign-light-modal :deep(textarea) {
+.campaign-light-modal :deep(textarea),
+.campaign-light-modal :deep(option),
+.campaign-light-modal :deep(label),
+.campaign-light-modal :deep(.text-gray-900),
+.campaign-light-modal :deep(.text-gray-700),
+.campaign-light-modal :deep(.text-gray-600),
+.campaign-light-modal :deep(.text-gray-500),
+.campaign-light-modal :deep(.text-white),
+.campaign-light-modal :deep(.text-white\/90) {
     color: #111111 !important;
 }
 

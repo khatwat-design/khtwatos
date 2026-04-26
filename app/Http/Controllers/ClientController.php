@@ -495,11 +495,13 @@ class ClientController extends Controller
             ['key' => 'brief_meeting', 'label' => 'اجتماع البريف', 'sort_order' => 30],
             ['key' => 'analysis', 'label' => 'تحليل', 'sort_order' => 40],
             ['key' => 'analysis_delivered', 'label' => 'تم تسليم التحليل', 'sort_order' => 50],
-            ['key' => 'payment', 'label' => 'دفع', 'sort_order' => 60],
-            ['key' => 'content_production', 'label' => 'إنتاج المحتوى', 'sort_order' => 70],
-            ['key' => 'campaign_launch', 'label' => 'إطلاق الحملة', 'sort_order' => 80],
-            ['key' => 'optimization', 'label' => 'تحسين', 'sort_order' => 90],
-            ['key' => 'paused', 'label' => 'متوقف', 'sort_order' => 100],
+            ['key' => 'strategy', 'label' => 'الاستراتيجية', 'sort_order' => 60],
+            ['key' => 'strategy_delivered', 'label' => 'تم تسليم الاستراتيجية', 'sort_order' => 70],
+            ['key' => 'payment', 'label' => 'دفع', 'sort_order' => 80],
+            ['key' => 'content_production', 'label' => 'إنتاج المحتوى', 'sort_order' => 90],
+            ['key' => 'campaign_launch', 'label' => 'إطلاق الحملة', 'sort_order' => 100],
+            ['key' => 'optimization', 'label' => 'تحسين', 'sort_order' => 110],
+            ['key' => 'paused', 'label' => 'متوقف', 'sort_order' => 120],
         ];
 
         foreach ($defaults as $stage) {
