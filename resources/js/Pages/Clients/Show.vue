@@ -5,7 +5,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     client: Object,
@@ -25,6 +25,14 @@ const props = defineProps({
     accountManagers: Array,
     campaignManagers: Array,
 });
+
+const history = computed(() =>
+    [...(props.history || [])].sort((a, b) => {
+        const atDiff = new Date(b?.at || 0).getTime() - new Date(a?.at || 0).getTime();
+        if (atDiff !== 0) return atDiff;
+        return Number(b?.id || 0) - Number(a?.id || 0);
+    }),
+);
 const page = usePage();
 const canDeleteRecords = Boolean(page.props.auth?.can?.deleteRecords);
 const canManageProducts = Boolean(canDeleteRecords || page.props.auth?.can?.viewClientPortalLink);
@@ -230,10 +238,13 @@ function deleteClientAttachment(attachment) {
 }
 
 function formatDt(iso) {
-    return new Date(iso).toLocaleString('ar-SA', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    });
+    return new Intl.DateTimeFormat('ar-SA', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(new Date(iso));
 }
 
 const sourceLabels = {

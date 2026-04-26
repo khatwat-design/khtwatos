@@ -49,7 +49,9 @@ class Client extends Model
 
     public function stageHistories(): HasMany
     {
-        return $this->hasMany(ClientStageHistory::class)->orderByDesc('created_at');
+        return $this->hasMany(ClientStageHistory::class)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
     }
 
     public function tasks(): HasMany

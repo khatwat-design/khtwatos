@@ -12,6 +12,7 @@ use App\Models\PipelineStage;
 use App\Models\Task;
 use App\Models\TaskStatusHistory;
 use App\Models\User;
+use App\Services\ClientWorkflowAutomationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,10 @@ use Inertia\Response;
 
 class ClientController extends Controller
 {
+    public function __construct(private readonly ClientWorkflowAutomationService $workflowAutomation)
+    {
+    }
+
     public function index(Request $request): Response
     {
         $stages = $this->ensurePipelineStages();
@@ -92,6 +97,11 @@ class ClientController extends Controller
 
             return $client;
         });
+
+        $initialStage = PipelineStage::query()->find($stageId);
+        if ($initialStage) {
+            $this->workflowAutomation->handleClientStageEntered($client->fresh(), $initialStage->key, $request->user()?->id);
+        }
 
         return redirect()->route('clients.show', $client);
     }
@@ -293,6 +303,13 @@ class ClientController extends Controller
             'note' => ['nullable', 'string', 'max:500'],
         ]);
 
+        if ((int) $client->current_pipeline_stage_id === (int) $data['current_pipeline_stage_id']) {
+            return redirect()->route('clients.show', $client);
+        }
+
+        $targetStage = PipelineStage::query()->findOrFail($data['current_pipeline_stage_id']);
+        $previousStageKey = $client->currentStage?->key;
+
         DB::transaction(function () use ($client, $data, $request): void {
             $client->update(['current_pipeline_stage_id' => $data['current_pipeline_stage_id']]);
             ClientStageHistory::query()->create([
@@ -302,6 +319,10 @@ class ClientController extends Controller
                 'note' => $data['note'] ?? null,
             ]);
         });
+
+        if ($previousStageKey !== $targetStage->key) {
+            $this->workflowAutomation->handleClientStageEntered($client->fresh(), $targetStage->key, $request->user()?->id);
+        }
 
         return redirect()->route('clients.show', $client);
     }
@@ -498,10 +519,13 @@ class ClientController extends Controller
             ['key' => 'strategy', 'label' => 'الاستراتيجية', 'sort_order' => 60],
             ['key' => 'strategy_delivered', 'label' => 'تم تسليم الاستراتيجية', 'sort_order' => 70],
             ['key' => 'payment', 'label' => 'دفع', 'sort_order' => 80],
-            ['key' => 'content_production', 'label' => 'إنتاج المحتوى', 'sort_order' => 90],
-            ['key' => 'campaign_launch', 'label' => 'إطلاق الحملة', 'sort_order' => 100],
-            ['key' => 'optimization', 'label' => 'تحسين', 'sort_order' => 110],
-            ['key' => 'paused', 'label' => 'متوقف', 'sort_order' => 120],
+            ['key' => 'content_production', 'label' => 'كتابة المحتوى الاعلاني', 'sort_order' => 90],
+            ['key' => 'content_delivered', 'label' => 'تم تسليم المحتوى الاعلاني', 'sort_order' => 100],
+            ['key' => 'campaign_launch', 'label' => 'إطلاق الحملات الاعلانية', 'sort_order' => 110],
+            ['key' => 'campaign_launched', 'label' => 'تم اطلاق الحملات الاعلانية', 'sort_order' => 120],
+            ['key' => 'campaign_analysis', 'label' => 'تحليل الحملة الاعلانية', 'sort_order' => 130],
+            ['key' => 'optimization', 'label' => 'التحسين', 'sort_order' => 140],
+            ['key' => 'paused', 'label' => 'متوقف', 'sort_order' => 150],
         ];
 
         foreach ($defaults as $stage) {

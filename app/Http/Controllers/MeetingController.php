@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\Meeting;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\ClientWorkflowAutomationService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,6 +15,10 @@ use Inertia\Response;
 
 class MeetingController extends Controller
 {
+    public function __construct(private readonly ClientWorkflowAutomationService $workflowAutomation)
+    {
+    }
+
     public function index(Request $request): Response
     {
         $query = Meeting::query()
@@ -167,6 +172,7 @@ class MeetingController extends Controller
     public function update(Request $request, Meeting $meeting): RedirectResponse
     {
         $this->ensureInternal($meeting);
+        $previousStatus = $meeting->status;
 
         $request->merge([
             'client_id' => $request->filled('client_id') ? $request->input('client_id') : null,
@@ -201,6 +207,11 @@ class MeetingController extends Controller
 
         $this->syncParticipants($meeting, $data);
 
+        $newStatus = $data['status'] ?? $meeting->status;
+        if ($previousStatus !== 'completed' && $newStatus === 'completed') {
+            $this->workflowAutomation->handleMeetingCompleted($meeting->fresh(), $request->user()?->id);
+        }
+
         return redirect()->route('meetings.index');
     }
 
@@ -225,6 +236,8 @@ class MeetingController extends Controller
             'summary' => trim($data['summary']),
             'completed_at' => now(),
         ]);
+
+        $this->workflowAutomation->handleMeetingCompleted($meeting->fresh(), $request->user()?->id);
 
         return redirect()->route('meetings.index');
     }

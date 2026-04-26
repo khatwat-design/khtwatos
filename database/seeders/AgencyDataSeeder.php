@@ -24,10 +24,16 @@ class AgencyDataSeeder extends Seeder
             ['key' => 'brief_meeting', 'label' => 'اجتماع البريف', 'sort_order' => 30],
             ['key' => 'analysis', 'label' => 'تحليل', 'sort_order' => 40],
             ['key' => 'analysis_delivered', 'label' => 'تم تسليم التحليل', 'sort_order' => 50],
-            ['key' => 'payment', 'label' => 'دفع', 'sort_order' => 60],
-            ['key' => 'content_production', 'label' => 'إنتاج المحتوى', 'sort_order' => 70],
-            ['key' => 'campaign_launch', 'label' => 'إطلاق الحملة', 'sort_order' => 80],
-            ['key' => 'optimization', 'label' => 'تحسين', 'sort_order' => 90],
+            ['key' => 'strategy', 'label' => 'الاستراتيجية', 'sort_order' => 60],
+            ['key' => 'strategy_delivered', 'label' => 'تم تسليم الاستراتيجية', 'sort_order' => 70],
+            ['key' => 'payment', 'label' => 'دفع', 'sort_order' => 80],
+            ['key' => 'content_production', 'label' => 'كتابة المحتوى الاعلاني', 'sort_order' => 90],
+            ['key' => 'content_delivered', 'label' => 'تم تسليم المحتوى الاعلاني', 'sort_order' => 100],
+            ['key' => 'campaign_launch', 'label' => 'إطلاق الحملات الاعلانية', 'sort_order' => 110],
+            ['key' => 'campaign_launched', 'label' => 'تم اطلاق الحملات الاعلانية', 'sort_order' => 120],
+            ['key' => 'campaign_analysis', 'label' => 'تحليل الحملة الاعلانية', 'sort_order' => 130],
+            ['key' => 'optimization', 'label' => 'التحسين', 'sort_order' => 140],
+            ['key' => 'paused', 'label' => 'متوقف', 'sort_order' => 150],
         ];
         foreach ($stages as $row) {
             PipelineStage::query()->updateOrCreate(['key' => $row['key']], $row);

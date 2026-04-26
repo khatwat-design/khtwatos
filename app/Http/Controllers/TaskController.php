@@ -13,6 +13,7 @@ use App\Models\TaskReassignment;
 use App\Models\TaskStatusHistory;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\ClientWorkflowAutomationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +23,10 @@ use Inertia\Response;
 
 class TaskController extends Controller
 {
+    public function __construct(private readonly ClientWorkflowAutomationService $workflowAutomation)
+    {
+    }
+
     public function index(Request $request): Response
     {
         $teams = $this->ensureTeams();
@@ -321,14 +326,19 @@ class TaskController extends Controller
                         continue;
                     }
 
-                    if ((int) $task->board_column_id !== (int) $column->id && $task->client_id) {
+                    $fromColumnId = (int) $task->board_column_id;
+                    $toColumnId = (int) $column->id;
+                    $toColumnName = $columnNameMap[$column->id] ?? $column->name;
+                    $didMoveColumn = $fromColumnId !== $toColumnId;
+
+                    if ($didMoveColumn && $task->client_id) {
                         TaskStatusHistory::query()->create([
                             'task_id' => $task->id,
                             'client_id' => $task->client_id,
-                            'from_column_id' => $task->board_column_id,
-                            'to_column_id' => $column->id,
-                            'from_column_name' => $columnNameMap[$task->board_column_id] ?? null,
-                            'to_column_name' => $columnNameMap[$column->id] ?? $column->name,
+                            'from_column_id' => $fromColumnId,
+                            'to_column_id' => $toColumnId,
+                            'from_column_name' => $columnNameMap[$fromColumnId] ?? null,
+                            'to_column_name' => $toColumnName,
                             'changed_by_id' => $request->user()?->id,
                         ]);
                     }
@@ -339,6 +349,10 @@ class TaskController extends Controller
                     ]);
 
                     $task->board_column_id = $column->id;
+
+                    if ($didMoveColumn && (int) $task->client_id > 0 && $toColumnName === 'تم') {
+                        $this->workflowAutomation->handleTaskMovedToDone($task, $request->user()?->id);
+                    }
                 }
             }
         });
