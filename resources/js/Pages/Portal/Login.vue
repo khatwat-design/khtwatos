@@ -25,8 +25,8 @@ function submit() {
 <template>
     <Head :title="`تسجيل دخول بوابة العميل - ${client?.name || ''}`" />
 
-    <div class="flex min-h-screen items-center justify-center bg-gray-100 px-4 py-8">
-        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
+    <div class="portal-login-screen flex min-h-screen items-center justify-center bg-gray-100 px-4 py-8">
+        <div class="portal-login-card w-full max-w-md rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-200">
             <h1 class="text-xl font-bold text-gray-900">تسجيل دخول بوابة العميل</h1>
             <p class="mt-1 text-sm text-gray-600">
                 {{ client?.name }}<span v-if="client?.company"> · {{ client.company }}</span>
@@ -55,3 +55,22 @@ function submit() {
         </div>
     </div>
 </template>
+
+<style scoped>
+.portal-login-card,
+.portal-login-card :deep(*) {
+    color: #111111 !important;
+}
+
+.portal-login-card :deep(input),
+.portal-login-card :deep(textarea),
+.portal-login-card :deep(select) {
+    color: #111111 !important;
+    background: #ffffff !important;
+}
+
+.portal-login-card :deep(input::placeholder),
+.portal-login-card :deep(textarea::placeholder) {
+    color: #6b7280 !important;
+}
+</style>
