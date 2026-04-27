@@ -121,20 +121,21 @@ class WarehouseController extends Controller
 
         $data = $request->validate([
             'client_id' => ['required', 'exists:clients,id'],
+            'report_date' => ['required', 'date', 'before_or_equal:today'],
             'ad_spend' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
             'messages_count' => ['required', 'integer', 'min:0', 'max:1000000'],
             'clicks_count' => ['nullable', 'integer', 'min:0', 'max:1000000'],
             'actions_taken' => ['nullable', 'string', 'max:5000'],
         ]);
 
-        $today = Carbon::today()->toDateString();
-        $todaySales = ClientDailySale::query()
+        $reportDate = Carbon::parse($data['report_date'])->toDateString();
+        $reportDateSales = ClientDailySale::query()
             ->where('client_id', $data['client_id'])
-            ->whereDate('sales_date', $today)
+            ->whereDate('sales_date', $reportDate)
             ->first();
 
-        $todayRevenue = (float) ($todaySales?->revenue ?? 0);
-        $todayOrders = (int) ($todaySales?->orders_count ?? 0);
+        $reportRevenue = (float) ($reportDateSales?->revenue ?? 0);
+        $reportOrders = (int) ($reportDateSales?->orders_count ?? 0);
         $adSpend = (float) $data['ad_spend'];
         $messages = (int) $data['messages_count'];
         $clicks = (int) ($data['clicks_count'] ?? 0);
@@ -142,18 +143,18 @@ class WarehouseController extends Controller
         ClientCampaignUpdate::query()->updateOrCreate(
             [
                 'client_id' => $data['client_id'],
-                'report_date' => $today,
+                'report_date' => $reportDate,
             ],
             [
                 'ad_spend' => $adSpend,
                 'messages_count' => $messages,
                 'clicks_count' => $clicks,
                 'leads_count' => $messages,
-                'purchases_count' => $todayOrders,
-                'campaign_revenue' => $todayRevenue,
-                'roas' => $adSpend > 0 ? round($todayRevenue / $adSpend, 2) : null,
-                'cpa' => $todayOrders > 0 ? round($adSpend / $todayOrders, 2) : null,
-                'cvr' => $messages > 0 ? round(($todayOrders / $messages) * 100, 2) : null,
+                'purchases_count' => $reportOrders,
+                'campaign_revenue' => $reportRevenue,
+                'roas' => $adSpend > 0 ? round($reportRevenue / $adSpend, 2) : null,
+                'cpa' => $reportOrders > 0 ? round($adSpend / $reportOrders, 2) : null,
+                'cvr' => $messages > 0 ? round(($reportOrders / $messages) * 100, 2) : null,
                 'summary' => null,
                 'actions_taken' => $data['actions_taken'] ?? null,
                 'updated_by_user_id' => $request->user()?->id,

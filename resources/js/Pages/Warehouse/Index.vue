@@ -32,6 +32,7 @@ const filterForm = useForm({
 
 const campaignForm = useForm({
     client_id: props.filters?.client_id || '',
+    report_date: props.filters?.end_date || new Date().toISOString().slice(0, 10),
     ad_spend: 0,
     messages_count: 0,
     clicks_count: 0,
@@ -510,6 +511,17 @@ const roasBars = computed(() => {
                 <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="submitCampaign">
                     <div class="md:col-span-2 text-xs text-gray-600">
                         أدخل بيانات الحملة اليومية ليتم احتساب التحليلات تلقائيًا مع مبيعات العميل.
+                    </div>
+                    <div>
+                        <InputLabel for="report_date_modal" value="تاريخ البيانات" />
+                        <input
+                            id="report_date_modal"
+                            v-model="campaignForm.report_date"
+                            type="date"
+                            class="mt-1 block w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200"
+                            required
+                        />
+                        <InputError class="mt-1" :message="campaignForm.errors.report_date" />
                     </div>
                     <div>
                         <InputLabel for="client_id_modal" value="العميل" />
