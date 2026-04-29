@@ -83,6 +83,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/meetings/{meeting}/edit', [MeetingController::class, 'edit'])->name('meetings.edit');
     Route::patch('/meetings/{meeting}', [MeetingController::class, 'update'])->name('meetings.update');
     Route::post('/meetings/{meeting}/complete', [MeetingController::class, 'complete'])->name('meetings.complete');
+    Route::post('/meetings/{meeting}/archive', [MeetingController::class, 'archive'])->name('meetings.archive');
+    Route::post('/meetings/{meeting}/restore', [MeetingController::class, 'restoreArchive'])->name('meetings.restore');
     Route::delete('/meetings/{meeting}', [MeetingController::class, 'destroy'])->name('meetings.destroy');
 
     Route::get('/clients', [ClientController::class, 'index'])->name('clients.index');

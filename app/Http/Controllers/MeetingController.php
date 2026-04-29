@@ -11,6 +11,7 @@ use App\Services\SmartNotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -25,6 +26,10 @@ class MeetingController extends Controller
 
     public function index(Request $request): Response
     {
+        $this->archiveCompletedMeetings();
+        $hasArchiveColumn = Schema::hasColumn('meetings', 'archived_at');
+        $includeArchived = $request->boolean('include_archived');
+
         $query = Meeting::query()
             ->with([
                 'host:id,name,role',
@@ -32,6 +37,10 @@ class MeetingController extends Controller
                 'participants:id,name,role',
             ])
             ->orderByDesc('start_at');
+
+        if ($hasArchiveColumn && ! $includeArchived) {
+            $query->whereNull('archived_at');
+        }
 
         if ($request->filled('user_id')) {
             $query->where('user_id', (int) $request->query('user_id'));
@@ -67,6 +76,7 @@ class MeetingController extends Controller
                 'reason' => $m->reason,
                 'summary' => $m->summary,
                 'completed_at' => $m->completed_at?->toIso8601String(),
+                'archived_at' => $m->archived_at?->toIso8601String(),
                 'status' => $m->status,
                 'source' => $m->source,
                 'host' => $m->host ? [
@@ -87,7 +97,9 @@ class MeetingController extends Controller
                 'client_id' => $request->filled('client_id') ? (int) $request->query('client_id') : null,
                 'status' => in_array($status, ['scheduled', 'completed', 'canceled'], true) ? $status : null,
                 'scope' => in_array($scope, ['internal', 'client'], true) ? $scope : null,
+                'include_archived' => $includeArchived,
             ],
+            'stats' => $this->buildStats($request, $hasArchiveColumn),
         ]);
     }
 
@@ -249,6 +261,40 @@ class MeetingController extends Controller
         return redirect()->route('meetings.index');
     }
 
+    public function archive(Request $request, Meeting $meeting): RedirectResponse
+    {
+        $this->ensureInternal($meeting);
+        if (! Schema::hasColumn('meetings', 'archived_at')) {
+            return redirect()->route('meetings.index');
+        }
+        if (! in_array($meeting->status, ['completed', 'canceled'], true)) {
+            return redirect()->route('meetings.index');
+        }
+
+        $meeting->update([
+            'archived_at' => now(),
+            'archived_by_id' => $request->user()?->id,
+            'archived_reason' => 'manual',
+        ]);
+
+        return redirect()->route('meetings.index');
+    }
+
+    public function restoreArchive(Meeting $meeting): RedirectResponse
+    {
+        if (! Schema::hasColumn('meetings', 'archived_at')) {
+            return redirect()->route('meetings.index', ['include_archived' => 1]);
+        }
+
+        $meeting->update([
+            'archived_at' => null,
+            'archived_by_id' => null,
+            'archived_reason' => null,
+        ]);
+
+        return redirect()->route('meetings.index', ['include_archived' => 1]);
+    }
+
     private function ensureInternal(Meeting $meeting): void
     {
         if ($meeting->source !== 'internal') {
@@ -338,5 +384,44 @@ class MeetingController extends Controller
             ->unique()
             ->values()
             ->all();
+    }
+
+    private function archiveCompletedMeetings(): void
+    {
+        if (! Schema::hasColumn('meetings', 'archived_at')) {
+            return;
+        }
+
+        Meeting::query()
+            ->whereNull('archived_at')
+            ->whereIn('status', ['completed', 'canceled'])
+            ->where('updated_at', '<=', now()->subDays(14))
+            ->update([
+                'archived_at' => now(),
+                'archived_reason' => 'auto_closed_14d',
+            ]);
+    }
+
+    private function buildStats(Request $request, bool $hasArchiveColumn): array
+    {
+        $base = Meeting::query();
+        if ($request->filled('user_id')) {
+            $base->where('user_id', (int) $request->query('user_id'));
+        }
+        if ($request->filled('client_id')) {
+            $base->where('client_id', (int) $request->query('client_id'));
+        }
+
+        $activeBase = (clone $base);
+        if ($hasArchiveColumn) {
+            $activeBase->whereNull('archived_at');
+        }
+
+        return [
+            'today' => (clone $activeBase)->whereDate('start_at', today())->count(),
+            'scheduled' => (clone $activeBase)->where('status', 'scheduled')->count(),
+            'completed' => (clone $activeBase)->where('status', 'completed')->count(),
+            'archived' => $hasArchiveColumn ? (clone $base)->whereNotNull('archived_at')->count() : 0,
+        ];
     }
 }

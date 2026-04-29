@@ -12,6 +12,7 @@ const props = defineProps({
     clients: Array,
     teams: Array,
     filters: Object,
+    stats: Object,
 });
 
 const statusLabels = {
@@ -56,13 +57,18 @@ function goIndex(params) {
     });
 }
 
-function setHost(userId) {
-    goIndex({
-        user_id: userId || undefined,
+function baseFilters() {
+    return {
+        user_id: props.filters.user_id || undefined,
         client_id: props.filters.client_id || undefined,
         status: props.filters.status || undefined,
         scope: props.filters.scope || undefined,
-    });
+        include_archived: props.filters.include_archived ? 1 : undefined,
+    };
+}
+
+function setHost(userId) {
+    goIndex({ ...baseFilters(), user_id: userId || undefined });
 }
 
 function setHostFromSelect(event) {
@@ -74,31 +80,23 @@ function setHostFromSelect(event) {
 function setClient(event) {
     const raw = event.target.value;
     const clientId = raw === '' ? undefined : Number(raw);
-    goIndex({
-        user_id: props.filters.user_id || undefined,
-        client_id: clientId,
-        status: props.filters.status || undefined,
-        scope: props.filters.scope || undefined,
-    });
+    goIndex({ ...baseFilters(), client_id: clientId });
 }
 
 function setStatus(event) {
     const raw = event.target.value;
-    goIndex({
-        user_id: props.filters.user_id || undefined,
-        client_id: props.filters.client_id || undefined,
-        status: raw || undefined,
-        scope: props.filters.scope || undefined,
-    });
+    goIndex({ ...baseFilters(), status: raw || undefined });
 }
 
 function setScope(event) {
     const raw = event.target.value;
+    goIndex({ ...baseFilters(), scope: raw || undefined });
+}
+
+function toggleArchivedFilter(event) {
     goIndex({
-        user_id: props.filters.user_id || undefined,
-        client_id: props.filters.client_id || undefined,
-        status: props.filters.status || undefined,
-        scope: raw || undefined,
+        ...baseFilters(),
+        include_archived: event.target.checked ? 1 : undefined,
     });
 }
 
@@ -113,6 +111,17 @@ function deleteMeeting(id) {
             isMeetingsLoading.value = false;
         },
     });
+}
+
+function archiveMeeting(id) {
+    if (!confirm('أرشفة هذا الاجتماع؟')) {
+        return;
+    }
+    router.post(route('meetings.archive', id), {}, { preserveScroll: true });
+}
+
+function restoreMeeting(id) {
+    router.post(route('meetings.restore', id), {}, { preserveScroll: true });
 }
 
 function formatDt(iso) {
@@ -160,8 +169,15 @@ function submitComplete() {
         <template #title>الاجتماعات</template>
 
         <div class="mx-auto max-w-6xl space-y-4">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div class="ui-card p-3 text-sm text-black">اجتماعات اليوم: <strong>{{ stats?.today || 0 }}</strong></div>
+                <div class="ui-card p-3 text-sm text-black">المجدولة: <strong>{{ stats?.scheduled || 0 }}</strong></div>
+                <div class="ui-card p-3 text-sm text-black">المكتملة: <strong>{{ stats?.completed || 0 }}</strong></div>
+                <div class="ui-card p-3 text-sm text-black">المؤرشفة: <strong>{{ stats?.archived || 0 }}</strong></div>
+            </div>
+
             <div class="ui-card p-4">
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                     <div class="space-y-1">
                         <label class="block text-xs font-medium text-black" for="host_filter">المضيف:</label>
                         <select
@@ -233,6 +249,15 @@ function submitComplete() {
                         اجتماع داخلي جديد
                     </Link>
                     </div>
+                    <label class="flex items-center gap-2 text-xs font-medium text-black lg:items-end">
+                        <input
+                            type="checkbox"
+                            class="rounded border-slate-300 text-brand-600"
+                            :checked="Boolean(filters.include_archived)"
+                            @change="toggleArchivedFilter"
+                        />
+                        عرض المؤرشفة
+                    </label>
                 </div>
             </div>
 
@@ -301,6 +326,17 @@ function submitComplete() {
                             ✓ تم الاجتماع
                         </button>
                         <button type="button" class="text-red-600 hover:underline" @click="deleteMeeting(m.id)">حذف</button>
+                        <button
+                            v-if="!m.archived_at && (m.status === 'completed' || m.status === 'canceled')"
+                            type="button"
+                            class="text-slate-700 hover:underline"
+                            @click="archiveMeeting(m.id)"
+                        >
+                            أرشفة
+                        </button>
+                        <button v-if="m.archived_at" type="button" class="text-indigo-700 hover:underline" @click="restoreMeeting(m.id)">
+                            استرجاع
+                        </button>
                     </div>
                 </div>
                 <div v-if="!meetings.length" class="ui-card p-6 text-center text-sm text-slate-500">
@@ -429,6 +465,22 @@ function submitComplete() {
                                         @click="deleteMeeting(m.id)"
                                     >
                                         حذف
+                                    </button>
+                                    <button
+                                        v-if="!m.archived_at && (m.status === 'completed' || m.status === 'canceled')"
+                                        type="button"
+                                        class="text-sm text-slate-700 hover:underline"
+                                        @click="archiveMeeting(m.id)"
+                                    >
+                                        أرشفة
+                                    </button>
+                                    <button
+                                        v-if="m.archived_at"
+                                        type="button"
+                                        class="text-sm text-indigo-700 hover:underline"
+                                        @click="restoreMeeting(m.id)"
+                                    >
+                                        استرجاع
                                     </button>
                                 </div>
                                 <span v-else class="text-slate-400">—</span>

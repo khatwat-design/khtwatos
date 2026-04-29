@@ -19,6 +19,9 @@ class Meeting extends Model
         'reason',
         'summary',
         'completed_at',
+        'archived_at',
+        'archived_by_id',
+        'archived_reason',
         'status',
         'user_id',
         'client_id',
@@ -31,6 +34,7 @@ class Meeting extends Model
             'start_at' => 'datetime',
             'end_at' => 'datetime',
             'completed_at' => 'datetime',
+            'archived_at' => 'datetime',
             'raw_payload' => 'array',
         ];
     }
