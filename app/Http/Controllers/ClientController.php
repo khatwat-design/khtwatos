@@ -13,6 +13,7 @@ use App\Models\Task;
 use App\Models\TaskStatusHistory;
 use App\Models\User;
 use App\Services\ClientWorkflowAutomationService;
+use App\Services\SmartNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +28,10 @@ use Inertia\Response;
 
 class ClientController extends Controller
 {
-    public function __construct(private readonly ClientWorkflowAutomationService $workflowAutomation)
+    public function __construct(
+        private readonly ClientWorkflowAutomationService $workflowAutomation,
+        private readonly SmartNotificationService $smartNotifications
+    )
     {
     }
 
@@ -322,6 +326,7 @@ class ClientController extends Controller
 
         if ($previousStageKey !== $targetStage->key) {
             $this->workflowAutomation->handleClientStageEntered($client->fresh(), $targetStage->key, $request->user()?->id);
+            $this->smartNotifications->notifyClientStageChanged($client->fresh(), $targetStage->label, $request->user()?->id);
         }
 
         return redirect()->route('clients.show', $client);

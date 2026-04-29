@@ -2,8 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\SystemNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -30,18 +32,26 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+        if ($user) {
+            app(SystemNotificationService::class)->syncForUser($user);
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user(),
+                'user' => $user,
                 'can' => [
-                    'manageEmployees' => $request->user() ? Gate::forUser($request->user())->allows('manage-employees') : false,
-                    'deleteRecords' => $request->user() ? $request->user()->isAdmin() : false,
-                    'viewAdminHome' => $request->user() ? Gate::forUser($request->user())->allows('view-admin-home') : false,
-                    'viewWarehouse' => $request->user() ? Gate::forUser($request->user())->allows('view-warehouse') : false,
-                    'manageCampaignUpdates' => $request->user() ? Gate::forUser($request->user())->allows('manage-campaign-updates') : false,
-                    'viewClientPortalLink' => $request->user() ? Gate::forUser($request->user())->allows('view-client-portal-link') : false,
+                    'manageEmployees' => $user ? Gate::forUser($user)->allows('manage-employees') : false,
+                    'deleteRecords' => $user ? $user->isAdmin() : false,
+                    'viewAdminHome' => $user ? Gate::forUser($user)->allows('view-admin-home') : false,
+                    'viewWarehouse' => $user ? Gate::forUser($user)->allows('view-warehouse') : false,
+                    'manageCampaignUpdates' => $user ? Gate::forUser($user)->allows('manage-campaign-updates') : false,
+                    'viewClientPortalLink' => $user ? Gate::forUser($user)->allows('view-client-portal-link') : false,
                 ],
+            ],
+            'notifications' => [
+                'unread_count' => ($user && Schema::hasTable('notifications')) ? (int) $user->unreadNotifications()->count() : 0,
             ],
         ];
     }

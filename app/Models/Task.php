@@ -18,6 +18,9 @@ class Task extends Model
         'client_id',
         'position',
         'due_at',
+        'archived_at',
+        'archived_by_id',
+        'archived_reason',
     ];
 
     protected function casts(): array
@@ -25,6 +28,7 @@ class Task extends Model
         return [
             'position' => 'integer',
             'due_at' => 'datetime',
+            'archived_at' => 'datetime',
         ];
     }
 

@@ -191,23 +191,23 @@ const todayDateLabel = computed(() =>
         <template #title>الرئيسية</template>
 
         <div class="home-page mx-auto max-w-7xl space-y-4 md:space-y-5">
-            <div class="overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-l from-slate-900/90 via-slate-900/75 to-brand-900/75 text-white shadow-2xl shadow-black/25 backdrop-blur-xl">
+            <div class="overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-l from-white via-slate-50 to-brand-50 text-black shadow-xl shadow-slate-300/40 backdrop-blur-xl">
                 <div class="grid gap-4 p-5 md:grid-cols-[1fr,auto] md:items-center">
                     <div>
                         <h2 class="text-lg font-black tracking-tight md:text-xl">لوحة التحكم الإدارية</h2>
                     </div>
                     <div class="grid grid-cols-2 gap-2 text-xs md:min-w-64">
-                        <div class="rounded-xl border border-white/15 bg-white/10 px-3 py-2 backdrop-blur-sm">
-                            <p class="text-white/75">اليوم</p>
-                            <p class="mt-1 font-semibold text-white">{{ props.meetings?.today || 0 }}</p>
+                        <div class="rounded-xl border border-slate-200 bg-white/90 px-3 py-2 backdrop-blur-sm">
+                            <p class="text-slate-600">اليوم</p>
+                            <p class="mt-1 font-semibold text-black">{{ props.meetings?.today || 0 }}</p>
                         </div>
-                        <div class="rounded-xl border border-white/15 bg-white/10 px-3 py-2 backdrop-blur-sm">
-                            <p class="text-white/75">إنجاز الاجتماعات</p>
-                            <p class="mt-1 font-semibold text-white">{{ meetingsCompletionRate }}%</p>
+                        <div class="rounded-xl border border-slate-200 bg-white/90 px-3 py-2 backdrop-blur-sm">
+                            <p class="text-slate-600">إنجاز الاجتماعات</p>
+                            <p class="mt-1 font-semibold text-black">{{ meetingsCompletionRate }}%</p>
                         </div>
                     </div>
                 </div>
-                <div class="border-t border-white/10 bg-black/20 px-5 py-2 text-xs text-white/70">
+                <div class="border-t border-slate-200 bg-white/75 px-5 py-2 text-xs text-slate-600">
                     {{ todayDateLabel }}
                 </div>
             </div>

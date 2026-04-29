@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Team;
 use App\Models\User;
+use App\Services\SmartNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -14,6 +15,10 @@ use Inertia\Response;
 
 class EmployeeController extends Controller
 {
+    public function __construct(private readonly SmartNotificationService $smartNotifications)
+    {
+    }
+
     public function index(Request $request): Response
     {
         $teams = $this->ensureTeams();
@@ -69,6 +74,15 @@ class EmployeeController extends Controller
         ]);
 
         $user->teams()->sync($this->teamPivotSyncPayload($data['teams'] ?? []));
+        $adminIds = User::query()->where('role', 'admin')->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $this->smartNotifications->notifyUsers($adminIds, [
+            'title' => 'إضافة موظف جديد',
+            'body' => $user->name,
+            'severity' => 'info',
+            'category' => 'employees',
+            'link' => route('employees.index'),
+            'meta' => ['employee_id' => $user->id],
+        ], $request->user()?->id);
 
         return redirect()->route('employees.index');
     }

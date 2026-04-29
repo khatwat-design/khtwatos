@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Enterprise Workflow Presentation</title>
+    <style>
+        :root {
+            --bg: #0b0d12;
+            --bg-soft: #111522;
+            --surface: rgba(18, 22, 34, 0.92);
+            --surface-2: rgba(28, 34, 50, 0.92);
+            --text: #f5f7fc;
+            --muted: #aeb7cd;
+            --accent: #e5484d;
+            --accent-2: #ff6b70;
+            --ok: #44c58d;
+            --warn: #ffbf5d;
+            --border: rgba(255, 255, 255, 0.12);
+            --shadow: 0 28px 80px rgba(0, 0, 0, 0.45);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: "Cairo", "Tajawal", "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(1200px 600px at 85% -8%, rgba(229, 72, 77, 0.2), transparent 55%),
+                radial-gradient(1000px 500px at 10% 120%, rgba(90, 140, 255, 0.18), transparent 50%),
+                var(--bg);
+        }
+
+        .deck {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: grid;
+            grid-template-rows: 68px 1fr 54px;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 12px 22px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(10, 12, 18, 0.7);
+            backdrop-filter: blur(12px);
+            z-index: 20;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 800;
+            letter-spacing: 0.2px;
+        }
+
+        .brand-dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 99px;
+            background: var(--accent);
+            box-shadow: 0 0 24px rgba(229, 72, 77, 0.6);
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            appearance: none;
+            border: 1px solid var(--border);
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+            color: var(--text);
+            border-radius: 10px;
+            padding: 9px 13px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.22s ease, border-color 0.22s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            border-color: rgba(255, 255, 255, 0.28);
+        }
+
+        .btn.accent {
+            background: linear-gradient(180deg, var(--accent-2), var(--accent));
+            border-color: rgba(255, 255, 255, 0.16);
+            color: #fff;
+        }
+
+        .viewport {
+            position: relative;
+            overflow: hidden;
+            perspective: 1600px;
+        }
+
+        .slide {
+            position: absolute;
+            inset: 24px 36px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            background: linear-gradient(160deg, var(--surface), var(--surface-2));
+            box-shadow: var(--shadow);
+            padding: 34px 38px;
+            opacity: 0;
+            transform: translateX(80px) scale(0.985);
+            transition: opacity 0.55s ease, transform 0.55s ease;
+            pointer-events: none;
+            display: grid;
+            grid-template-rows: auto auto 1fr auto;
+            gap: 16px;
+        }
+
+        .slide.active {
+            opacity: 1;
+            transform: translateX(0) scale(1);
+            pointer-events: auto;
+        }
+
+        .slide.prev {
+            opacity: 0;
+            transform: translateX(-80px) scale(0.985);
+        }
+
+        .slide-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .badge {
+            padding: 6px 11px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 800;
+            background: rgba(229, 72, 77, 0.2);
+            border: 1px solid rgba(229, 72, 77, 0.36);
+            color: #ffb8bb;
+        }
+
+        .title {
+            font-size: clamp(30px, 3.2vw, 54px);
+            line-height: 1.2;
+            margin: 0;
+            font-weight: 900;
+            letter-spacing: 0.1px;
+        }
+
+        .subtitle {
+            margin: 0;
+            color: var(--muted);
+            font-size: clamp(16px, 1.4vw, 21px);
+            line-height: 1.9;
+            max-width: 92%;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1.1fr 0.95fr;
+            gap: 16px;
+            align-items: stretch;
+        }
+
+        .card {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 18px;
+            overflow: hidden;
+        }
+
+        .card h3 {
+            margin: 0 0 10px;
+            font-size: 20px;
+            line-height: 1.45;
+        }
+
+        .card p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.9;
+            font-size: 16px;
+        }
+
+        ul {
+            margin: 0;
+            padding-right: 20px;
+            line-height: 1.95;
+            font-size: 18px;
+        }
+
+        .speaker {
+            border: 1px solid rgba(68, 197, 141, 0.38);
+            border-radius: 12px;
+            background: rgba(68, 197, 141, 0.1);
+            padding: 10px 12px;
+            font-size: 14px;
+            color: #d9ffe9;
+            line-height: 1.8;
+        }
+
+        .kpis {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .kpi {
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.04);
+            padding: 14px;
+        }
+
+        .kpi .v {
+            font-size: 30px;
+            font-weight: 900;
+            line-height: 1.2;
+        }
+
+        .kpi .l {
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .timeline {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(100px, 1fr));
+            gap: 10px;
+            align-items: start;
+        }
+
+        .step {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 10px;
+            min-height: 102px;
+        }
+
+        .step strong {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .step span {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
+        .table-wrap {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th, td {
+            border-bottom: 1px solid var(--border);
+            border-left: 1px solid var(--border);
+            padding: 10px;
+            text-align: right;
+            vertical-align: top;
+            line-height: 1.75;
+        }
+
+        th:last-child, td:last-child {
+            border-left: none;
+        }
+
+        thead th {
+            background: rgba(255, 255, 255, 0.05);
+            font-weight: 800;
+        }
+
+        .footer {
+            border-top: 1px solid var(--border);
+            background: rgba(10, 12, 18, 0.66);
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 22px;
+        }
+
+        .progress {
+            height: 7px;
+            border-radius: 99px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .progress > div {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent), #ff8f93);
+            transition: width 0.35s ease;
+        }
+
+        .slide-counter {
+            font-size: 13px;
+            color: var(--muted);
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .thumbs {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            overflow-x: auto;
+            max-width: 38vw;
+            padding-bottom: 2px;
+        }
+
+        .dot {
+            min-width: 24px;
+            height: 24px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 800;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .dot.active {
+            background: var(--accent);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        .small {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        @media (max-width: 1100px) {
+            .slide {
+                inset: 16px;
+                padding: 22px;
+                overflow-y: auto;
+            }
+            .grid, .two-col {
+                grid-template-columns: 1fr;
+            }
+            .timeline {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .kpis {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .thumbs {
+                max-width: 48vw;
+            }
+        }
+
+        @media print {
+            html, body {
+                overflow: visible;
+                height: auto;
+                background: #fff !important;
+                color: #111 !important;
+            }
+
+            .deck {
+                display: block;
+            }
+
+            .topbar, .footer {
+                display: none !important;
+            }
+
+            .viewport {
+                perspective: none;
+                overflow: visible;
+            }
+
+            .slide {
+                position: static !important;
+                opacity: 1 !important;
+                transform: none !important;
+                pointer-events: auto !important;
+                margin: 0 0 10mm !important;
+                min-height: auto !important;
+                border-radius: 0 !important;
+                box-shadow: none !important;
+                background: #fff !important;
+                color: #111 !important;
+                page-break-after: always;
+                border: 1px solid #ddd !important;
+            }
+
+            .title, .card h3, .subtitle, p, li, td, th, .small, .speaker, .kpi .l {
+                color: #111 !important;
+                background: transparent !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="deck">
+        <header class="topbar">
+            <div class="brand">
+                <span class="brand-dot"></span>
+                <span>Enterprise Workflow System — Expo Deck</span>
+            </div>
+            <div class="toolbar">
+                <button class="btn" id="prevBtn">السابق ◀</button>
+                <button class="btn" id="nextBtn">▶ التالي</button>
+                <button class="btn accent" id="pdfBtn">تصدير PDF</button>
+            </div>
+        </header>
+
+        <main class="viewport" id="viewport">
+            <section class="slide active">
+                <div class="slide-head"><span class="badge">01</span></div>
+                <h1 class="title">من CRM إلى نظام تشغيل مؤتمت كامل لرحلة العميل</h1>
+                <p class="subtitle">عرض معرض احترافي يبرز العمق التقني والتأثير التشغيلي: orchestration بين الأقسام، وتتبع دقيق، وتسليمات دون اختناقات.</p>
+                <div class="kpis">
+                    <div class="kpi"><div class="v">16</div><div class="l">شريحة جاهزة</div></div>
+                    <div class="kpi"><div class="v">10m</div><div class="l">مدة تقديم مثالية</div></div>
+                    <div class="kpi"><div class="v">90s</div><div class="l">Live Demo</div></div>
+                    <div class="kpi"><div class="v">E2E</div><div class="l">Automation</div></div>
+                </div>
+                <div class="speaker"><strong>نص المتحدث:</strong> “نقدم اليوم منصة لا تدير بيانات فقط، بل تدير التنفيذ بين الأقسام تلقائيًا من أول Lead إلى التحسين.”</div>
+            </section>
+
+            <section class="slide">
+                <div class="slide-head"><span class="badge">02</span></div>
+                <h2 class="title">المشكلة التي تحلها المنصة</h2>
+                <p class="subtitle">اختناقات handoff بين الأقسام، متابعة يدوية، وفقدان خطوات عند انتقال العميل بين المراحل.</p>
+                <div class="grid">
+                    <div class="card">
+                        <h3>Pain Points</h3>
+                        <ul>
+                            <li>ضياع مسؤولية التنفيذ بين فريق وآخر.</li>
+                            <li>اجتماعات ومهام تنشأ يدويًا بشكل غير متسق.</li>
+                            <li>تأخير بسبب انتظار “تذكير بشري”.</li>
+                            <li>سجل غير مرتب عند كثرة التعديلات.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Business Impact</h3>
+                        <ul>
+                            <li>Lead time أعلى.</li>
+                            <li>تفاوت جودة التسليم.</li>
+                            <li>إرهاق إداري في المتابعة.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="speaker"><strong>نص المتحدث:</strong> “الفجوة ليست في قلة الأنظمة، بل في غياب orchestration حقيقي بينها.”</div>
+            </section>
+
+            <section class="slide">
+                <div class="slide-head"><span class="badge">03</span></div>
+                <h2 class="title">الحل: Workflow Engine مركزي داخل ERP</h2>
+                <p class="subtitle">أحداث تشغيل واضحة تؤدي تلقائيًا إلى مهام واجتماعات وانتقالات مراحل مع حواجز أمان منطقية.</p>
+                <div class="grid">
+                    <div class="card">
+                        <h3>Triggers</h3>
+                        <ul>
+                            <li>تغيير مرحلة العميل.</li>
+                            <li>نقل تاسك إلى عمود <strong>تم</strong>.</li>
+                            <li>إتمام اجتماع مع ملخص.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Safety Guards</h3>
+                        <ul>
+                            <li>منع إعادة نفس المرحلة.</li>
+                            <li>منع التشغيل بدون نقل فعلي.</li>
+                            <li>مطابقة القسم الصحيح للتاسك قبل أي انتقال.</li>
+                            <li>منع إنشاء نفس التاسك مرتين.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="speaker"><strong>نص المتحدث:</strong> “الأتمتة هنا deterministic ويمكن تدقيقها، وليست مجرد Automation عشوائي.”</div>
+            </section>
+
+            <section class="slide">
+                <div class="slide-head"><span class="badge">04</span></div>
+                <h2 class="title">المعمارية التقنية</h2>
+                <p class="subtitle">Stack عملي للنشر الفعلي وقابل للتوسع.</p>
+                <div class="two-col">
+                    <div class="card">
+                        <h3>Backend + Domain Logic</h3>
+                        <ul>
+                            <li>Laravel 11 + Service Layer للأتمتة.</li>
+                            <li>Eloquent + Transaction-safe transitions.</li>
+                            <li>Authorization Gates للصلاحيات.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Frontend + Delivery</h3>
+                        <ul>
+                            <li>Vue 3 + Inertia + Tailwind.</li>
+                            <li>UI موحد + تجربة Mobile محسنة.</li>
+                            <li>Nginx + PHP-FPM + Supervisor + MySQL.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="speaker"><strong>نص المتحدث:</strong> “الخدمة المركزية خفضت تعقيد الربط بين Controllers وحافظت على قابلية الصيانة.”</div>
+            </section>
+
+            <section class="slide">
+                <div class="slide-head"><span class="badge">05</span></div>
+                <h2 class="title">الرحلة المؤتمتة — الجزء الأول</h2>
+                <p class="subtitle">Lead → Sales Meeting → Brief Meeting → Analysis</p>
+                <div class="timeline">
+                    <div class="step"><strong>عميل محتمل</strong><span>ينشأ تاسك مبيعات تلقائي + اجتماع مبيعات مع قائد المبيعات.</span></div>
+                    <div class="step"><strong>إتمام اجتماع المبيعات</strong><span>مع ملخص إلزامي، ثم انتقال إلى اجتماع البريف.</span></div>
+                    <div class="step"><strong>اجتماع البريف</strong><span>إنشاء اجتماع تلقائي مع جميع الموظفين.</span></div>
+                    <div class="step"><strong>إتمام البريف</strong><span>انتقال تلقائي إلى تحليل.</span></div>
+                    <div class="step"><strong>تحليل</strong><span>إنشاء تاسك “البحث والتحليل” لفريق الكتابة.</span></div>
+                    <div class="step"><strong>تسليم التحليل</strong><span>الانتقال إلى الاستراتيجية مع تاسك تلقائي.</span></div>
+                </div>
+                <div class="speaker"><strong>نص المتحدث:</strong> “البداية أصبحت event-driven بالكامل بدون أي تدخل يدوي مكرر.”</div>
+            </section>
+
+            <section class="slide">
+                <div class="slide-head"><span class="badge">06</span></div>
+                <h2 class="title">الرحلة المؤتمتة — الجزء الثاني</h2>
+                <p class="subtitle">Strategy → Payment → Content Production</p>
+                <div class="timeline">
+                    <div class="step"><strong>إتمام الاستراتيجية</strong><span>تم تسليم الاستراتيجية ثم الانتقال التلقائي إلى الدفع.</span></div>
+                    <div class="step"><strong>الدفع</strong><span>إنشاء تاسك محاسبة: التواصل مع العميل بخصوص الدفع.</span></div>
+                    <div class="step"><strong>إتمام تاسك الدفع</strong><span>الانتقال إلى كتابة المحتوى الاعلاني.</span></div>
+                    <div class="step"><strong>كتابة المحتوى</strong><span>تاسك تلقائي لفريق الكتابة.</span></div>
+                    <div class="step"><strong>تم تسليم المحتوى</strong><span>إنشاء تاسك استلام المحتوى لمدراء الحسابات.</span></div>
+                    <div class="step"><strong>استلام المحتوى</strong><span>الانتقال إلى إطلاق الحملات الاعلانية.</span></div>
+                </div>
+                <div class="speaker"><strong>نص المتحدث:</strong> “بهذا تم إزالة الاختناق بين الاستراتيجية، الدفع، والإنتاج.”</div>
+            </section>
+
+            <section class="slide">
+                <div class="slide-head"><span class="badge">07</span></div>
+                <h2 class="title">الرحلة المؤتمتة — الجزء الثالث</h2>
+                <p class="subtitle">Campaign Launch → Campaign Analysis → Optimization</p>
+                <div class="timeline">
+                    <div class="step"><strong>إطلاق الحملات</strong><span>تاسك تلقائي للميديا باير المعني.</span></div>
+                    <div class="step"><strong>إتمام الإطلاق</strong><span>تم إطلاق الحملات ثم انتقال إلى تحليل الحملة.</span></div>
+                    <div class="step"><strong>تحليل الحملة</strong><span>تاسك تحليل تلقائي للميديا باير.</span></div>
+                    <div class="step"><strong>إتمام التحليل</strong><span>إنشاء تاسك تقرير الحملة.</span></div>
+                    <div class="step"><strong>إتمام التقرير</strong><span>الانتقال إلى التحسين.</span></div>
+                    <div class="step"><strong>التحسين</strong><span>إنشاء تاسك لمدير الحساب: إرسال التقرير للعميل.</span></div>
+                </div>
+                <div class="speaker"><strong>نص المتحدث:</strong> “المسار أصبح closed-loop: تنفيذ، تحليل، تقرير، تحسين.”</div>
+            </section>
+
+            <section class="slide">
+                <div class="slide-head"><span class="badge">08</span></div>
+                <h2 class="title">التعيين الذكي للمسؤول</h2>
+                <p class="subtitle">Task ownership تلقائيًا للشخص المعني، وليس فقط الفريق.</p>
+                <div class="grid">
+                    <div class="card">
+                        <h3>Assignment Strategy</h3>
+                        <ul>
+                            <li>Media Buyer: حسب `campaign_manager_id` إن كان ضمن الفريق.</li>
+                            <li>Account Manager: حسب `account_manager_id` إن كان ضمن الفريق.</li>
+                            <li>Fallback إلى Team Lead عند غياب التعيين.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Operational Benefit</h3>
+                        <ul>
+                            <li>تقليل إعادة التوجيه اليدوي.</li>
+                            <li>مسؤول واضح لكل خطوة.</li>
+                            <li>سرعة أعلى في التنفيذ.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="speaker"><strong>نص المتحدث:</strong> “المنصة لا تنشئ مهام فقط، بل تعيّنها للـ owner الصحيح.”</div>
+            </section>
+
+            <section class="slide">
+                <div class="slide-head"><span class="badge">09</span></div>
+                <h2 class="title">موثوقية السجل ودقة التوقيت</h2>
+                <p class="subtitle">Timeline دقيق وقابل للمراجعة الإدارية.</p>
+                <div class="grid">
+                    <div class="card">
+                        <h3>ما تم تطبيقه</h3>
+                        <ul>
+                            <li>ترتيب السجل نزولًا حسب التوقيت ثم ID.</li>
+                            <li>عرض الوقت بدقة ساعة/دقيقة.</li>
+                            <li>منع تسجيلات duplicate الناتجة عن updates شكلية.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Impact</h3>
+                        <ul>
+                            <li>تتبع أوضح لمسار كل عميل.</li>
+                            <li>مصداقية أعلى عند التدقيق.</li>
+                            <li>قرارات أسرع من الإدارة.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="speaker"><strong>نص المتحدث:</strong> “الموثوقية أهم من شكل الأتمتة، لذلك ركزنا على data integrity.”</div>
+            </section>
+
+            <section class="slide">
+                <div class="slide-head"><span class="badge">10</span></div>
+                <h2 class="title">خطة ترتيب صور النظام داخل العرض</h2>
+                <p class="subtitle">استخدم نفس العميل في كل اللقطات لعرض الاستمرارية.</p>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>الترتيب</th>
+                                <th>الصورة</th>
+                                <th>تظهر في</th>
+                                <th>ملاحظة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>1</td><td>Dashboard KPIs</td><td>2-4</td><td>لقطة نظيفة Desktop</td></tr>
+                            <tr><td>2</td><td>Client Stage Change</td><td>5-7</td><td>نفس العميل دائمًا</td></tr>
+                            <tr><td>3</td><td>Sales Task + Sales Meeting</td><td>5</td><td>قبل/بعد الإتمام</td></tr>
+                            <tr><td>4</td><td>Brief Meeting</td><td>5</td><td>أظهر المشاركين</td></tr>
+                            <tr><td>5</td><td>Writing Tasks</td><td>6</td><td>تحليل/استراتيجية/كتابة</td></tr>
+                            <tr><td>6</td><td>Accounting Task</td><td>6</td><td>تاسك الدفع</td></tr>
+                            <tr><td>7</td><td>Account + Media Buyer Tasks</td><td>7-8</td><td>handoff بين الأقسام</td></tr>
+                            <tr><td>8</td><td>History Timeline</td><td>9</td><td>دقة الوقت بالدقيقة</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="speaker"><strong>نص المتحدث:</strong> “الصور يجب أن تسرد نفس القصة من البداية للنهاية.”</div>
+            </section>
+
+            <section class="slide">
+                <div class="slide-head"><span class="badge">11</span></div>
+                <h2 class="title">سيناريو ديمو مباشر (90 ثانية)</h2>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr><th>الوقت</th><th>الإجراء</th><th>الرسالة أثناء الشرح</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>0-15ث</td><td>تحويل العميل إلى عميل محتمل</td><td>تاسك واجتماع المبيعات نشؤوا تلقائيًا.</td></tr>
+                            <tr><td>15-35ث</td><td>إتمام اجتماع المبيعات</td><td>النظام انتقل للبريف وأنشأ الاجتماع التالي تلقائيًا.</td></tr>
+                            <tr><td>35-55ث</td><td>إتمام اجتماع البريف</td><td>الآن بدأ التحليل وأنشئت مهمة الكتابة.</td></tr>
+                            <tr><td>55-75ث</td><td>عرض سلسلة الدفع والمحتوى</td><td>لا يوجد handoff يدوي متعب بين الفرق.</td></tr>
+                            <tr><td>75-90ث</td><td>عرض السجل النهائي</td><td>كل شيء موثق زمنيًا وقابل للتدقيق.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="speaker"><strong>نص المتحدث:</strong> “السر: pace سريع، قصة واضحة، وتجنب الغرق في التفاصيل.”</div>
+            </section>
+
+            <section class="slide">
+                <div class="slide-head"><span class="badge">12</span></div>
+                <h2 class="title">النتائج المتوقعة والقياس</h2>
+                <p class="subtitle">استبدل القيم التالية بالأرقام الفعلية من بيئتك.</p>
+                <div class="kpis">
+                    <div class="kpi"><div class="v">___%</div><div class="l">انخفاض زمن Handoff</div></div>
+                    <div class="kpi"><div class="v">___%</div><div class="l">انخفاض فقدان الخطوات</div></div>
+                    <div class="kpi"><div class="v">___h</div><div class="l">وقت إداري موفر/أسبوع</div></div>
+                    <div class="kpi"><div class="v">___%</div><div class="l">تحسن سرعة الإنجاز</div></div>
+                </div>
+                <div class="grid">
+                    <div class="card"><h3>تشغيليًا</h3><p>تقليل الاختناقات، وتسليمات أكثر اتساقًا بين الأقسام.</p></div>
+                    <div class="card"><h3>إداريًا</h3><p>رؤية لحظية لحالة كل عميل ومسؤولية كل خطوة.</p></div>
+                </div>
+                <div class="speaker"><strong>نص المتحدث:</strong> “حتى أول نسخة من الأتمتة قدمت أثرًا واضحًا في سرعة التنفيذ.”</div>
+            </section>
+
+            <section class="slide">
+                <div class="slide-head"><span class="badge">13</span></div>
+                <h2 class="title">خارطة الطريق</h2>
+                <div class="two-col">
+                    <div class="card">
+                        <h3>تقني</h3>
+                        <ul>
+                            <li>SLA timers لكل مرحلة.</li>
+                            <li>Escalation آلي عند التأخير.</li>
+                            <li>Integrations مع قنوات خارجية.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>تشغيلي</h3>
+                        <ul>
+                            <li>Playbooks مخصصة لكل قسم.</li>
+                            <li>تقارير أسبوعية تنفيذية تلقائية.</li>
+                            <li>مقارنة أداء بين الفرق.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="speaker"><strong>نص المتحدث:</strong> “النسخة الحالية جاهزة تشغيلًا، والخارطة تركز على scale والذكاء التشغيلي.”</div>
+            </section>
+
+            <section class="slide">
+                <div class="slide-head"><span class="badge">14</span></div>
+                <h2 class="title">نص الافتتاح والختام الجاهز</h2>
+                <div class="two-col">
+                    <div class="card">
+                        <h3>Opening — 20s</h3>
+                        <p>“الشركات تمتلك أدوات عديدة، لكن التنفيذ بين الأقسام ما زال يدويًا. نظامنا يحول رحلة العميل إلى Workflow مؤتمت بالكامل.”</p>
+                    </div>
+                    <div class="card">
+                        <h3>Closing — 15s</h3>
+                        <p>“لا نقدم CRM فقط، بل Operating System للتنفيذ التجاري. جاهزون لتجربة Pilot وقياس الأثر على أرض الواقع.”</p>
+                    </div>
+                </div>
+                <div class="speaker"><strong>نص المتحدث:</strong> “اختم دائمًا بدعوة واضحة: Pilot أو شراكة تنفيذ.”</div>
+            </section>
+
+            <section class="slide">
+                <div class="slide-head"><span class="badge">15</span></div>
+                <h2 class="title">كيف تستخدم هذا الدِك فعليًا في المعرض</h2>
+                <div class="grid">
+                    <div class="card">
+                        <h3>قبل العرض</h3>
+                        <ul>
+                            <li>ثبت بيانات عميل Demo واحد.</li>
+                            <li>التقط الصور بنفس ترتيب الشرائح.</li>
+                            <li>راجع الاختصارات: الأسهم + F للطباعة PDF.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>أثناء العرض</h3>
+                        <ul>
+                            <li>امشِ بسيناريو 90 ثانية.</li>
+                            <li>اربط كل شاشة بقيمة عملية مباشرة.</li>
+                            <li>لا تتوقف عند تفاصيل UI صغيرة.</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="speaker"><strong>نص المتحدث:</strong> “الانطباع الأقوى: قصة تشغيل واضحة مدعومة بنظام يعمل live.”</div>
+            </section>
+
+            <section class="slide">
+                <div class="slide-head"><span class="badge">16</span></div>
+                <h2 class="title">Thank You / CTA</h2>
+                <p class="subtitle">نقطة التواصل + دعوة لبدء Pilot.</p>
+                <div class="two-col">
+                    <div class="card">
+                        <h3>Call To Action</h3>
+                        <ul>
+                            <li>Pilot لمدة 2-4 أسابيع.</li>
+                            <li>ضبط Workflow مخصص لجهتكم.</li>
+                            <li>تقرير أثر بالأرقام.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Contact</h3>
+                        <ul>
+                            <li>الاسم: ________</li>
+                            <li>الهاتف: ________</li>
+                            <li>البريد: ________</li>
+                            <li>لينكدإن/الموقع: ________</li>
+                        </ul>
+                    </div>
+                </div>
+                <p class="small">Tip: صدّر نسخة PDF نهائية ونسخة احتياطية قبل يوم المعرض.</p>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <div class="progress"><div id="bar"></div></div>
+            <div class="slide-counter" id="counter">1 / 16</div>
+            <div class="thumbs" id="thumbs"></div>
+        </footer>
+    </div>
+
+    <script>
+        const slides = Array.from(document.querySelectorAll(".slide"));
+        const bar = document.getElementById("bar");
+        const counter = document.getElementById("counter");
+        const thumbs = document.getElementById("thumbs");
+        const prevBtn = document.getElementById("prevBtn");
+        const nextBtn = document.getElementById("nextBtn");
+        const pdfBtn = document.getElementById("pdfBtn");
+        let idx = 0;
+
+        slides.forEach((_, i) => {
+            const d = document.createElement("button");
+            d.className = "dot";
+            d.textContent = i + 1;
+            d.addEventListener("click", () => go(i));
+            thumbs.appendChild(d);
+        });
+
+        function sync() {
+            slides.forEach((s, i) => {
+                s.classList.remove("active", "prev");
+                if (i === idx) s.classList.add("active");
+                if (i < idx) s.classList.add("prev");
+            });
+            const dots = Array.from(thumbs.children);
+            dots.forEach((d, i) => d.classList.toggle("active", i === idx));
+            bar.style.width = `${((idx + 1) / slides.length) * 100}%`;
+            counter.textContent = `${idx + 1} / ${slides.length}`;
+        }
+
+        function go(n) {
+            idx = Math.max(0, Math.min(slides.length - 1, n));
+            sync();
+        }
+
+        prevBtn.addEventListener("click", () => go(idx - 1));
+        nextBtn.addEventListener("click", () => go(idx + 1));
+        pdfBtn.addEventListener("click", () => window.print());
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowRight" || e.key === "PageUp") go(idx - 1);
+            if (e.key === "ArrowLeft" || e.key === "PageDown" || e.key === " ") go(idx + 1);
+            if (e.key.toLowerCase() === "f") window.print();
+            if (e.key === "Home") go(0);
+            if (e.key === "End") go(slides.length - 1);
+        });
+
+        sync();
+    </script>
+</body>
+</html>

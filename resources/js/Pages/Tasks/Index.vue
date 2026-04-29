@@ -130,6 +130,9 @@ const createDescriptionRef = ref(null);
 const editDescriptionRef = ref(null);
 const isBoardLoading = ref(false);
 const isBoardSyncing = ref(false);
+const isMobileWorkspaceExpanded = ref(false);
+const isTouchDevice =
+    typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 
 function openCreateModal() {
     taskForm.clearErrors();
@@ -151,6 +154,7 @@ function teamHref(slug) {
     return route('tasks.index', {
         team: slug,
         client_id: props.filters?.client_id || undefined,
+        include_archived: props.filters?.include_archived ? 1 : undefined,
     });
 }
 
@@ -163,6 +167,7 @@ function setClientFilterFromSelect(event) {
         {
             team: props.team?.slug,
             client_id: clientId,
+            include_archived: props.filters?.include_archived ? 1 : undefined,
         },
         {
             preserveState: true,
@@ -173,6 +178,7 @@ function setClientFilterFromSelect(event) {
         },
     );
 }
+
 
 function submitTask() {
     if (!taskForm.board_column_id) {
@@ -235,6 +241,71 @@ function onDragEnd() {
                 isBoardSyncing.value = false;
             });
     }, 80);
+}
+
+function toggleMobileWorkspace() {
+    isMobileWorkspaceExpanded.value = !isMobileWorkspaceExpanded.value;
+}
+
+function getNextColumnById(columnId) {
+    const currentIndex = boardState.columns.findIndex((column) => Number(column.id) === Number(columnId));
+    if (currentIndex < 0) {
+        return null;
+    }
+    return boardState.columns[currentIndex + 1] || null;
+}
+
+function getAdvanceActionLabel(columnName) {
+    const key = String(columnName || '')
+        .trim()
+        .toLowerCase();
+
+    if (key === 'قائمة الانتظار' || key === 'todo' || key === 'to do' || key === 'backlog') {
+        return 'بدء التنفيذ';
+    }
+    if (key === 'قيد التنفيذ' || key === 'doing' || key === 'in progress') {
+        return 'إرسال للمراجعة';
+    }
+    if (key === 'مراجعة' || key === 'review') {
+        return 'تعليم كمكتملة';
+    }
+
+    return 'نقل للمرحلة التالية';
+}
+
+function getAdvanceIconType(columnName) {
+    const key = String(columnName || '')
+        .trim()
+        .toLowerCase();
+
+    if (key === 'قائمة الانتظار' || key === 'todo' || key === 'to do' || key === 'backlog') {
+        return 'play';
+    }
+    if (key === 'قيد التنفيذ' || key === 'doing' || key === 'in progress') {
+        return 'review';
+    }
+    if (key === 'مراجعة' || key === 'review') {
+        return 'done';
+    }
+
+    return 'next';
+}
+
+function moveTaskToNextColumn(taskId, fromColumnId) {
+    const sourceColumn = boardState.columns.find((column) => Number(column.id) === Number(fromColumnId));
+    const targetColumn = getNextColumnById(fromColumnId);
+    if (!sourceColumn || !targetColumn) {
+        return;
+    }
+
+    const sourceIndex = sourceColumn.tasks.findIndex((task) => Number(task.id) === Number(taskId));
+    if (sourceIndex < 0) {
+        return;
+    }
+
+    const [task] = sourceColumn.tasks.splice(sourceIndex, 1);
+    targetColumn.tasks.unshift(task);
+    onDragEnd();
 }
 
 const editModalOpen = ref(false);
@@ -693,7 +764,7 @@ async function toggleChecklistItem(item) {
     <AuthenticatedLayout>
         <template #title>المهام</template>
 
-        <div class="mx-auto max-w-[1600px]">
+        <div :class="['mx-auto', isMobileWorkspaceExpanded ? 'max-w-none px-0 sm:px-0' : 'max-w-[1600px]']">
             <div
                 class="ui-card mb-4 flex flex-col gap-2 p-3 sm:flex-row sm:flex-wrap sm:items-center"
             >
@@ -771,13 +842,15 @@ async function toggleChecklistItem(item) {
                 </div>
                 <div
                     v-else
-                    class="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2"
+                    class="task-workspace flex snap-x snap-mandatory overflow-x-auto pb-2"
+                    :class="isMobileWorkspaceExpanded ? 'task-workspace-expanded gap-2 px-1' : 'gap-3'"
                     style="min-height: 320px"
                 >
                     <div
                         v-for="col in boardState.columns"
                         :key="col.id"
-                        class="ui-card task-column-dropzone w-[85vw] max-w-sm shrink-0 snap-start p-3 transition-all duration-200 ease-out sm:w-72"
+                        class="ui-card task-column-dropzone shrink-0 snap-start p-3 transition-all duration-200 ease-out"
+                        :class="isMobileWorkspaceExpanded ? 'task-column-compact w-[66vw] max-w-[260px] sm:w-72' : 'w-[85vw] max-w-sm sm:w-72'"
                     >
                         <h3
                             class="mb-2 border-b border-slate-200/70 pb-2 text-sm font-semibold text-slate-800"
@@ -792,11 +865,15 @@ async function toggleChecklistItem(item) {
                             ghost-class="task-ghost"
                             chosen-class="task-chosen"
                             drag-class="task-drag"
-                            :delay="90"
+                            :animation="180"
+                            :delay="isTouchDevice ? 80 : 0"
                             :delay-on-touch-only="true"
                             :touch-start-threshold="3"
-                            :fallback-tolerance="3"
-                            :empty-insert-threshold="26"
+                            :fallback-tolerance="4"
+                            :empty-insert-threshold="28"
+                            :scroll="true"
+                            :scroll-sensitivity="90"
+                            :scroll-speed="18"
                             @end="onDragEnd"
                         >
                             <template #item="{ element }">
@@ -817,7 +894,7 @@ async function toggleChecklistItem(item) {
                                     </button>
                                     <button
                                         type="button"
-                                        class="absolute end-7 top-1 rounded-lg p-1 text-slate-500 transition-all duration-200 ease-out hover:bg-slate-200 hover:text-slate-700"
+                                        class="absolute end-6 top-1 rounded-lg p-1 text-slate-500 transition-all duration-200 ease-out hover:bg-slate-200 hover:text-slate-700"
                                         title="إعادة تعيين / قائمة تحقق"
                                         @click.stop="openQuickAction(element)"
                                     >
@@ -831,6 +908,57 @@ async function toggleChecklistItem(item) {
                                             stroke-width="2"
                                         >
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        v-if="getNextColumnById(col.id)"
+                                        type="button"
+                                        class="absolute end-10 top-0.5 inline-flex h-7 w-7 items-center justify-center rounded-lg p-1 text-brand-600 transition-all duration-200 ease-out hover:bg-brand-100 hover:text-brand-700"
+                                        :title="getAdvanceActionLabel(col.name)"
+                                        @click.stop="moveTaskToNextColumn(element.id, col.id)"
+                                    >
+                                        <span class="sr-only">{{ getAdvanceActionLabel(col.name) }}</span>
+                                        <svg
+                                            v-if="getAdvanceIconType(col.name) === 'play'"
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="h-5 w-5"
+                                            viewBox="0 0 20 20"
+                                            fill="currentColor"
+                                        >
+                                            <path d="M7 5v10l8-5-8-5z" />
+                                        </svg>
+                                        <svg
+                                            v-else-if="getAdvanceIconType(col.name) === 'review'"
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="h-5 w-5"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z" />
+                                        </svg>
+                                        <svg
+                                            v-else-if="getAdvanceIconType(col.name) === 'done'"
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="h-5 w-5"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        <svg
+                                            v-else
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="h-5 w-5"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
                                         </svg>
                                     </button>
                                     <button
@@ -857,6 +985,9 @@ async function toggleChecklistItem(item) {
                                     </button>
                                     <p class="font-medium text-slate-900">
                                         {{ element.title }}
+                                    </p>
+                                    <p v-if="element.archived_at" class="mt-1 text-[10px] font-semibold text-slate-500">
+                                        مؤرشفة تلقائيًا
                                     </p>
                                     <div class="mt-1 flex flex-wrap gap-1">
                                         <span
@@ -897,6 +1028,37 @@ async function toggleChecklistItem(item) {
                 </div>
             </div>
         </div>
+        <button
+            v-if="board"
+            type="button"
+            class="fixed bottom-20 left-3 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-300 bg-white/95 text-slate-700 shadow-lg backdrop-blur transition-all duration-200 ease-out hover:scale-[1.03] hover:bg-white active:scale-[0.98] sm:hidden"
+            :title="isMobileWorkspaceExpanded ? 'عرض عادي' : 'عرض موسّع للوركسبيس'"
+            @click="toggleMobileWorkspace"
+        >
+            <span class="sr-only">{{ isMobileWorkspaceExpanded ? 'عرض عادي' : 'عرض موسّع للوركسبيس' }}</span>
+            <svg
+                v-if="!isMobileWorkspaceExpanded"
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+            >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 3H5a2 2 0 00-2 2v3m16 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M5 16v3a2 2 0 002 2h3" />
+            </svg>
+            <svg
+                v-else
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+            >
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 3h6v6m0-6l-7 7M9 21H3v-6m0 6l7-7M21 15v6h-6m6 0l-7-7M3 9V3h6M3 3l7 7" />
+            </svg>
+        </button>
 
         <Modal :show="createModalOpen" @close="closeCreateModal">
             <div class="glass-modal light-modal p-4 sm:p-6" @click.stop>
@@ -1420,6 +1582,23 @@ async function toggleChecklistItem(item) {
 .task-drop-area:hover {
     border-color: rgba(148, 163, 184, 0.55);
     background: rgba(255, 255, 255, 0.26);
+}
+
+.task-workspace-expanded {
+    width: 100%;
+}
+
+.task-column-compact {
+    padding: 0.65rem;
+}
+
+.task-column-compact :deep(.task-drop-area) {
+    min-height: 11rem;
+}
+
+.task-column-compact :deep(.task-drop-area > div) {
+    padding: 0.5rem;
+    font-size: 0.78rem;
 }
 
 .glass-modal {

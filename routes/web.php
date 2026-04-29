@@ -6,6 +6,7 @@ use App\Http\Controllers\AcademyController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MeetingController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicBookingController;
 use App\Http\Controllers\TaskController;
@@ -62,6 +63,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/tasks/{task}/checklist-items', [TaskController::class, 'addChecklistItem'])->name('tasks.checklist-items.store');
     Route::patch('/task-checklist-items/{taskChecklistItem}', [TaskController::class, 'toggleChecklistItem'])->name('tasks.checklist-items.toggle');
     Route::patch('/task-boards/{taskBoard}/sync', [TaskController::class, 'sync'])->name('task-boards.sync');
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
     Route::get('/chat', [TeamChatController::class, 'index'])->name('chat.index');
     Route::post('/chat', [TeamChatController::class, 'store'])->name('chat.store');
     Route::get('/chat/messages', [TeamChatController::class, 'messages'])->name('chat.messages.index');

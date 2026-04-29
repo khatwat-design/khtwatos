@@ -7,6 +7,7 @@ use App\Models\Meeting;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\ClientWorkflowAutomationService;
+use App\Services\SmartNotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,10 @@ use Inertia\Response;
 
 class MeetingController extends Controller
 {
-    public function __construct(private readonly ClientWorkflowAutomationService $workflowAutomation)
+    public function __construct(
+        private readonly ClientWorkflowAutomationService $workflowAutomation,
+        private readonly SmartNotificationService $smartNotifications
+    )
     {
     }
 
@@ -135,6 +139,7 @@ class MeetingController extends Controller
         ]);
 
         $this->syncParticipants($meeting, $data);
+        $this->smartNotifications->notifyMeetingCreated($meeting->fresh('participants:id,name'), $request->user()?->id);
 
         return redirect()->route('meetings.index', array_filter([
             'client_id' => $data['client_id'] ?? null,
@@ -210,6 +215,7 @@ class MeetingController extends Controller
         $newStatus = $data['status'] ?? $meeting->status;
         if ($previousStatus !== 'completed' && $newStatus === 'completed') {
             $this->workflowAutomation->handleMeetingCompleted($meeting->fresh(), $request->user()?->id);
+            $this->smartNotifications->notifyMeetingCompleted($meeting->fresh('participants:id,name'), $request->user()?->id);
         }
 
         return redirect()->route('meetings.index');
@@ -238,6 +244,7 @@ class MeetingController extends Controller
         ]);
 
         $this->workflowAutomation->handleMeetingCompleted($meeting->fresh(), $request->user()?->id);
+        $this->smartNotifications->notifyMeetingCompleted($meeting->fresh('participants:id,name'), $request->user()?->id);
 
         return redirect()->route('meetings.index');
     }

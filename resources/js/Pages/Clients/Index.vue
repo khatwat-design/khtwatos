@@ -36,10 +36,10 @@ function deleteClient(clientId) {
         <div class="mx-auto max-w-6xl space-y-4">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div class="flex items-center gap-2">
-                    <label class="text-sm text-gray-200" for="stage_filter">فلترة المرحلة:</label>
+                    <label class="text-sm text-gray-700" for="stage_filter">فلترة المرحلة:</label>
                     <select
                         id="stage_filter"
-                        class="w-full rounded-md border-white/20 bg-slate-900/80 text-sm text-white shadow-sm sm:w-64"
+                        class="w-full rounded-md border-gray-300 bg-white text-sm text-black shadow-sm sm:w-64"
                         :value="filters?.stage_id ?? ''"
                         @change="setStageFilter"
                     >
@@ -56,27 +56,27 @@ function deleteClient(clientId) {
 
             <div class="ui-card overflow-hidden">
                 <table class="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead class="bg-slate-900/70">
+                    <thead class="bg-white/90">
                         <tr>
-                            <th class="px-4 py-2 text-start font-medium text-white">
+                            <th class="px-4 py-2 text-start font-medium text-gray-900">
                                 العميل
                             </th>
-                            <th class="px-4 py-2 text-start font-medium text-white">
+                            <th class="px-4 py-2 text-start font-medium text-gray-900">
                                 المرحلة
                             </th>
-                            <th class="px-4 py-2 text-start font-medium text-white">
+                            <th class="px-4 py-2 text-start font-medium text-gray-900">
                                 مدير الحساب
                             </th>
-                            <th class="px-4 py-2 text-start font-medium text-white">
+                            <th class="px-4 py-2 text-start font-medium text-gray-900">
                                 مدير الحملة
                             </th>
-                            <th class="px-4 py-2 text-start font-medium text-white">
+                            <th class="px-4 py-2 text-start font-medium text-gray-900">
                                 مهام مفتوحة
                             </th>
-                            <th class="px-4 py-2 text-start font-medium text-white">
+                            <th class="px-4 py-2 text-start font-medium text-gray-900">
                                 آخر تحديث
                             </th>
-                            <th v-if="canDeleteRecords" class="px-4 py-2 text-start font-medium text-white">
+                            <th v-if="canDeleteRecords" class="px-4 py-2 text-start font-medium text-gray-900">
                                 إجراءات
                             </th>
                         </tr>

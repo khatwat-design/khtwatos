@@ -14,21 +14,29 @@ use App\Models\TaskStatusHistory;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\ClientWorkflowAutomationService;
+use App\Services\SmartNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class TaskController extends Controller
 {
-    public function __construct(private readonly ClientWorkflowAutomationService $workflowAutomation)
+    public function __construct(
+        private readonly ClientWorkflowAutomationService $workflowAutomation,
+        private readonly SmartNotificationService $smartNotifications
+    )
     {
     }
 
     public function index(Request $request): Response
     {
+        $this->archiveCompletedTasks();
+        $hasArchiveColumn = Schema::hasColumn('tasks', 'archived_at');
+
         $teams = $this->ensureTeams();
         $requestedSlug = $request->query('team');
         $team = $requestedSlug
@@ -39,6 +47,7 @@ class TaskController extends Controller
         }
 
         $clientId = $request->filled('client_id') ? (int) $request->query('client_id') : null;
+        $includeArchived = $request->boolean('include_archived');
 
         $board = null;
         if ($team) {
@@ -61,6 +70,14 @@ class TaskController extends Controller
                         ->orderBy('id');
                 },
             ]);
+            if ($hasArchiveColumn && ! $includeArchived) {
+                $team->taskBoard?->columns?->each(function (BoardColumn $column): void {
+                    $column->setRelation(
+                        'tasks',
+                        $column->tasks->filter(fn (Task $task) => $task->archived_at === null)->values()
+                    );
+                });
+            }
             $board = $team->taskBoard;
         }
 
@@ -89,6 +106,7 @@ class TaskController extends Controller
                         'description' => $t->description,
                         'position' => $t->position,
                         'due_at' => $t->due_at?->toIso8601String(),
+                        'archived_at' => $t->archived_at?->toIso8601String(),
                         'assignee' => $t->assignee ? ['id' => $t->assignee->id, 'name' => $t->assignee->name] : null,
                         'assignees' => $t->assignees->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name])->values(),
                         'client' => $t->client ? ['id' => $t->client->id, 'name' => $t->client->name] : null,
@@ -105,6 +123,20 @@ class TaskController extends Controller
             'users' => User::query()->orderBy('name')->get(['id', 'name']),
             'filters' => [
                 'client_id' => $clientId,
+                'include_archived' => $includeArchived,
+            ],
+            'taskAlerts' => $team ? $this->buildTaskAlerts($team, $clientId) : [
+                'counts' => [
+                    'overdue' => 0,
+                    'due_soon' => 0,
+                    'due_today' => 0,
+                ],
+                'items' => [],
+            ],
+            'archiveStats' => $team ? $this->buildArchiveStats($team, $clientId) : [
+                'auto_days' => 7,
+                'active_count' => 0,
+                'archived_count' => 0,
             ],
             'filterClient' => $filterClient ? [
                 'id' => $filterClient->id,
@@ -281,6 +313,7 @@ class TaskController extends Controller
         ]);
 
         $task->assignees()->sync($assigneeIds);
+        $this->smartNotifications->notifyTaskAssigned($task->fresh(['assignees']), $request->user()?->id);
 
         return redirect()->back();
     }
@@ -372,6 +405,10 @@ class TaskController extends Controller
 
                     if ($didMoveColumn && (int) $task->client_id > 0 && $toColumnName === 'تم') {
                         $this->workflowAutomation->handleTaskMovedToDone($task, $request->user()?->id);
+                    }
+                    if ($didMoveColumn) {
+                        $task->loadMissing('assignees:id,name');
+                        $this->smartNotifications->notifyTaskMoved($task, (string) $toColumnName, $request->user()?->id);
                     }
                 }
             }
@@ -650,5 +687,120 @@ class TaskController extends Controller
         if (!$user || !$user->isAdmin()) {
             abort(403, 'هذه العملية متاحة لمدير النظام فقط.');
         }
+    }
+
+    private function archiveCompletedTasks(): void
+    {
+        if (! Schema::hasColumn('tasks', 'archived_at')) {
+            return;
+        }
+
+        $doneColumnIds = BoardColumn::query()
+            ->whereIn('name', ['تم', 'done', 'completed'])
+            ->pluck('id');
+
+        if ($doneColumnIds->isEmpty()) {
+            return;
+        }
+
+        Task::query()
+            ->whereNull('archived_at')
+            ->whereIn('board_column_id', $doneColumnIds)
+            ->where('updated_at', '<=', now()->subDays(7))
+            ->update([
+                'archived_at' => now(),
+                'archived_reason' => 'auto_done_7d',
+            ]);
+    }
+
+    private function buildTaskAlerts(Team $team, ?int $clientId): array
+    {
+        if (! Schema::hasColumn('tasks', 'archived_at')) {
+            return [
+                'counts' => [
+                    'overdue' => 0,
+                    'due_soon' => 0,
+                    'due_today' => 0,
+                ],
+                'items' => [],
+            ];
+        }
+
+        $taskQuery = Task::query()
+            ->where('task_board_id', $team->taskBoard?->id)
+            ->whereNull('archived_at')
+            ->whereNotNull('due_at')
+            ->whereHas('column', fn ($q) => $q->whereNotIn('name', ['تم', 'done', 'completed']))
+            ->when($clientId, fn ($q) => $q->where('client_id', $clientId))
+            ->with([
+                'column:id,name',
+                'client:id,name',
+            ])
+            ->orderBy('due_at');
+
+        $tasks = $taskQuery->get(['id', 'title', 'board_column_id', 'client_id', 'due_at']);
+        $now = now();
+        $soonLimit = $now->copy()->addHours(24);
+
+        $items = $tasks->map(function (Task $task) use ($now, $soonLimit): ?array {
+            if (! $task->due_at) {
+                return null;
+            }
+
+            $severity = null;
+            if ($task->due_at->lt($now)) {
+                $severity = 'overdue';
+            } elseif ($task->due_at->lte($soonLimit)) {
+                $severity = 'due_soon';
+            } elseif ($task->due_at->isSameDay($now)) {
+                $severity = 'due_today';
+            }
+
+            if (! $severity) {
+                return null;
+            }
+
+            return [
+                'id' => $task->id,
+                'title' => $task->title,
+                'due_at' => $task->due_at->toIso8601String(),
+                'severity' => $severity,
+                'column_name' => $task->column?->name,
+                'client_name' => $task->client?->name,
+            ];
+        })->filter()->values();
+
+        return [
+            'counts' => [
+                'overdue' => (int) $items->where('severity', 'overdue')->count(),
+                'due_soon' => (int) $items->where('severity', 'due_soon')->count(),
+                'due_today' => (int) $items->where('severity', 'due_today')->count(),
+            ],
+            'items' => $items->take(8)->all(),
+        ];
+    }
+
+    private function buildArchiveStats(Team $team, ?int $clientId): array
+    {
+        if (! Schema::hasColumn('tasks', 'archived_at')) {
+            return [
+                'auto_days' => 7,
+                'active_count' => Task::query()
+                    ->where('task_board_id', $team->taskBoard?->id)
+                    ->when($clientId, fn ($q) => $q->where('client_id', $clientId))
+                    ->count(),
+                'archived_count' => 0,
+            ];
+        }
+
+        $base = Task::query()
+            ->where('task_board_id', $team->taskBoard?->id)
+            ->when($clientId, fn ($q) => $q->where('client_id', $clientId));
+
+        return [
+            'auto_days' => 7,
+            'active_count' => (clone $base)->whereNull('archived_at')->count(),
+            'archived_count' => (clone $base)->whereNotNull('archived_at')->count(),
+        ];
     }
 }

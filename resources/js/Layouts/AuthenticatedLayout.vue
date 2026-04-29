@@ -9,6 +9,13 @@ const sidebarCollapsed = ref(false);
 const isPageLoading = ref(false);
 let removeStartListener = null;
 let removeFinishListener = null;
+let notificationsTimer = null;
+const isNotificationsOpen = ref(false);
+const notificationsLoading = ref(false);
+const notifications = ref([]);
+const unreadCount = ref(Number(page.props.notifications?.unread_count || 0));
+const browserNotificationsEnabled = ref(false);
+let lastUnreadCount = Number(page.props.notifications?.unread_count || 0);
 
 const nav = [
     ...(page.props.auth?.can?.viewAdminHome
@@ -57,13 +64,107 @@ onMounted(() => {
     });
     removeFinishListener = router.on('finish', () => {
         isPageLoading.value = false;
+        unreadCount.value = Number(page.props.notifications?.unread_count || unreadCount.value || 0);
     });
+    notificationsTimer = window.setInterval(() => {
+        fetchNotifications({ silent: true });
+    }, 45000);
+    browserNotificationsEnabled.value =
+        typeof window !== 'undefined' &&
+        'Notification' in window &&
+        Notification.permission === 'granted';
 });
 
 onBeforeUnmount(() => {
     removeStartListener?.();
     removeFinishListener?.();
+    if (notificationsTimer) {
+        window.clearInterval(notificationsTimer);
+    }
 });
+
+function formatNotificationTime(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+async function fetchNotifications({ silent = false } = {}) {
+    if (notificationsLoading.value && silent) return;
+    if (!silent) {
+        notificationsLoading.value = true;
+    }
+    try {
+        const response = await window.axios.get(route('notifications.index'), {
+            headers: { Accept: 'application/json' },
+        });
+        notifications.value = response?.data?.notifications || [];
+        unreadCount.value = Number(response?.data?.unread_count || 0);
+        maybePushBrowserNotification();
+    } finally {
+        notificationsLoading.value = false;
+    }
+}
+
+function maybePushBrowserNotification() {
+    if (!browserNotificationsEnabled.value) return;
+    if (unreadCount.value <= lastUnreadCount) {
+        lastUnreadCount = unreadCount.value;
+        return;
+    }
+
+    const latestUnread = notifications.value.find((note) => !note.read_at);
+    if (latestUnread) {
+        const title = latestUnread?.data?.title || latestUnread?.data?.task_title || 'إشعار جديد';
+        const body = latestUnread?.data?.body || 'لديك تحديث جديد في النظام';
+        new Notification(title, { body, icon: '/images/logo-mark.svg' });
+    }
+    lastUnreadCount = unreadCount.value;
+}
+
+async function toggleNotificationsPanel() {
+    isNotificationsOpen.value = !isNotificationsOpen.value;
+    if (isNotificationsOpen.value) {
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+            try {
+                const perm = await Notification.requestPermission();
+                browserNotificationsEnabled.value = perm === 'granted';
+            } catch {
+                browserNotificationsEnabled.value = false;
+            }
+        }
+        await fetchNotifications();
+    }
+}
+
+async function markNotificationRead(notificationId) {
+    await window.axios.post(route('notifications.read', notificationId), {}, { headers: { Accept: 'application/json' } });
+    await fetchNotifications({ silent: true });
+}
+
+async function markAllNotificationsRead() {
+    await window.axios.post(route('notifications.read-all'), {}, { headers: { Accept: 'application/json' } });
+    await fetchNotifications({ silent: true });
+}
+
+function notificationTitle(note) {
+    return note?.data?.title || note?.data?.task_title || 'إشعار جديد';
+}
+
+function notificationBody(note) {
+    if (note?.data?.body) return note.data.body;
+    if (note?.data?.severity === 'overdue') return 'مهمة متأخرة عن الموعد';
+    if (note?.data?.severity === 'due_soon') return 'موعد المهمة قريب (خلال 24 ساعة)';
+    if (note?.data?.severity === 'due_today') return 'موعد المهمة اليوم';
+    return 'تحديث جديد';
+}
+
+async function openNotification(note) {
+    await markNotificationRead(note.id);
+    if (note?.data?.link) {
+        router.visit(note.data.link);
+        isNotificationsOpen.value = false;
+    }
+}
 </script>
 
 <template>
@@ -139,7 +240,63 @@ onBeforeUnmount(() => {
                     <div class="hidden text-lg font-semibold tracking-tight text-black md:block">
                         <slot name="title" />
                     </div>
-                    <div class="ms-auto">
+                    <div class="ms-auto flex items-center gap-2">
+                        <div class="relative">
+                            <button
+                                type="button"
+                                class="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-800 shadow-sm transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-slate-50"
+                                title="الإشعارات"
+                                @click="toggleNotificationsPanel"
+                            >
+                                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                    <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5m6 0a3 3 0 1 1-6 0m6 0H9" />
+                                </svg>
+                                <span
+                                    v-if="unreadCount > 0"
+                                    class="absolute -end-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white"
+                                >
+                                    {{ unreadCount > 99 ? '99+' : unreadCount }}
+                                </span>
+                            </button>
+                            <div
+                                v-if="isNotificationsOpen"
+                                class="notifications-panel-solid fixed left-2 right-2 top-16 z-[90] rounded-2xl border border-slate-200 p-2 text-black shadow-2xl ring-1 ring-slate-200 md:absolute md:left-auto md:right-0 md:top-12 md:w-[22rem] md:max-w-[92vw]"
+                            >
+                                <div class="mb-2 flex items-center justify-between px-2">
+                                    <div class="text-sm font-semibold text-slate-900">الإشعارات</div>
+                                    <button
+                                        type="button"
+                                        class="text-xs font-semibold text-brand-700 hover:underline"
+                                        @click="markAllNotificationsRead"
+                                    >
+                                        تعليم الكل كمقروء
+                                    </button>
+                                </div>
+                                <div v-if="notificationsLoading" class="p-3 text-xs text-slate-500">جاري تحميل الإشعارات...</div>
+                                <div v-else-if="!notifications.length" class="p-3 text-xs text-slate-500">لا توجد إشعارات حالياً.</div>
+                                <div v-else class="max-h-80 space-y-1 overflow-y-auto px-1 pb-1">
+                                    <button
+                                        v-for="note in notifications"
+                                        :key="note.id"
+                                        type="button"
+                                        class="w-full rounded-xl border px-2 py-2 text-start transition-all duration-200 ease-out hover:bg-slate-50"
+                                        :class="note.read_at ? 'border-slate-200 bg-white text-slate-700' : 'border-brand-200 bg-brand-50 text-slate-900'"
+                                        @click="openNotification(note)"
+                                    >
+                                        <div class="text-xs font-semibold">
+                                            {{ notificationTitle(note) }}
+                                        </div>
+                                        <div class="mt-1 text-[11px] opacity-80">
+                                            {{ notificationBody(note) }}
+                                            <span v-if="note.data?.client_name"> • {{ note.data.client_name }}</span>
+                                        </div>
+                                        <div class="mt-1 text-[10px] opacity-70">
+                                            {{ formatNotificationTime(note.created_at) }}
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <Dropdown align="right" width="48">
                             <template #trigger>
                                 <button
@@ -279,5 +436,11 @@ onBeforeUnmount(() => {
     nav[class*='fixed'][class*='bottom-0'] {
         padding-bottom: max(0.375rem, env(safe-area-inset-bottom));
     }
+}
+
+.notifications-panel-solid {
+    background: #ffffff !important;
+    opacity: 1 !important;
+    backdrop-filter: none !important;
 }
 </style>

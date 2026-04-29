@@ -163,7 +163,7 @@ function submitComplete() {
             <div class="ui-card p-4">
                 <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                     <div class="space-y-1">
-                        <label class="block text-xs font-medium text-white" for="host_filter">المضيف:</label>
+                        <label class="block text-xs font-medium text-black" for="host_filter">المضيف:</label>
                         <select
                             id="host_filter"
                             class="w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200"
@@ -181,7 +181,7 @@ function submitComplete() {
                         </select>
                     </div>
                     <div class="space-y-1">
-                        <label class="block text-xs font-medium text-white" for="client_filter">العميل:</label>
+                        <label class="block text-xs font-medium text-black" for="client_filter">العميل:</label>
                         <select
                             id="client_filter"
                             class="w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200"
@@ -199,7 +199,7 @@ function submitComplete() {
                         </select>
                     </div>
                     <div class="space-y-1">
-                        <label class="block text-xs font-medium text-white" for="status_filter">الحالة:</label>
+                        <label class="block text-xs font-medium text-black" for="status_filter">الحالة:</label>
                         <select
                             id="status_filter"
                             class="w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200"
@@ -213,7 +213,7 @@ function submitComplete() {
                         </select>
                     </div>
                     <div class="space-y-1">
-                        <label class="block text-xs font-medium text-white" for="scope_filter">النوع:</label>
+                        <label class="block text-xs font-medium text-black" for="scope_filter">النوع:</label>
                         <select
                             id="scope_filter"
                             class="w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200"

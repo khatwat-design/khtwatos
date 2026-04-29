@@ -6,6 +6,7 @@ use App\Models\Team;
 use App\Models\TeamChatMessage;
 use App\Models\TeamChatRead;
 use App\Models\TeamChatTypingState;
+use App\Services\SmartNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,10 @@ use Inertia\Response;
 
 class TeamChatController extends Controller
 {
+    public function __construct(private readonly SmartNotificationService $smartNotifications)
+    {
+    }
+
     public function index(Request $request): Response
     {
         $teams = $this->ensureTeams();
@@ -67,7 +72,7 @@ class TeamChatController extends Controller
             $attachmentSize = $file->getSize();
         }
 
-        TeamChatMessage::query()->create([
+        $message = TeamChatMessage::query()->create([
             'team_id' => $data['team_id'],
             'user_id' => $request->user()->id,
             'body' => trim((string) ($data['body'] ?? '')),
@@ -76,6 +81,7 @@ class TeamChatController extends Controller
             'attachment_mime' => $attachmentMime,
             'attachment_size' => $attachmentSize,
         ]);
+        $this->smartNotifications->notifyTeamChatMessage($message, $request->user()?->id);
         $this->markTeamAsRead($request, (int) $data['team_id']);
 
         return redirect()->back();

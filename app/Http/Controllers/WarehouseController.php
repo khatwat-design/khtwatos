@@ -7,6 +7,7 @@ use App\Models\ClientCampaignUpdate;
 use App\Models\ClientDailySale;
 use App\Models\ClientDailySaleItem;
 use App\Models\Team;
+use App\Services\SmartNotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,6 +18,10 @@ use Inertia\Response;
 
 class WarehouseController extends Controller
 {
+    public function __construct(private readonly SmartNotificationService $smartNotifications)
+    {
+    }
+
     public function index(Request $request): Response
     {
         $clientId = $request->filled('client_id') ? (int) $request->query('client_id') : null;
@@ -140,7 +145,7 @@ class WarehouseController extends Controller
         $messages = (int) $data['messages_count'];
         $clicks = (int) ($data['clicks_count'] ?? 0);
 
-        ClientCampaignUpdate::query()->updateOrCreate(
+        $update = ClientCampaignUpdate::query()->updateOrCreate(
             [
                 'client_id' => $data['client_id'],
                 'report_date' => $reportDate,
@@ -160,6 +165,8 @@ class WarehouseController extends Controller
                 'updated_by_user_id' => $request->user()?->id,
             ]
         );
+        $update->loadMissing('client:id,name');
+        $this->smartNotifications->notifyWarehouseUpdated($update, $request->user()?->id);
 
         return redirect()->route('warehouse.index', ['client_id' => $data['client_id']]);
     }

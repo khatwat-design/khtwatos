@@ -119,9 +119,13 @@
 @layer utilities {
     .bg-slate-950,
     .bg-black,
+    .bg-slate-900\/90,
+    .bg-slate-900\/80,
+    .bg-slate-900\/75,
+    .bg-slate-900\/70,
     .bg-slate-900\/55,
-    .bg-slate-900\/40,
-    .bg-slate-900\/50 {
+    .bg-slate-900\/50,
+    .bg-slate-900\/40 {
         background-color: #ffffff !important;
     }
 
