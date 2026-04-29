@@ -214,26 +214,32 @@ function onDragEnd() {
     clearTimeout(syncTimer);
     syncTimer = setTimeout(() => {
         isBoardSyncing.value = true;
-        router.patch(
-            route('task-boards.sync', boardState.id),
-            {
-                columns: boardState.columns.map((c) => ({
-                    id: c.id,
-                    task_ids: c.tasks.map((t) => t.id),
-                })),
-            },
-            {
-                preserveScroll: true,
-                onFinish: () => {
-                    isBoardSyncing.value = false;
+        window.axios
+            .patch(
+                route('task-boards.sync', boardState.id),
+                {
+                    columns: boardState.columns.map((c) => ({
+                        id: c.id,
+                        task_ids: c.tasks.map((t) => t.id),
+                    })),
                 },
-            },
-        );
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            )
+            .catch(() => {
+                // Keep user feedback minimal; backend remains source of truth on next load.
+                taskMessageError.value = 'تعذر حفظ ترتيب المهام. حاول مرة أخرى.';
+            })
+            .finally(() => {
+                isBoardSyncing.value = false;
+            });
     }, 80);
 }
 
 const editModalOpen = ref(false);
 const editingTask = ref(null);
+const taskDetailsLoading = ref(false);
 const taskMessages = ref([]);
 const taskAttachments = ref([]);
 const taskMessageSending = ref(false);
@@ -267,10 +273,11 @@ function toDatetimeLocal(iso) {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function openEdit(task) {
+async function openEdit(task) {
     editingTask.value = task;
-    taskMessages.value = [...(task.messages || [])];
-    taskAttachments.value = [...(task.attachments || [])];
+    taskDetailsLoading.value = true;
+    taskMessages.value = [];
+    taskAttachments.value = [];
     taskMessageBody.value = '';
     taskMessageError.value = '';
     taskAttachmentError.value = '';
@@ -290,6 +297,20 @@ function openEdit(task) {
     editForm.clearErrors();
     editMention.open = false;
     editModalOpen.value = true;
+
+    try {
+        const response = await window.axios.get(route('tasks.details', task.id), {
+            headers: { Accept: 'application/json' },
+        });
+        const details = response?.data?.task || {};
+        editingTask.value = { ...editingTask.value, ...details };
+        taskMessages.value = [...(details.messages || [])];
+        taskAttachments.value = [...(details.attachments || [])];
+    } catch {
+        taskMessageError.value = 'تعذر تحميل تفاصيل المهمة، حاول مرة أخرى.';
+    } finally {
+        taskDetailsLoading.value = false;
+    }
 }
 
 function openQuickAction(task) {
@@ -315,6 +336,7 @@ function closeEditModal() {
     taskAttachmentError.value = '';
     taskAttachmentProgress.value = 0;
     taskAttachmentFile.value = null;
+    taskDetailsLoading.value = false;
     editMention.open = false;
 }
 
@@ -651,12 +673,17 @@ function removeChecklistField(index) {
     quickActionForm.checklist_titles.splice(index, 1);
 }
 
-function toggleChecklistItem(item) {
-    router.patch(
-        route('tasks.checklist-items.toggle', item.id),
-        { is_done: !item.is_done },
-        { preserveScroll: true },
-    );
+async function toggleChecklistItem(item) {
+    try {
+        await window.axios.patch(
+            route('tasks.checklist-items.toggle', item.id),
+            { is_done: !item.is_done },
+            { headers: { Accept: 'application/json' } },
+        );
+        item.is_done = !item.is_done;
+    } catch {
+        taskMessageError.value = 'تعذر تحديث عنصر قائمة التحقق.';
+    }
 }
 </script>
 
@@ -750,7 +777,7 @@ function toggleChecklistItem(item) {
                     <div
                         v-for="col in boardState.columns"
                         :key="col.id"
-                        class="ui-card w-[85vw] max-w-sm shrink-0 snap-start p-3 transition-all duration-200 ease-out sm:w-72"
+                        class="ui-card task-column-dropzone w-[85vw] max-w-sm shrink-0 snap-start p-3 transition-all duration-200 ease-out sm:w-72"
                     >
                         <h3
                             class="mb-2 border-b border-slate-200/70 pb-2 text-sm font-semibold text-slate-800"
@@ -761,10 +788,15 @@ function toggleChecklistItem(item) {
                             v-model="col.tasks"
                             group="tasks"
                             item-key="id"
-                            class="min-h-40 space-y-2"
+                            class="task-drop-area min-h-44 space-y-2 rounded-xl px-1 py-2"
                             ghost-class="task-ghost"
                             chosen-class="task-chosen"
                             drag-class="task-drag"
+                            :delay="90"
+                            :delay-on-touch-only="true"
+                            :touch-start-threshold="3"
+                            :fallback-tolerance="3"
+                            :empty-insert-threshold="26"
                             @end="onDragEnd"
                         >
                             <template #item="{ element }">
@@ -850,13 +882,13 @@ function toggleChecklistItem(item) {
                                         الاستحقاق: {{ formatMessageTime(element.due_at) }}
                                     </p>
                                     <p
-                                        v-if="element.checklist_items?.length"
+                                        v-if="element.checklist_total_count"
                                         class="mt-1 text-[11px] text-gray-500"
                                     >
-                                        قائمة التحقق: {{ element.checklist_items.filter((i) => i.is_done).length }}/{{ element.checklist_items.length }}
+                                        قائمة التحقق: {{ element.checklist_done_count }}/{{ element.checklist_total_count }}
                                     </p>
-                                    <p v-if="element.attachments?.length" class="mt-1 text-[11px] text-blue-700">
-                                        مرفقات: {{ element.attachments.length }}
+                                    <p v-if="element.attachments_count" class="mt-1 text-[11px] text-blue-700">
+                                        مرفقات: {{ element.attachments_count }}
                                     </p>
                                 </div>
                             </template>
@@ -1092,6 +1124,7 @@ function toggleChecklistItem(item) {
 
                     <div class="space-y-2 rounded-xl border border-white/30 bg-white/70 p-3 backdrop-blur">
                         <div class="text-sm font-semibold text-gray-800">محادثة المهمة</div>
+                        <p v-if="taskDetailsLoading" class="text-xs text-gray-500">جاري تحميل تفاصيل المهمة...</p>
                         <div class="max-h-48 space-y-2 overflow-y-auto rounded-xl bg-slate-50/80 p-2">
                             <div
                                 v-for="msg in taskMessages"
@@ -1130,6 +1163,7 @@ function toggleChecklistItem(item) {
 
                     <div class="space-y-2 rounded-xl border border-white/30 bg-white/70 p-3 backdrop-blur">
                         <div class="text-sm font-semibold text-gray-800">مرفقات المهمة</div>
+                        <p v-if="taskDetailsLoading" class="text-xs text-gray-500">جاري تحميل تفاصيل المهمة...</p>
                         <div class="max-h-44 space-y-2 overflow-y-auto rounded-xl bg-slate-50/80 p-2">
                             <div
                                 v-for="attachment in taskAttachments"
@@ -1371,6 +1405,21 @@ function toggleChecklistItem(item) {
 
 .task-drag {
     transform: rotate(1deg);
+}
+
+.task-column-dropzone {
+    scroll-margin-inline: 16px;
+}
+
+.task-drop-area {
+    border: 1px dashed rgba(148, 163, 184, 0.35);
+    background: rgba(255, 255, 255, 0.18);
+    transition: background-color 180ms ease, border-color 180ms ease;
+}
+
+.task-drop-area:hover {
+    border-color: rgba(148, 163, 184, 0.55);
+    background: rgba(255, 255, 255, 0.26);
 }
 
 .glass-modal {

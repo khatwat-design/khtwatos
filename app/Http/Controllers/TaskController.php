@@ -51,11 +51,11 @@ class TaskController extends Controller
                             'assignee:id,name',
                             'assignees:id,name',
                             'client:id,name',
-                            'messages.user:id,name',
-                            'reassignments.assignedBy:id,name',
-                            'reassignments.assignedTo:id,name',
-                            'checklistItems.createdBy:id,name',
-                            'attachments.user:id,name',
+                        ])
+                        ->withCount([
+                            'attachments as attachments_count',
+                            'checklistItems as checklist_total_count',
+                            'checklistItems as checklist_done_count' => fn ($q3) => $q3->where('is_done', true),
                         ])
                         ->orderBy('position')
                         ->orderBy('id');
@@ -92,50 +92,9 @@ class TaskController extends Controller
                         'assignee' => $t->assignee ? ['id' => $t->assignee->id, 'name' => $t->assignee->name] : null,
                         'assignees' => $t->assignees->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name])->values(),
                         'client' => $t->client ? ['id' => $t->client->id, 'name' => $t->client->name] : null,
-                        'messages' => $t->messages->map(fn (TaskMessage $message) => [
-                            'id' => $message->id,
-                            'body' => $message->body,
-                            'created_at' => $message->created_at->toIso8601String(),
-                            'user' => $message->user ? [
-                                'id' => $message->user->id,
-                                'name' => $message->user->name,
-                            ] : null,
-                        ])->values(),
-                        'reassignments' => $t->reassignments->map(fn (TaskReassignment $row) => [
-                            'id' => $row->id,
-                            'due_at' => $row->due_at?->toIso8601String(),
-                            'note' => $row->note,
-                            'assigned_by' => $row->assignedBy ? [
-                                'id' => $row->assignedBy->id,
-                                'name' => $row->assignedBy->name,
-                            ] : null,
-                            'assigned_to' => $row->assignedTo ? [
-                                'id' => $row->assignedTo->id,
-                                'name' => $row->assignedTo->name,
-                            ] : null,
-                        ])->values(),
-                        'checklist_items' => $t->checklistItems->map(fn (TaskChecklistItem $item) => [
-                            'id' => $item->id,
-                            'title' => $item->title,
-                            'is_done' => (bool) $item->is_done,
-                            'created_by' => $item->createdBy ? [
-                                'id' => $item->createdBy->id,
-                                'name' => $item->createdBy->name,
-                            ] : null,
-                        ])->values(),
-                        'attachments' => $t->attachments->map(fn (TaskAttachment $attachment) => [
-                            'id' => $attachment->id,
-                            'name' => $attachment->name,
-                            'mime' => $attachment->mime,
-                            'size' => $attachment->size,
-                            'url' => Storage::disk('public')->url($attachment->path),
-                            'is_image' => is_string($attachment->mime) && str_starts_with($attachment->mime, 'image/'),
-                            'uploaded_by' => $attachment->user ? [
-                                'id' => $attachment->user->id,
-                                'name' => $attachment->user->name,
-                            ] : null,
-                            'created_at' => $attachment->created_at->toIso8601String(),
-                        ])->values(),
+                        'attachments_count' => (int) $t->attachments_count,
+                        'checklist_total_count' => (int) $t->checklist_total_count,
+                        'checklist_done_count' => (int) $t->checklist_done_count,
                     ]),
                 ]),
             ] : null,
@@ -151,6 +110,67 @@ class TaskController extends Controller
                 'id' => $filterClient->id,
                 'name' => $filterClient->name,
             ] : null,
+        ]);
+    }
+
+    public function details(Task $task): \Illuminate\Http\JsonResponse
+    {
+        $task->load([
+            'messages.user:id,name',
+            'reassignments.assignedBy:id,name',
+            'reassignments.assignedTo:id,name',
+            'checklistItems.createdBy:id,name',
+            'attachments.user:id,name',
+        ]);
+
+        return response()->json([
+            'task' => [
+                'id' => $task->id,
+                'messages' => $task->messages->map(fn (TaskMessage $message) => [
+                    'id' => $message->id,
+                    'body' => $message->body,
+                    'created_at' => $message->created_at->toIso8601String(),
+                    'user' => $message->user ? [
+                        'id' => $message->user->id,
+                        'name' => $message->user->name,
+                    ] : null,
+                ])->values(),
+                'reassignments' => $task->reassignments->map(fn (TaskReassignment $row) => [
+                    'id' => $row->id,
+                    'due_at' => $row->due_at?->toIso8601String(),
+                    'note' => $row->note,
+                    'assigned_by' => $row->assignedBy ? [
+                        'id' => $row->assignedBy->id,
+                        'name' => $row->assignedBy->name,
+                    ] : null,
+                    'assigned_to' => $row->assignedTo ? [
+                        'id' => $row->assignedTo->id,
+                        'name' => $row->assignedTo->name,
+                    ] : null,
+                ])->values(),
+                'checklist_items' => $task->checklistItems->map(fn (TaskChecklistItem $item) => [
+                    'id' => $item->id,
+                    'title' => $item->title,
+                    'is_done' => (bool) $item->is_done,
+                    'created_by' => $item->createdBy ? [
+                        'id' => $item->createdBy->id,
+                        'name' => $item->createdBy->name,
+                    ] : null,
+                ])->values(),
+                'attachments' => $task->attachments->map(fn (TaskAttachment $attachment) => [
+                    'id' => $attachment->id,
+                    'name' => $attachment->name,
+                    'mime' => $attachment->mime,
+                    'size' => $attachment->size,
+                    'url' => Storage::disk('public')->url($attachment->path),
+                    'is_image' => is_string($attachment->mime) && str_starts_with($attachment->mime, 'image/'),
+                    'uploaded_by' => $attachment->user ? [
+                        'id' => $attachment->user->id,
+                        'name' => $attachment->user->name,
+                    ] : null,
+                    'created_at' => $attachment->created_at->toIso8601String(),
+                ])->values(),
+            ],
         ]);
     }
 
@@ -357,6 +377,10 @@ class TaskController extends Controller
             }
         });
 
+        if ($request->expectsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
         return redirect()->back();
     }
 
@@ -528,7 +552,7 @@ class TaskController extends Controller
         return redirect()->back();
     }
 
-    public function toggleChecklistItem(Request $request, TaskChecklistItem $taskChecklistItem): RedirectResponse
+    public function toggleChecklistItem(Request $request, TaskChecklistItem $taskChecklistItem)
     {
         $this->ensureCanManageTask($request, $taskChecklistItem->task);
 
@@ -539,6 +563,13 @@ class TaskController extends Controller
         $taskChecklistItem->update([
             'is_done' => (bool) $data['is_done'],
         ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'id' => $taskChecklistItem->id,
+                'is_done' => (bool) $taskChecklistItem->is_done,
+            ]);
+        }
 
         return redirect()->back();
     }

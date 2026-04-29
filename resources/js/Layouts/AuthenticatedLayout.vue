@@ -67,7 +67,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div class="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
+    <div class="relative min-h-screen overflow-hidden bg-white text-black">
         <div class="pointer-events-none absolute inset-0">
             <div class="absolute -left-24 top-0 h-80 w-80 rounded-full bg-brand-500/20 blur-3xl" />
             <div class="absolute right-0 top-32 h-72 w-72 rounded-full bg-indigo-500/15 blur-3xl" />
@@ -77,11 +77,11 @@ onBeforeUnmount(() => {
             <div v-if="isPageLoading" class="loading-bar" />
             <aside
                 :class="[
-                    'hidden shrink-0 flex-col border-s border-white/10 bg-white/5 text-white/90 backdrop-blur-xl transition-all duration-300 ease-out md:flex',
+                    'hidden shrink-0 flex-col border-s border-slate-200 bg-white/80 text-black backdrop-blur-xl transition-all duration-300 ease-out md:flex',
                     sidebarCollapsed ? 'w-[88px]' : 'w-60',
                 ]"
             >
-                <div class="flex h-28 items-center justify-center border-b border-white/10 px-4">
+                <div class="flex h-28 items-center justify-center border-b border-slate-200 px-4">
                     <Link :href="route('dashboard')" class="flex w-full items-center justify-center">
                         <img
                             src="/images/logo-sidebar.png"
@@ -94,7 +94,7 @@ onBeforeUnmount(() => {
                 <div class="px-3 pt-3">
                     <button
                         type="button"
-                        class="inline-flex h-9 w-full items-center justify-center rounded-xl border border-white/15 bg-white/5 text-xs font-medium text-white/80 transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-white/10"
+                        class="inline-flex h-9 w-full items-center justify-center rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-700 transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-slate-50"
                         @click="sidebarCollapsed = !sidebarCollapsed"
                     >
                         {{ sidebarCollapsed ? 'توسيع' : 'طي القائمة' }}
@@ -109,8 +109,8 @@ onBeforeUnmount(() => {
                         :class="[
                             'group rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ease-out hover:scale-[1.02]',
                             active(item.match)
-                                ? 'bg-white/15 text-white ring-1 ring-white/20 shadow-lg shadow-black/20'
-                                : 'text-white/70 hover:bg-white/10 hover:text-white',
+                                ? 'bg-brand-100 text-black ring-1 ring-brand-200 shadow-lg shadow-slate-200'
+                                : 'text-slate-700 hover:bg-slate-100 hover:text-black',
                         ]"
                         :title="item.label"
                     >
@@ -118,7 +118,7 @@ onBeforeUnmount(() => {
                         <span v-else class="mx-auto block h-2 w-2 rounded-full bg-current/80" />
                     </Link>
                 </nav>
-                <div class="border-t border-white/10 p-3 text-xs text-white/60">
+                <div class="border-t border-slate-200 p-3 text-xs text-slate-600">
                     <span v-if="!sidebarCollapsed">{{ page.props.auth.user?.name }}</span>
                     <span v-else class="mx-auto block h-2.5 w-2.5 rounded-full bg-emerald-400" />
                 </div>
@@ -126,17 +126,17 @@ onBeforeUnmount(() => {
 
             <div class="flex min-w-0 flex-1 flex-col">
                 <header
-                    class="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-white/10 bg-slate-900/55 px-4 backdrop-blur-xl md:px-6"
+                    class="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-slate-200 bg-white/85 px-4 backdrop-blur-xl md:px-6"
                 >
                     <div class="flex items-center gap-3 md:hidden">
                         <Link :href="route('dashboard')">
                             <img src="/images/mobile-logo.png" alt="خارج المخزون" class="h-10 w-10 rounded-lg object-contain" />
                         </Link>
-                        <div class="text-sm font-semibold text-white/90">
+                        <div class="text-sm font-semibold text-black">
                             <slot name="title" />
                         </div>
                     </div>
-                    <div class="hidden text-lg font-semibold tracking-tight text-white/90 md:block">
+                    <div class="hidden text-lg font-semibold tracking-tight text-black md:block">
                         <slot name="title" />
                     </div>
                     <div class="ms-auto">
@@ -144,7 +144,7 @@ onBeforeUnmount(() => {
                             <template #trigger>
                                 <button
                                     type="button"
-                                    class="inline-flex items-center rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm font-medium text-white/85 transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-white/15 hover:text-white"
+                                    class="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-black transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-slate-50"
                                 >
                                     {{ page.props.auth.user.name }}
                                     <svg
@@ -193,7 +193,7 @@ onBeforeUnmount(() => {
                 >
                     <slot />
                 </main>
-                <nav class="fixed inset-x-0 bottom-0 z-40 border-t border-white/15 bg-slate-950/90 px-2 py-1.5 backdrop-blur-xl md:hidden">
+                <nav class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 py-1.5 backdrop-blur-xl md:hidden">
                     <div class="grid gap-1" :style="{ gridTemplateColumns: `repeat(${Math.max(mobileBottomNav.length, 1)}, minmax(0, 1fr))` }">
                         <Link
                             v-for="item in mobileBottomNav"
@@ -203,8 +203,8 @@ onBeforeUnmount(() => {
                             :class="[
                                 'inline-flex h-12 items-center justify-center rounded-xl transition-all duration-200 ease-out',
                                 active(item.match)
-                                    ? 'bg-white/15 text-white ring-1 ring-white/20'
-                                    : 'text-white/70 hover:bg-white/10',
+                                    ? 'bg-brand-100 text-black ring-1 ring-brand-200'
+                                    : 'text-slate-700 hover:bg-slate-100',
                             ]"
                             :title="item.label"
                         >
