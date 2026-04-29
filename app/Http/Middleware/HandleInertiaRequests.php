@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Services\SystemNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
@@ -33,9 +32,6 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
-        if ($user) {
-            app(SystemNotificationService::class)->syncForUser($user);
-        }
 
         return [
             ...parent::share($request),
@@ -52,6 +48,7 @@ class HandleInertiaRequests extends Middleware
             ],
             'notifications' => [
                 'unread_count' => ($user && Schema::hasTable('notifications')) ? (int) $user->unreadNotifications()->count() : 0,
+                'webpush_public_key' => config('services.webpush.public_key'),
             ],
         ];
     }

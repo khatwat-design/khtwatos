@@ -16,6 +16,7 @@ const notifications = ref([]);
 const unreadCount = ref(Number(page.props.notifications?.unread_count || 0));
 const browserNotificationsEnabled = ref(false);
 let lastUnreadCount = Number(page.props.notifications?.unread_count || 0);
+const vapidPublicKey = computed(() => String(page.props.notifications?.webpush_public_key || ''));
 
 const nav = [
     ...(page.props.auth?.can?.viewAdminHome
@@ -67,12 +68,18 @@ onMounted(() => {
         unreadCount.value = Number(page.props.notifications?.unread_count || unreadCount.value || 0);
     });
     notificationsTimer = window.setInterval(() => {
-        fetchNotifications({ silent: true });
-    }, 45000);
+        if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+            fetchNotifications({ silent: true });
+        }
+    }, 5000);
+    if (typeof window !== 'undefined') {
+        window.addEventListener('focus', onWindowFocus);
+    }
     browserNotificationsEnabled.value =
         typeof window !== 'undefined' &&
         'Notification' in window &&
         Notification.permission === 'granted';
+    registerServiceWorker();
 });
 
 onBeforeUnmount(() => {
@@ -81,7 +88,65 @@ onBeforeUnmount(() => {
     if (notificationsTimer) {
         window.clearInterval(notificationsTimer);
     }
+    if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', onWindowFocus);
+    }
 });
+
+function onWindowFocus() {
+    fetchNotifications({ silent: true });
+}
+
+async function registerServiceWorker() {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+    try {
+        await navigator.serviceWorker.register('/sw.js');
+        if (browserNotificationsEnabled.value) {
+            await ensurePushSubscription();
+        }
+    } catch {
+        // silent fail for unsupported environments
+    }
+}
+
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+}
+
+async function ensurePushSubscription() {
+    if (
+        typeof window === 'undefined' ||
+        !('serviceWorker' in navigator) ||
+        !('PushManager' in window) ||
+        !vapidPublicKey.value
+    ) {
+        return;
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(vapidPublicKey.value),
+        });
+    }
+
+    await window.axios.post(
+        route('push-subscriptions.store'),
+        {
+            endpoint: subscription.endpoint,
+            keys: subscription.toJSON().keys,
+            contentEncoding: subscription.options?.applicationServerKey ? 'aes128gcm' : 'aesgcm',
+        },
+        { headers: { Accept: 'application/json' } },
+    );
+}
 
 function formatNotificationTime(iso) {
     if (!iso) return '';
@@ -128,6 +193,9 @@ async function toggleNotificationsPanel() {
             try {
                 const perm = await Notification.requestPermission();
                 browserNotificationsEnabled.value = perm === 'granted';
+                if (browserNotificationsEnabled.value) {
+                    await ensurePushSubscription();
+                }
             } catch {
                 browserNotificationsEnabled.value = false;
             }

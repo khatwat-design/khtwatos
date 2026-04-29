@@ -15,6 +15,10 @@ use Illuminate\Support\Facades\Schema;
 
 class SmartNotificationService
 {
+    public function __construct(private readonly WebPushService $webPushService)
+    {
+    }
+
     /**
      * @param array<int, int> $userIds
      * @param array<string, mixed> $payload
@@ -40,6 +44,8 @@ class SmartNotificationService
             ->whereIn('id', $ids->all())
             ->get()
             ->each(fn (User $user) => $user->notify(new SystemEventNotification($payload)));
+
+        $this->webPushService->sendToUsers($ids->all(), $payload);
     }
 
     public function notifyTaskAssigned(Task $task, ?int $actorId = null): void

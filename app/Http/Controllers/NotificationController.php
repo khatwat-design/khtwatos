@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\SystemNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 
 class NotificationController extends Controller
 {
+    public function __construct(private readonly SystemNotificationService $systemNotificationService)
+    {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -20,6 +25,9 @@ class NotificationController extends Controller
                 'unread_count' => 0,
             ]);
         }
+
+        // Keep deadline alerts fresh even without page navigation.
+        $this->systemNotificationService->syncForUser($user);
 
         $notifications = $user->notifications()
             ->latest()

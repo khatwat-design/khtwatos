@@ -74,6 +74,11 @@ class User extends Authenticatable
         return $this->hasMany(Client::class, 'campaign_manager_id');
     }
 
+    public function pushSubscriptions(): HasMany
+    {
+        return $this->hasMany(PushSubscription::class);
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
