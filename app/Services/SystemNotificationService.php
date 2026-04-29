@@ -9,6 +9,10 @@ use Illuminate\Support\Facades\Schema;
 
 class SystemNotificationService
 {
+    public function __construct(private readonly WebPushService $webPushService)
+    {
+    }
+
     public function syncForUser(User $user): void
     {
         if (! Schema::hasTable('notifications')) {
@@ -56,6 +60,12 @@ class SystemNotificationService
 
             if (! $exists) {
                 $user->notify(new TaskDeadlineAlertNotification($task, $severity));
+                $this->webPushService->sendToUsers([(int) $user->id], [
+                    'title' => $severity === 'overdue' ? 'مهمة متأخرة' : 'تنبيه موعد مهمة',
+                    'body' => $task->title,
+                    'link' => route('tasks.index'),
+                    'severity' => $severity,
+                ]);
             }
         }
     }
