@@ -180,7 +180,7 @@ function submitComplete() {
         <template #title>الاجتماعات</template>
 
         <div class="mx-auto max-w-6xl space-y-4">
-            <div class="flex justify-end gap-2">
+            <div class="flex justify-center gap-2">
                 <button
                     type="button"
                     class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 shadow-sm transition-all duration-200 ease-out hover:bg-slate-50"

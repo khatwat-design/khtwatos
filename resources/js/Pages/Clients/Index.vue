@@ -86,7 +86,7 @@ function deleteClient(clientId) {
                 </div>
                 <button
                     type="button"
-                    class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white hover:bg-brand-700"
+                    class="self-end inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white hover:bg-brand-700 sm:self-auto"
                     title="إضافة عميل"
                     @click="showCreateModal = true"
                 >
