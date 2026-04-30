@@ -199,6 +199,7 @@ function destroyMeeting() {
                             required
                         >
                             <option value="scheduled">مجدول</option>
+                            <option value="postponed">مؤجل</option>
                             <option value="canceled">ملغى</option>
                             <option value="completed">مكتمل</option>
                         </select>

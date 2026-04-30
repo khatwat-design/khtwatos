@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class MetaOAuthToken extends Model
 {
+    protected $table = 'meta_oauth_tokens';
+
     protected $fillable = [
         'user_id',
         'access_token',

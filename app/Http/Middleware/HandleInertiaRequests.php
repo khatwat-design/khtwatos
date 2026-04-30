@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -36,7 +37,10 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $user,
+                'user' => $user ? [
+                    ...$user->toArray(),
+                    'avatar_url' => $user->avatar_path ? Storage::disk('public')->url($user->avatar_path) : null,
+                ] : null,
                 'can' => [
                     'manageEmployees' => $user ? Gate::forUser($user)->allows('manage-employees') : false,
                     'deleteRecords' => $user ? $user->isAdmin() : false,

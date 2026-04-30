@@ -23,6 +23,7 @@ use Illuminate\Notifications\Notifiable;
     'availability_start_time',
     'availability_end_time',
     'availability_schedule',
+    'avatar_path',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable

@@ -9,4 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('notifications:sync-smart')->everyMinute()->withoutOverlapping();
-Schedule::command('meta:sync-campaigns --days=2')->everyTenMinutes()->withoutOverlapping();
+Schedule::command('meta:sync-campaigns --days=7')->everyMinute()->withoutOverlapping();

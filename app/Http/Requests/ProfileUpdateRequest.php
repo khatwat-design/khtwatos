@@ -69,6 +69,8 @@ class ProfileUpdateRequest extends FormRequest
                 Rule::unique(User::class)->ignore($this->user()->id),
             ],
             'is_bookable' => ['sometimes', 'boolean'],
+            'avatar' => ['nullable', 'image', 'max:4096'],
+            'remove_avatar' => ['nullable', 'boolean'],
             'availability_schedule' => ['required', 'array', 'size:7'],
             'availability_schedule.*.day' => ['required', 'integer', 'between:0,6'],
             'availability_schedule.*.enabled' => ['required', 'boolean'],

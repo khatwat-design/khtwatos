@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -32,6 +33,7 @@ class EmployeeController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
+                'avatar_url' => $user->avatar_path ? Storage::disk('public')->url($user->avatar_path) : null,
                 'role' => $user->role,
                 'is_bookable' => (bool) $user->is_bookable,
                 'availability_days' => $user->availability_days ?: [0, 1, 2, 3, 4],

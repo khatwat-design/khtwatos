@@ -195,9 +195,16 @@ function deleteEmployee(employee) {
                     class="ui-card p-4"
                 >
                     <div class="flex items-start justify-between gap-3">
-                        <div>
-                            <div class="text-sm font-semibold text-gray-900">{{ emp.name }}</div>
-                            <div class="text-xs text-gray-500">{{ emp.email }}</div>
+                        <div class="flex items-start gap-2">
+                            <img
+                                :src="emp.avatar_url || '/images/mobile-logo.png'"
+                                alt="avatar"
+                                class="h-10 w-10 rounded-full border border-gray-200 object-cover"
+                            />
+                            <div>
+                                <div class="text-sm font-semibold text-gray-900">{{ emp.name }}</div>
+                                <div class="text-xs text-gray-500">{{ emp.email }}</div>
+                            </div>
                         </div>
                         <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
                             {{ roleLabels[emp.role] || emp.role }}
@@ -268,7 +275,16 @@ function deleteEmployee(employee) {
                             v-for="emp in employees"
                             :key="emp.id"
                         >
-                            <td class="px-4 py-2 font-medium text-gray-900">{{ emp.name }}</td>
+                            <td class="px-4 py-2 font-medium text-gray-900">
+                                <div class="flex items-center gap-2">
+                                    <img
+                                        :src="emp.avatar_url || '/images/mobile-logo.png'"
+                                        alt="avatar"
+                                        class="h-9 w-9 rounded-full border border-gray-200 object-cover"
+                                    />
+                                    <span>{{ emp.name }}</span>
+                                </div>
+                            </td>
                             <td class="px-4 py-2 text-gray-700">{{ emp.email }}</td>
                             <td class="px-4 py-2 text-gray-700">
                                 {{ roleLabels[emp.role] || emp.role }}

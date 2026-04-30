@@ -50,6 +50,10 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/profile/meta/oauth/redirect', [ProfileController::class, 'redirectMetaOAuth'])->name('profile.meta.oauth.redirect');
+    Route::get('/profile/meta/oauth/callback', [ProfileController::class, 'handleMetaOAuthCallback'])->name('profile.meta.oauth.callback');
+    Route::post('/profile/meta/oauth/disconnect', [ProfileController::class, 'disconnectMetaOAuth'])->name('profile.meta.oauth.disconnect');
+
     Route::middleware('can:view-admin-home')->group(function () {
         Route::get('/home', [HomeController::class, 'index'])->name('home.index');
     });
@@ -85,6 +89,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/meetings/{meeting}/edit', [MeetingController::class, 'edit'])->name('meetings.edit');
     Route::patch('/meetings/{meeting}', [MeetingController::class, 'update'])->name('meetings.update');
     Route::post('/meetings/{meeting}/complete', [MeetingController::class, 'complete'])->name('meetings.complete');
+    Route::post('/meetings/{meeting}/postpone', [MeetingController::class, 'postpone'])->name('meetings.postpone');
     Route::post('/meetings/{meeting}/archive', [MeetingController::class, 'archive'])->name('meetings.archive');
     Route::post('/meetings/{meeting}/restore', [MeetingController::class, 'restoreArchive'])->name('meetings.restore');
     Route::delete('/meetings/{meeting}', [MeetingController::class, 'destroy'])->name('meetings.destroy');
@@ -98,6 +103,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/clients/{client}/products', [ClientController::class, 'storeProduct'])->name('clients.products.store');
     Route::delete('/client-products/{clientProduct}', [ClientController::class, 'destroyProduct'])->name('clients.products.destroy');
     Route::post('/clients/{client}/attachments', [ClientController::class, 'addAttachment'])->name('clients.attachments.store');
+    Route::post('/clients/{client}/reference-links', [ClientController::class, 'addReferenceLink'])->name('clients.reference-links.store');
     Route::delete('/client-attachments/{clientAttachment}', [ClientController::class, 'deleteAttachment'])->name('clients.attachments.destroy');
     Route::delete('/clients/{client}', [ClientController::class, 'destroy'])->name('clients.destroy');
     Route::patch('/clients/{client}/stage', [ClientController::class, 'updateStage'])->name('clients.stage');

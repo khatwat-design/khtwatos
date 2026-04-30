@@ -44,6 +44,7 @@ class WarehouseController extends Controller
         $windowEnd = $endDate ?: $today->copy();
         $windowStart = $startDate ?: $windowEnd->copy()->subDays($days - 1);
         $days = max(1, (int) $windowStart->diffInDays($windowEnd) + 1);
+        $this->autoSyncClientIfNeeded($clientId, $windowStart, $windowEnd);
 
         $clients = Client::query()
             ->orderBy('name')
@@ -120,10 +121,18 @@ class WarehouseController extends Controller
                 'ad_spend' => (float) $row->ad_spend,
                 'messages_count' => (int) $row->messages_count,
                 'clicks_count' => (int) $row->clicks_count,
+                'leads_count' => (int) ($row->leads_count ?? 0),
+                'purchases_count' => (int) ($row->purchases_count ?? 0),
+                'campaign_revenue' => (float) ($row->campaign_revenue ?? 0),
+                'roas' => $row->roas !== null ? (float) $row->roas : null,
+                'cpa' => $row->cpa !== null ? (float) $row->cpa : null,
+                'cvr' => $row->cvr !== null ? (float) $row->cvr : null,
+                'summary' => $row->summary,
                 'actions_taken' => $row->actions_taken,
                 'updated_by' => $row->updatedBy?->name,
                 'data_source' => $row->data_source ?: 'manual',
                 'source_ref' => $row->source_ref,
+                'fetched_at' => optional($row->fetched_at)?->toDateTimeString(),
             ])->values(),
             'meta_integrations' => $clients->map(fn (Client $client) => [
                 'client_id' => $client->id,
@@ -197,7 +206,6 @@ class WarehouseController extends Controller
 
         $data = $request->validate([
             'client_id' => ['required', 'exists:clients,id'],
-            'days' => ['nullable', 'integer', 'min:1', 'max:14'],
         ]);
 
         if (!Schema::hasTable('client_meta_integrations')) {
@@ -213,7 +221,7 @@ class WarehouseController extends Controller
             return back()->withErrors(['client_id' => 'لا يوجد ربط Meta نشط لهذا العميل.']);
         }
 
-        $days = (int) ($data['days'] ?? 2);
+        $days = 7;
         $toDate = Carbon::today();
         $fromDate = $toDate->copy()->subDays($days - 1);
         $oauthToken = $this->resolveClientMetaAccessToken((int) $data['client_id']) ?? $this->resolveUserMetaAccessToken($request);
@@ -226,6 +234,36 @@ class WarehouseController extends Controller
         return redirect()
             ->route('warehouse.index', ['client_id' => $data['client_id']])
             ->with('success', "تمت مزامنة {$result['days']} يوم من Meta بنجاح.");
+    }
+
+    private function autoSyncClientIfNeeded(?int $clientId, Carbon $windowStart, Carbon $windowEnd): void
+    {
+        if (!$clientId || !Schema::hasTable('client_meta_integrations')) {
+            return;
+        }
+
+        $integration = ClientMetaIntegration::query()
+            ->where('client_id', $clientId)
+            ->where('is_active', true)
+            ->first();
+
+        if (!$integration) {
+            return;
+        }
+
+        // Avoid heavy repeated sync calls while user navigates filters.
+        if ($integration->last_synced_at && $integration->last_synced_at->gt(now()->subMinutes(2))) {
+            return;
+        }
+
+        $token = $this->resolveClientMetaAccessToken($clientId);
+        if (!$token) {
+            return;
+        }
+
+        $from = $windowStart->copy()->subDays(1);
+        $to = $windowEnd->copy();
+        $this->metaSync->syncIntegration($integration, $from, $to, null, $token);
     }
 
     public function redirectToMetaOAuth(Request $request): RedirectResponse

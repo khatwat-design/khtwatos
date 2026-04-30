@@ -27,11 +27,13 @@ use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use App\Services\ClientMetaOnboardingService;
+use App\Services\MetaCampaignSyncService;
 
 class ClientPortalController extends Controller
 {
     public function __construct(
-        private readonly ClientMetaOnboardingService $metaOnboarding
+        private readonly ClientMetaOnboardingService $metaOnboarding,
+        private readonly MetaCampaignSyncService $metaSync,
     ) {}
 
     public function login(): Response
@@ -425,6 +427,14 @@ class ClientPortalController extends Controller
         );
 
         $setup = $this->metaOnboarding->scanAndSetup($client, $finalToken);
+        if (!empty($setup['integration_id']) && Schema::hasTable('client_meta_integrations')) {
+            $integration = ClientMetaIntegration::query()->find($setup['integration_id']);
+            if ($integration && $integration->is_active) {
+                $to = now();
+                $from = now()->subDays(6);
+                $this->metaSync->syncIntegration($integration, $from, $to, null, $finalToken);
+            }
+        }
         $msg = $setup['completed']
             ? 'تم الربط والإعداد التلقائي بنجاح.'
             : 'تم الربط لكن توجد خطوات بسيطة متبقية.';

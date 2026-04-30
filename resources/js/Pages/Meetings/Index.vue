@@ -19,6 +19,7 @@ const statusLabels = {
     scheduled: 'مجدول',
     canceled: 'ملغى',
     completed: 'مكتمل',
+    postponed: 'مؤجل',
 };
 
 const sourceLabels = {
@@ -124,6 +125,10 @@ function restoreMeeting(id) {
     router.post(route('meetings.restore', id), {}, { preserveScroll: true });
 }
 
+function postponeMeeting(id) {
+    router.post(route('meetings.postpone', id), {}, { preserveScroll: true });
+}
+
 function formatDt(iso) {
     return new Date(iso).toLocaleString('ar-SA', {
         dateStyle: 'medium',
@@ -135,6 +140,7 @@ const completeModalOpen = ref(false);
 const completingMeetingId = ref(null);
 const isMeetingsLoading = ref(false);
 const showAnalytics = ref(false);
+const showFiltersModal = ref(false);
 const completeForm = useForm({
     summary: '',
 });
@@ -174,41 +180,53 @@ function submitComplete() {
         <template #title>الاجتماعات</template>
 
         <div class="mx-auto max-w-6xl space-y-4">
-            <div class="flex justify-end">
+            <div class="flex justify-end gap-2">
                 <button
                     type="button"
-                    class="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-all duration-200 ease-out hover:bg-slate-50"
+                    class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 shadow-sm transition-all duration-200 ease-out hover:bg-slate-50"
+                    title="فلترة الاجتماعات"
+                    @click="showFiltersModal = true"
+                >
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path d="M4 6h16M7 12h10M10 18h4" />
+                    </svg>
+                </button>
+                <Link
+                    :href="route('meetings.create', { client_id: filters.client_id || undefined })"
+                    class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-transparent bg-brand-600 text-white shadow-sm transition-all duration-200 ease-out hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
+                    title="اجتماع داخلي جديد"
+                >
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 5v14M5 12h14" />
+                    </svg>
+                </Link>
+                <button
+                    type="button"
+                    class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 shadow-sm transition-all duration-200 ease-out hover:bg-slate-50"
+                    title="تحليلات الاجتماعات"
                     @click="toggleAnalytics"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path v-if="showAnalytics" fill-rule="evenodd" d="M3.23 7.21a.75.75 0 011.06.02L10 13.3l5.71-6.07a.75.75 0 111.08 1.04l-6.25 6.65a.75.75 0 01-1.08 0L3.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
-                        <path v-else fill-rule="evenodd" d="M16.77 12.79a.75.75 0 01-1.06-.02L10 6.7l-5.71 6.07a.75.75 0 11-1.08-1.04l6.25-6.65a.75.75 0 011.08 0l6.25 6.65a.75.75 0 01-.02 1.06z" clip-rule="evenodd" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path d="M4 19h16" />
+                        <path d="M7 15l3-3 3 2 4-5" />
+                        <path d="M7 8h.01M10 12h.01M13 10h.01M17 7h.01" />
                     </svg>
-                    {{ showAnalytics ? 'إخفاء تحليلات الاجتماعات' : 'إظهار تحليلات الاجتماعات' }}
                 </button>
             </div>
 
-            <div v-if="showAnalytics" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div class="ui-card p-4">
-                    <p class="text-xs text-slate-500">اجتماعات اليوم</p>
-                    <p class="mt-1 text-2xl font-black text-black">{{ stats?.today || 0 }}</p>
-                </div>
-                <div class="ui-card p-4">
-                    <p class="text-xs text-slate-500">المجدولة</p>
-                    <p class="mt-1 text-2xl font-black text-brand-700">{{ stats?.scheduled || 0 }}</p>
-                </div>
-                <div class="ui-card p-4">
-                    <p class="text-xs text-slate-500">المكتملة</p>
-                    <p class="mt-1 text-2xl font-black text-emerald-700">{{ stats?.completed || 0 }}</p>
-                </div>
-                <div class="ui-card p-4">
-                    <p class="text-xs text-slate-500">المؤرشفة</p>
-                    <p class="mt-1 text-2xl font-black text-slate-700">{{ stats?.archived || 0 }}</p>
-                </div>
-            </div>
-
-            <div class="ui-card p-4">
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+            <div
+                v-if="showFiltersModal"
+                class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+                @click.self="showFiltersModal = false"
+            >
+                <div class="w-full max-w-4xl rounded-2xl border border-gray-200 bg-white p-4 shadow-xl">
+                    <div class="mb-3 flex items-center justify-between">
+                        <h3 class="text-lg font-semibold text-gray-900">فلترة الاجتماعات</h3>
+                        <button type="button" class="rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-gray-100" @click="showFiltersModal = false">
+                            إغلاق
+                        </button>
+                    </div>
+                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <div class="space-y-1">
                         <label class="block text-xs font-medium text-black" for="host_filter">المضيف:</label>
                         <select
@@ -255,6 +273,7 @@ function submitComplete() {
                         >
                             <option value="">الكل</option>
                             <option value="scheduled">مجدول</option>
+                            <option value="postponed">مؤجل</option>
                             <option value="completed">منتهي</option>
                             <option value="canceled">ملغى</option>
                         </select>
@@ -272,15 +291,7 @@ function submitComplete() {
                             <option value="client">اجتماعات العملاء</option>
                         </select>
                     </div>
-                    <div class="flex items-end">
-                    <Link
-                        :href="route('meetings.create', { client_id: filters.client_id || undefined })"
-                        class="inline-flex w-full items-center justify-center rounded-xl border border-transparent bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 ease-out hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
-                    >
-                        اجتماع داخلي جديد
-                    </Link>
-                    </div>
-                    <label class="flex items-center gap-2 text-xs font-medium text-black lg:items-end">
+                    <label class="flex items-center gap-2 text-xs font-medium text-black">
                         <input
                             type="checkbox"
                             class="rounded border-slate-300 text-brand-600"
@@ -290,6 +301,7 @@ function submitComplete() {
                         عرض المؤرشفة
                     </label>
                 </div>
+            </div>
             </div>
 
             <div class="space-y-3 md:hidden">
@@ -304,68 +316,90 @@ function submitComplete() {
                     v-else
                     v-for="m in meetings"
                     :key="`mobile-${m.id}`"
-                    class="ui-card ui-card-hover p-4"
+                    class="ui-card ui-card-hover overflow-hidden p-0"
                 >
-                    <div class="flex items-start justify-between gap-3">
-                        <div class="text-sm font-semibold text-slate-900">
-                            {{ m.title || 'اجتماع' }}
+                    <div class="border-b border-slate-100 bg-slate-50/70 px-4 py-3">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="text-sm font-bold text-slate-900">
+                                {{ m.title || 'اجتماع' }}
+                            </div>
+                            <span
+                                class="rounded-full px-2 py-0.5 text-xs font-semibold"
+                                :class="m.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : (m.status === 'canceled' ? 'bg-red-100 text-red-700' : (m.status === 'postponed' ? 'bg-violet-100 text-violet-700' : 'bg-amber-100 text-amber-700'))"
+                            >
+                                {{ statusLabels[m.status] || m.status }}
+                            </span>
                         </div>
-                        <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-black">
-                            {{ statusLabels[m.status] || m.status }}
-                        </span>
+                        <div class="mt-1 text-xs text-slate-600">{{ formatDt(m.start_at) }}</div>
                     </div>
-                    <div class="mt-2 text-xs text-slate-600">{{ formatDt(m.start_at) }}</div>
-                    <div class="mt-2 text-sm text-slate-700">
-                        المضيف:
-                        {{ m.host ? arabicEmployeeName(m.host.name) : '—' }}
-                        <span
-                            v-if="m.host?.is_team_manager"
-                            class="ms-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] text-black"
-                        >
-                            مدير قسم
-                        </span>
+
+                    <div class="space-y-2 px-4 py-3 text-sm">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-slate-500">المضيف</span>
+                            <div class="text-slate-800">
+                                {{ m.host ? arabicEmployeeName(m.host.name) : '—' }}
+                                <span
+                                    v-if="m.host?.is_team_manager"
+                                    class="ms-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] text-black"
+                                >
+                                    مدير قسم
+                                </span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-slate-500">المشاركون</span>
+                            <span class="font-semibold text-slate-800">{{ m.participants?.length || 0 }}</span>
+                        </div>
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-slate-500">الضيف</span>
+                            <span class="text-slate-800">{{ m.invitee_name || '—' }}</span>
+                        </div>
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-slate-500">العميل</span>
+                            <template v-if="m.client">
+                                <Link :href="route('clients.show', m.client.id)" class="text-brand-600 hover:underline">
+                                    {{ m.client.name }}
+                                </Link>
+                            </template>
+                            <span v-else class="text-slate-700">{{ m.invitee_name || '—' }}</span>
+                        </div>
                     </div>
-                    <div class="mt-1 text-sm text-slate-700">
-                        المشاركون: {{ m.participants?.length || 0 }}
-                    </div>
-                    <div class="mt-1 text-sm text-slate-700">
-                        الضيف: {{ m.invitee_name || '—' }}
-                    </div>
-                    <div class="mt-1 text-sm text-gray-700">
-                        العميل:
-                        <template v-if="m.client">
-                            <Link :href="route('clients.show', m.client.id)" class="text-brand-600 hover:underline">
-                                {{ m.client.name }}
-                            </Link>
-                        </template>
-                        <span v-else>{{ m.invitee_name || '—' }}</span>
-                    </div>
-                    <div v-if="m.reason" class="mt-2 rounded-xl bg-slate-50 px-2 py-1 text-xs text-black">
+
+                    <div v-if="m.reason" class="mx-4 mb-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-black">
                         {{ m.reason }}
                     </div>
-                    <div v-if="m.summary" class="mt-2 rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
+                    <div v-if="m.summary" class="mx-4 mb-3 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
                         ملخص الاجتماع: {{ m.summary }}
                     </div>
-                    <div v-if="m.source === 'internal'" class="mt-3 flex gap-3 text-sm">
-                        <Link :href="route('meetings.edit', m.id)" class="text-brand-600 hover:underline">تعديل</Link>
+
+                    <div v-if="m.source === 'internal'" class="flex flex-wrap gap-2 border-t border-slate-100 px-4 py-3 text-sm">
+                        <Link :href="route('meetings.edit', m.id)" class="rounded-lg border border-slate-300 px-2.5 py-1 text-brand-700 hover:bg-slate-50">تعديل</Link>
                         <button
                             v-if="m.status !== 'completed'"
                             type="button"
-                            class="text-emerald-700 hover:underline"
+                            class="rounded-lg border border-emerald-300 px-2.5 py-1 text-emerald-700 hover:bg-emerald-50"
                             @click="openCompleteModal(m.id)"
                         >
                             ✓ تم الاجتماع
                         </button>
-                        <button type="button" class="text-red-600 hover:underline" @click="deleteMeeting(m.id)">حذف</button>
+                        <button
+                            v-if="m.status !== 'completed'"
+                            type="button"
+                            class="rounded-lg border border-violet-300 px-2.5 py-1 text-violet-700 hover:bg-violet-50"
+                            @click="postponeMeeting(m.id)"
+                        >
+                            مؤجل
+                        </button>
+                        <button type="button" class="rounded-lg border border-red-300 px-2.5 py-1 text-red-600 hover:bg-red-50" @click="deleteMeeting(m.id)">حذف</button>
                         <button
                             v-if="!m.archived_at && (m.status === 'completed' || m.status === 'canceled')"
                             type="button"
-                            class="text-slate-700 hover:underline"
+                            class="rounded-lg border border-slate-300 px-2.5 py-1 text-slate-700 hover:bg-slate-50"
                             @click="archiveMeeting(m.id)"
                         >
                             أرشفة
                         </button>
-                        <button v-if="m.archived_at" type="button" class="text-indigo-700 hover:underline" @click="restoreMeeting(m.id)">
+                        <button v-if="m.archived_at" type="button" class="rounded-lg border border-indigo-300 px-2.5 py-1 text-indigo-700 hover:bg-indigo-50" @click="restoreMeeting(m.id)">
                             استرجاع
                         </button>
                     </div>
@@ -491,6 +525,14 @@ function submitComplete() {
                                         ✓ تم الاجتماع
                                     </button>
                                     <button
+                                        v-if="m.status !== 'completed'"
+                                        type="button"
+                                        class="text-sm text-violet-700 hover:underline"
+                                        @click="postponeMeeting(m.id)"
+                                    >
+                                        مؤجل
+                                    </button>
+                                    <button
                                         type="button"
                                         class="text-sm text-red-600 hover:underline"
                                         @click="deleteMeeting(m.id)"
@@ -529,6 +571,39 @@ function submitComplete() {
                 </table>
             </div>
         </div>
+
+        <Modal :show="showAnalytics" @close="showAnalytics = false">
+            <div class="glass-modal p-4 sm:p-6">
+                <div class="mb-3 flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-gray-900">تحليلات الاجتماعات</h2>
+                    <button
+                        type="button"
+                        class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                        @click="showAnalytics = false"
+                    >
+                        إغلاق
+                    </button>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div class="ui-card p-4">
+                        <p class="text-xs text-slate-500">اجتماعات اليوم</p>
+                        <p class="mt-1 text-2xl font-black text-black">{{ stats?.today || 0 }}</p>
+                    </div>
+                    <div class="ui-card p-4">
+                        <p class="text-xs text-slate-500">المجدولة</p>
+                        <p class="mt-1 text-2xl font-black text-brand-700">{{ stats?.scheduled || 0 }}</p>
+                    </div>
+                    <div class="ui-card p-4">
+                        <p class="text-xs text-slate-500">المكتملة</p>
+                        <p class="mt-1 text-2xl font-black text-emerald-700">{{ stats?.completed || 0 }}</p>
+                    </div>
+                    <div class="ui-card p-4">
+                        <p class="text-xs text-slate-500">المؤرشفة</p>
+                        <p class="mt-1 text-2xl font-black text-slate-700">{{ stats?.archived || 0 }}</p>
+                    </div>
+                </div>
+            </div>
+        </Modal>
 
         <Modal :show="completeModalOpen" @close="closeCompleteModal">
             <div class="glass-modal p-4 sm:p-6">

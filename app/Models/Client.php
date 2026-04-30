@@ -22,6 +22,7 @@ class Client extends Model
         'portal_token',
         'portal_username',
         'portal_password',
+        'logo_path',
     ];
 
     protected static function booted(): void

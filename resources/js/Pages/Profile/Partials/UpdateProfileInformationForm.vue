@@ -5,6 +5,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Link, useForm, usePage } from '@inertiajs/vue3';
+import { ref } from 'vue';
 
 defineProps({
     mustVerifyEmail: {
@@ -16,6 +17,8 @@ defineProps({
 });
 
 const user = usePage().props.auth.user;
+const avatarPreview = ref(user.avatar_url || '');
+const avatarInputRef = ref(null);
 
 const allDays = [
     { value: 0, label: 'الأحد' },
@@ -62,7 +65,25 @@ const form = useForm({
             ? user.availability_days
             : [0, 1, 2, 3, 4],
     ),
+    avatar: null,
+    remove_avatar: false,
 });
+
+function onAvatarChange(event) {
+    const file = event.target?.files?.[0] || null;
+    form.avatar = file;
+    form.remove_avatar = false;
+    avatarPreview.value = file ? URL.createObjectURL(file) : (user.avatar_url || '');
+}
+
+function removeAvatar() {
+    form.avatar = null;
+    form.remove_avatar = true;
+    avatarPreview.value = '';
+    if (avatarInputRef.value) {
+        avatarInputRef.value.value = '';
+    }
+}
 </script>
 
 <template>
@@ -76,9 +97,38 @@ const form = useForm({
         </header>
 
         <form
-            @submit.prevent="form.patch(route('profile.update'))"
+            @submit.prevent="form.transform((data) => ({ ...data, _method: 'patch' })).post(route('profile.update'), { forceFormData: true })"
             class="mt-6 space-y-6"
         >
+            <div>
+                <InputLabel for="avatar" value="الصورة الشخصية" />
+                <div class="mt-2 flex items-center gap-3">
+                    <img
+                        :src="avatarPreview || '/images/mobile-logo.png'"
+                        alt="الصورة الشخصية"
+                        class="h-16 w-16 rounded-full border border-gray-200 object-cover"
+                    />
+                    <div class="space-y-2">
+                        <input
+                            id="avatar"
+                            ref="avatarInputRef"
+                            type="file"
+                            accept="image/*"
+                            class="block text-xs text-gray-600 file:me-2 file:rounded-xl file:border-0 file:bg-gray-100 file:px-2 file:py-1 file:text-xs file:font-medium"
+                            @change="onAvatarChange"
+                        />
+                        <button
+                            v-if="avatarPreview"
+                            type="button"
+                            class="text-xs text-red-600 hover:underline"
+                            @click="removeAvatar"
+                        >
+                            إزالة الصورة
+                        </button>
+                    </div>
+                </div>
+                <InputError class="mt-2" :message="form.errors.avatar" />
+            </div>
             <div>
                 <InputLabel for="name" value="الاسم" />
 

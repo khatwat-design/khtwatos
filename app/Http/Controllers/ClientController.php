@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\ClientAttachment;
 use App\Models\ClientCampaignUpdate;
 use App\Models\ClientDailySale;
+use App\Models\ClientMetaIntegration;
 use App\Models\ClientProduct;
 use App\Models\ClientStageHistory;
 use App\Models\PipelineStage;
@@ -20,6 +21,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -55,6 +57,7 @@ class ClientController extends Controller
                 'name' => $c->name,
                 'company' => $c->company,
                 'email' => $c->email,
+                'logo_url' => $c->logo_path ? Storage::disk('public')->url($c->logo_path) : null,
                 'current_stage' => $c->currentStage ? [
                     'key' => $c->currentStage->key,
                     'label' => $c->currentStage->label,
@@ -65,6 +68,8 @@ class ClientController extends Controller
                 'updated_at' => $c->updated_at->toIso8601String(),
             ]),
             'stages' => $stages,
+            'accountManagers' => User::orderBy('name')->get(['id', 'name']),
+            'campaignManagers' => $this->campaignManagers(),
             'filters' => [
                 'stage_id' => $stageId,
             ],
@@ -142,6 +147,13 @@ class ClientController extends Controller
             'days_since_update' => (int) $client->updated_at->diffInDays(now()),
         ];
 
+        $metaIntegration = null;
+        if (Schema::hasTable('client_meta_integrations')) {
+            $metaIntegration = ClientMetaIntegration::query()
+                ->where('client_id', $client->id)
+                ->first();
+        }
+
         return Inertia::render('Clients/Show', [
             'client' => [
                 'id' => $client->id,
@@ -150,6 +162,7 @@ class ClientController extends Controller
                 'email' => $client->email,
                 'phone' => $client->phone,
                 'notes' => $client->notes,
+                'logo_url' => $client->logo_path ? Storage::disk('public')->url($client->logo_path) : null,
                 'current_stage' => $client->currentStage ? [
                     'id' => $client->currentStage->id,
                     'key' => $client->currentStage->key,
@@ -199,7 +212,8 @@ class ClientController extends Controller
                 'name' => $attachment->name,
                 'mime' => $attachment->mime,
                 'size' => $attachment->size,
-                'url' => Storage::disk('public')->url($attachment->path),
+                'url' => $this->attachmentPublicUrl($attachment),
+                'is_link' => $this->isReferenceLinkAttachment($attachment),
                 'is_image' => is_string($attachment->mime) && str_starts_with($attachment->mime, 'image/'),
                 'uploaded_by' => $attachment->user ? [
                     'id' => $attachment->user->id,
@@ -278,6 +292,11 @@ class ClientController extends Controller
                 'expires_at' => $note->expires_at?->toIso8601String(),
                 'created_at' => $note->created_at?->toIso8601String(),
             ])->values(),
+            'meta_profile' => [
+                'facebook_page' => $metaIntegration?->meta_page_id,
+                'instagram_page' => $metaIntegration?->meta_instagram_account_id,
+                'ad_account_id' => $metaIntegration?->ad_account_id,
+            ],
             'accountManagers' => User::orderBy('name')->get(['id', 'name']),
             'campaignManagers' => $this->campaignManagers(),
         ]);
@@ -293,9 +312,49 @@ class ClientController extends Controller
             'notes' => ['nullable', 'string', 'max:10000'],
             'account_manager_id' => ['nullable', 'exists:users,id'],
             'campaign_manager_id' => ['nullable', 'exists:users,id'],
+            'facebook_page' => ['nullable', 'string', 'max:255'],
+            'instagram_page' => ['nullable', 'string', 'max:255'],
+            'logo' => ['nullable', 'image', 'max:4096'],
+            'remove_logo' => ['nullable', 'boolean'],
         ]);
 
-        $client->update($data);
+        $client->update([
+            'name' => $data['name'],
+            'company' => $data['company'] ?? null,
+            'email' => $data['email'] ?? null,
+            'phone' => $data['phone'] ?? null,
+            'notes' => $data['notes'] ?? null,
+            'account_manager_id' => $data['account_manager_id'] ?? null,
+            'campaign_manager_id' => $data['campaign_manager_id'] ?? null,
+        ]);
+
+        $oldLogoPath = $client->logo_path;
+        if (($data['remove_logo'] ?? false) && $client->logo_path) {
+            Storage::disk('public')->delete($client->logo_path);
+            $client->logo_path = null;
+        }
+        if ($request->hasFile('logo')) {
+            $newPath = $request->file('logo')->store('client-logos', 'public');
+            $client->logo_path = $newPath;
+            if ($oldLogoPath && $oldLogoPath !== $newPath) {
+                Storage::disk('public')->delete($oldLogoPath);
+            }
+        }
+        $client->save();
+
+        if (Schema::hasTable('client_meta_integrations')) {
+            $hasMetaData = !empty($data['facebook_page']) || !empty($data['instagram_page']);
+            if ($hasMetaData) {
+                ClientMetaIntegration::query()->updateOrCreate(
+                    ['client_id' => $client->id],
+                    [
+                        'meta_page_id' => $data['facebook_page'] ?? null,
+                        'meta_instagram_account_id' => $data['instagram_page'] ?? null,
+                        'is_active' => true,
+                    ]
+                );
+            }
+        }
 
         return redirect()->route('clients.show', $client);
     }
@@ -357,14 +416,19 @@ class ClientController extends Controller
         $file = $data['file'];
         $path = $file->store('client-attachments', 'public');
 
-        $attachment = ClientAttachment::query()->create([
+        $payload = [
             'client_id' => $client->id,
             'user_id' => $request->user()->id,
             'path' => $path,
             'name' => $file->getClientOriginalName(),
             'mime' => $file->getMimeType(),
             'size' => $file->getSize(),
-        ])->load('user:id,name');
+        ];
+        if ($this->hasAttachmentUrlColumn()) {
+            $payload['url'] = null;
+        }
+
+        $attachment = ClientAttachment::query()->create($payload)->load('user:id,name');
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -373,7 +437,8 @@ class ClientController extends Controller
                     'name' => $attachment->name,
                     'mime' => $attachment->mime,
                     'size' => $attachment->size,
-                    'url' => Storage::disk('public')->url($attachment->path),
+                    'url' => $this->attachmentPublicUrl($attachment),
+                    'is_link' => $this->isReferenceLinkAttachment($attachment),
                     'is_image' => is_string($attachment->mime) && str_starts_with($attachment->mime, 'image/'),
                     'uploaded_by' => $attachment->user ? [
                         'id' => $attachment->user->id,
@@ -387,6 +452,35 @@ class ClientController extends Controller
         return redirect()->back();
     }
 
+    public function addReferenceLink(Request $request, Client $client): RedirectResponse
+    {
+        $data = $request->validate([
+            'title' => ['nullable', 'string', 'max:255'],
+            'url' => ['required', 'url', 'max:2000'],
+        ]);
+
+        $url = trim((string) $data['url']);
+        $title = trim((string) ($data['title'] ?? ''));
+        $host = parse_url($url, PHP_URL_HOST);
+        $name = $title !== '' ? $title : ($host ?: $url);
+
+        $payload = [
+            'client_id' => $client->id,
+            'user_id' => $request->user()->id,
+            'path' => $this->hasAttachmentUrlColumn() ? '' : $url,
+            'name' => $name,
+            'mime' => 'link/url',
+            'size' => null,
+        ];
+        if ($this->hasAttachmentUrlColumn()) {
+            $payload['url'] = $url;
+        }
+
+        ClientAttachment::query()->create($payload);
+
+        return redirect()->back();
+    }
+
     public function deleteAttachment(Request $request, ClientAttachment $clientAttachment): RedirectResponse
     {
         $user = $request->user();
@@ -394,7 +488,11 @@ class ClientController extends Controller
             abort(403, 'لا تملك صلاحية حذف هذا المرفق.');
         }
 
-        if ($clientAttachment->path) {
+        if (
+            $clientAttachment->path
+            && !$this->isReferenceLinkAttachment($clientAttachment)
+            && !str_starts_with((string) $clientAttachment->path, 'http')
+        ) {
             Storage::disk('public')->delete($clientAttachment->path);
         }
         $clientAttachment->delete();
@@ -554,5 +652,31 @@ class ClientController extends Controller
         }
 
         return Gate::forUser($user)->allows('view-client-portal-link');
+    }
+
+    private function hasAttachmentUrlColumn(): bool
+    {
+        return Schema::hasColumn('client_attachments', 'url');
+    }
+
+    private function isReferenceLinkAttachment(ClientAttachment $attachment): bool
+    {
+        if ($this->hasAttachmentUrlColumn()) {
+            return !empty($attachment->url) || $attachment->mime === 'link/url';
+        }
+
+        return $attachment->mime === 'link/url' || str_starts_with((string) $attachment->path, 'http');
+    }
+
+    private function attachmentPublicUrl(ClientAttachment $attachment): string
+    {
+        if ($this->hasAttachmentUrlColumn() && !empty($attachment->url)) {
+            return (string) $attachment->url;
+        }
+        if ($this->isReferenceLinkAttachment($attachment)) {
+            return (string) $attachment->path;
+        }
+
+        return Storage::disk('public')->url($attachment->path);
     }
 }

@@ -50,6 +50,7 @@ return [
         'app_secret' => env('META_ADS_APP_SECRET'),
         'redirect_uri' => env('META_ADS_REDIRECT_URI'),
         'portal_redirect_uri' => env('META_ADS_PORTAL_REDIRECT_URI'),
+        'profile_redirect_uri' => env('META_ADS_PROFILE_REDIRECT_URI'),
         'access_token' => env('META_ADS_ACCESS_TOKEN'),
         'version' => env('META_ADS_GRAPH_VERSION', 'v22.0'),
     ],

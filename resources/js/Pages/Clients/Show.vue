@@ -24,6 +24,7 @@ const props = defineProps({
     metrics: Object,
     accountManagers: Array,
     campaignManagers: Array,
+    meta_profile: Object,
 });
 
 const history = computed(() =>
@@ -38,12 +39,16 @@ const canDeleteRecords = Boolean(page.props.auth?.can?.deleteRecords);
 const canManageProducts = Boolean(canDeleteRecords || page.props.auth?.can?.viewClientPortalLink);
 const clientAttachments = ref([...(props.attachments || [])]);
 const attachmentInputRef = ref(null);
+const clientLogoInputRef = ref(null);
 const attachmentUploading = ref(false);
 const attachmentProgress = ref(0);
 const attachmentError = ref('');
 const attachmentFile = ref(null);
 const showProductModal = ref(false);
+const showPortalAccessCard = ref(true);
+const showTaskStatusHistory = ref(true);
 const maxAttachmentSizeBytes = 10 * 1024 * 1024;
+const clientLogoPreview = ref(props.client.logo_url || '');
 
 const clientForm = useForm({
     name: props.client.name,
@@ -53,6 +58,10 @@ const clientForm = useForm({
     notes: props.client.notes || '',
     account_manager_id: props.client.account_manager?.id ?? null,
     campaign_manager_id: props.client.campaign_manager?.id ?? null,
+    facebook_page: props.meta_profile?.facebook_page || '',
+    instagram_page: props.meta_profile?.instagram_page || '',
+    logo: null,
+    remove_logo: false,
 });
 
 const stageForm = useForm({
@@ -74,8 +83,31 @@ const productForm = useForm({
     is_active: true,
 });
 
+const referenceLinkForm = useForm({
+    title: '',
+    url: '',
+});
+
 function saveClient() {
-    clientForm.patch(route('clients.update', props.client.id));
+    clientForm
+        .transform((data) => ({ ...data, _method: 'patch' }))
+        .post(route('clients.update', props.client.id), { forceFormData: true });
+}
+
+function onClientLogoChange(event) {
+    const file = event.target?.files?.[0] || null;
+    clientForm.logo = file;
+    clientForm.remove_logo = false;
+    clientLogoPreview.value = file ? URL.createObjectURL(file) : (props.client.logo_url || '');
+}
+
+function removeClientLogo() {
+    clientForm.logo = null;
+    clientForm.remove_logo = true;
+    clientLogoPreview.value = '';
+    if (clientLogoInputRef.value) {
+        clientLogoInputRef.value.value = '';
+    }
 }
 
 function saveStage() {
@@ -213,6 +245,16 @@ async function uploadClientAttachment() {
     }
 }
 
+function saveReferenceLink() {
+    if (!referenceLinkForm.url) {
+        return;
+    }
+    referenceLinkForm.post(route('clients.reference-links.store', props.client.id), {
+        preserveScroll: true,
+        onSuccess: () => referenceLinkForm.reset(),
+    });
+}
+
 function canDeleteAttachment(attachment) {
     if (canDeleteRecords) {
         return true;
@@ -305,49 +347,80 @@ function localizeColumnName(name) {
                 ← العودة للعملاء
             </Link>
 
-            <div v-if="portal" class="rounded-2xl border border-white/20 bg-white/70 p-6 shadow-xl shadow-slate-900/10 ring-1 ring-white/35 backdrop-blur-xl">
-                <h2 class="text-lg font-semibold text-gray-900">حماية دخول بوابة العميل</h2>
-                <p class="mt-1 text-sm text-gray-600">
-                    إعداد اسم المستخدم وكلمة السر يتم من هنا فقط.
-                </p>
+            <div class="rounded-2xl border border-white/20 bg-white/70 p-6 shadow-xl shadow-slate-900/10 ring-1 ring-white/35 backdrop-blur-xl">
+                <h2 class="text-lg font-semibold text-gray-900">ملاحظات العميل المؤقتة (24 ساعة)</h2>
+                <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div
+                        v-for="note in portal_notes"
+                        :key="`portal-note-${note.id}`"
+                        class="rounded-xl border border-amber-300/70 bg-amber-50/90 p-3 shadow-sm transition-all duration-200 ease-out hover:scale-[1.02]"
+                    >
+                        <p class="text-sm text-amber-900">{{ note.note }}</p>
+                        <p class="mt-2 text-[11px] text-amber-700">
+                            تنتهي: {{ formatDt(note.expires_at) }}
+                        </p>
+                    </div>
+                    <p v-if="!portal_notes?.length" class="text-sm text-gray-500">
+                        لا توجد ملاحظات عميل فعالة حاليًا.
+                    </p>
+                </div>
+            </div>
 
-                <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="savePortalCredentials">
-                    <div class="md:col-span-2">
-                        <InputLabel for="portal_username" value="اسم المستخدم للبوابة" />
-                        <TextInput
-                            id="portal_username"
-                            v-model="portalForm.portal_username"
-                            class="mt-1 block w-full"
-                            required
-                        />
-                        <InputError class="mt-1" :message="portalForm.errors.portal_username" />
-                    </div>
-                    <div>
-                        <InputLabel for="portal_password" value="كلمة السر الجديدة" />
-                        <TextInput
-                            id="portal_password"
-                            v-model="portalForm.portal_password"
-                            type="password"
-                            class="mt-1 block w-full"
-                            :placeholder="portal.has_credentials ? 'اتركها فارغة للإبقاء على الحالية' : ''"
-                        />
-                        <InputError class="mt-1" :message="portalForm.errors.portal_password" />
-                    </div>
-                    <div>
-                        <InputLabel for="portal_password_confirmation" value="تأكيد كلمة السر" />
-                        <TextInput
-                            id="portal_password_confirmation"
-                            v-model="portalForm.portal_password_confirmation"
-                            type="password"
-                            class="mt-1 block w-full"
-                        />
-                    </div>
-                    <div class="md:col-span-2">
-                        <PrimaryButton :disabled="portalForm.processing">
-                            حفظ بيانات دخول البوابة
-                        </PrimaryButton>
-                    </div>
-                </form>
+            <div v-if="portal" class="rounded-2xl border border-white/20 bg-white/70 p-6 shadow-xl shadow-slate-900/10 ring-1 ring-white/35 backdrop-blur-xl">
+                <div class="flex items-center justify-between gap-3">
+                    <h2 class="text-lg font-semibold text-gray-900">إعدادات دخول بوابة العميل</h2>
+                    <button
+                        type="button"
+                        class="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        @click="showPortalAccessCard = !showPortalAccessCard"
+                    >
+                        {{ showPortalAccessCard ? 'إخفاء' : 'إظهار' }}
+                    </button>
+                </div>
+
+                <div v-if="showPortalAccessCard">
+                    <p class="mt-1 text-sm text-gray-600">
+                        إعداد اسم المستخدم وكلمة السر يتم من هنا فقط.
+                    </p>
+
+                    <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="savePortalCredentials">
+                        <div class="md:col-span-2">
+                            <InputLabel for="portal_username" value="اسم المستخدم للبوابة" />
+                            <TextInput
+                                id="portal_username"
+                                v-model="portalForm.portal_username"
+                                class="mt-1 block w-full"
+                                required
+                            />
+                            <InputError class="mt-1" :message="portalForm.errors.portal_username" />
+                        </div>
+                        <div>
+                            <InputLabel for="portal_password" value="كلمة السر الجديدة" />
+                            <TextInput
+                                id="portal_password"
+                                v-model="portalForm.portal_password"
+                                type="password"
+                                class="mt-1 block w-full"
+                                :placeholder="portal.has_credentials ? 'اتركها فارغة للإبقاء على الحالية' : ''"
+                            />
+                            <InputError class="mt-1" :message="portalForm.errors.portal_password" />
+                        </div>
+                        <div>
+                            <InputLabel for="portal_password_confirmation" value="تأكيد كلمة السر" />
+                            <TextInput
+                                id="portal_password_confirmation"
+                                v-model="portalForm.portal_password_confirmation"
+                                type="password"
+                                class="mt-1 block w-full"
+                            />
+                        </div>
+                        <div class="md:col-span-2">
+                            <PrimaryButton :disabled="portalForm.processing">
+                                حفظ بيانات دخول البوابة
+                            </PrimaryButton>
+                        </div>
+                    </form>
+                </div>
             </div>
 
             <div class="rounded-2xl border border-white/20 bg-white/70 p-6 shadow-xl shadow-slate-900/10 ring-1 ring-white/35 backdrop-blur-xl">
@@ -367,10 +440,11 @@ function localizeColumnName(name) {
                                         rel="noopener noreferrer"
                                         class="truncate text-sm font-semibold text-brand-600 hover:underline"
                                     >
-                                        {{ attachment.name }}
+                                        {{ attachment.is_link ? `🔗 ${attachment.name}` : attachment.name }}
                                     </a>
                                     <p class="mt-1 text-xs text-gray-500">
-                                        {{ attachment.mime || 'ملف' }} • {{ formatFileSize(attachment.size) }}
+                                        {{ attachment.is_link ? 'رابط مرجعي' : (attachment.mime || 'ملف') }}
+                                        <span v-if="!attachment.is_link"> • {{ formatFileSize(attachment.size) }}</span>
                                         <span v-if="attachment.uploaded_by"> • بواسطة {{ attachment.uploaded_by.name }}</span>
                                     </p>
                                 </div>
@@ -384,7 +458,7 @@ function localizeColumnName(name) {
                                 </button>
                             </div>
                             <img
-                                v-if="attachment.is_image"
+                                v-if="attachment.is_image && !attachment.is_link"
                                 :src="attachment.url"
                                 alt="مرفق عميل"
                                 class="mt-2 max-h-44 rounded border border-gray-200"
@@ -419,6 +493,34 @@ function localizeColumnName(name) {
                         >
                             {{ attachmentUploading ? 'جاري الرفع...' : 'رفع المرفق' }}
                         </PrimaryButton>
+
+                        <div class="my-1 h-px bg-slate-200" />
+
+                        <InputLabel for="reference_link_title" value="عنوان الرابط (اختياري)" />
+                        <TextInput
+                            id="reference_link_title"
+                            v-model="referenceLinkForm.title"
+                            type="text"
+                            class="mt-1 block w-full"
+                            placeholder="مثال: صفحة المنتج"
+                        />
+                        <InputLabel for="reference_link_url" value="رابط مرجعي" />
+                        <TextInput
+                            id="reference_link_url"
+                            v-model="referenceLinkForm.url"
+                            type="url"
+                            class="mt-1 block w-full"
+                            placeholder="https://example.com"
+                            dir="ltr"
+                        />
+                        <InputError class="mt-1" :message="referenceLinkForm.errors.url || referenceLinkForm.errors.title" />
+                        <PrimaryButton
+                            type="button"
+                            :disabled="referenceLinkForm.processing || !referenceLinkForm.url"
+                            @click="saveReferenceLink"
+                        >
+                            {{ referenceLinkForm.processing ? 'جاري الحفظ...' : 'إضافة رابط' }}
+                        </PrimaryButton>
                     </div>
                 </div>
             </div>
@@ -426,17 +528,6 @@ function localizeColumnName(name) {
             <div class="rounded-2xl border border-white/20 bg-white/70 p-6 shadow-xl shadow-slate-900/10 ring-1 ring-white/35 backdrop-blur-xl">
                 <div class="flex items-center justify-between gap-2">
                     <h2 class="text-lg font-semibold text-gray-900">منتجات العميل والمخزن</h2>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs text-gray-500">التحليل يعتمد على أسعار المنتجات والكميات اليومية</span>
-                        <button
-                            v-if="canManageProducts"
-                            type="button"
-                            class="rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-brand-700"
-                            @click="showProductModal = true"
-                        >
-                            إضافة منتج
-                        </button>
-                    </div>
                 </div>
                 <div class="mt-4">
                     <div class="overflow-x-auto">
@@ -448,7 +539,6 @@ function localizeColumnName(name) {
                                     <th class="px-2 py-2">المخزون</th>
                                     <th class="px-2 py-2">التفاصيل</th>
                                     <th class="px-2 py-2">الحالة</th>
-                                    <th v-if="canManageProducts" class="px-2 py-2">إجراء</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -464,18 +554,9 @@ function localizeColumnName(name) {
                                     <td class="px-2 py-2 text-xs">
                                         {{ product.is_active ? 'نشط' : 'غير نشط' }}
                                     </td>
-                                    <td v-if="canManageProducts" class="px-2 py-2">
-                                        <button
-                                            type="button"
-                                            class="text-xs text-red-600 hover:underline"
-                                            @click="deleteProduct(product)"
-                                        >
-                                            حذف
-                                        </button>
-                                    </td>
                                 </tr>
                                 <tr v-if="!products?.length">
-                                    <td class="px-2 py-4 text-center text-gray-500" :colspan="canManageProducts ? 6 : 5">
+                                    <td class="px-2 py-4 text-center text-gray-500" colspan="5">
                                         لا توجد منتجات مرتبطة بهذا العميل بعد.
                                     </td>
                                 </tr>
@@ -485,36 +566,9 @@ function localizeColumnName(name) {
                 </div>
             </div>
 
-            <div class="rounded-2xl border border-white/20 bg-white/70 p-6 shadow-xl shadow-slate-900/10 ring-1 ring-white/35 backdrop-blur-xl">
-                <h2 class="text-lg font-semibold text-gray-900">ملاحظات العميل المؤقتة (24 ساعة)</h2>
-                <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    <div
-                        v-for="note in portal_notes"
-                        :key="`portal-note-${note.id}`"
-                        class="rounded-xl border border-amber-300/70 bg-amber-50/90 p-3 shadow-sm transition-all duration-200 ease-out hover:scale-[1.02]"
-                    >
-                        <p class="text-sm text-amber-900">{{ note.note }}</p>
-                        <p class="mt-2 text-[11px] text-amber-700">
-                            تنتهي: {{ formatDt(note.expires_at) }}
-                        </p>
-                    </div>
-                    <p v-if="!portal_notes?.length" class="text-sm text-gray-500">
-                        لا توجد ملاحظات عميل فعالة حاليًا.
-                    </p>
-                </div>
-            </div>
-
             <div class="grid gap-6 lg:grid-cols-2">
                 <div class="rounded-2xl border border-white/20 bg-white/70 p-6 shadow-xl shadow-slate-900/10 ring-1 ring-white/35 backdrop-blur-xl">
-                    <div class="flex items-center justify-between gap-2">
-                        <h2 class="text-lg font-semibold text-gray-900">مبيعات العميل اليومية</h2>
-                        <Link
-                            :href="route('warehouse.index', { client_id: client.id })"
-                            class="text-sm text-brand-600 hover:underline"
-                        >
-                            إدارة من المخزن
-                        </Link>
-                    </div>
+                    <h2 class="text-lg font-semibold text-gray-900">مبيعات العميل اليومية</h2>
                     <ul class="mt-3 divide-y divide-gray-100 text-sm">
                         <li
                             v-for="row in daily_sales"
@@ -601,6 +655,35 @@ function localizeColumnName(name) {
                     <h2 class="text-lg font-semibold text-gray-900">البيانات</h2>
                     <form class="mt-4 space-y-3" @submit.prevent="saveClient">
                         <div>
+                            <InputLabel for="client_logo" value="شعار العميل" />
+                            <div class="mt-2 flex items-center gap-3">
+                                <img
+                                    :src="clientLogoPreview || '/images/mobile-logo.png'"
+                                    alt="شعار العميل"
+                                    class="h-14 w-14 rounded-xl border border-gray-200 object-cover"
+                                />
+                                <div class="space-y-1">
+                                    <input
+                                        id="client_logo"
+                                        ref="clientLogoInputRef"
+                                        type="file"
+                                        accept="image/*"
+                                        class="block text-xs text-gray-600 file:me-2 file:rounded-xl file:border-0 file:bg-gray-100 file:px-2 file:py-1 file:text-xs file:font-medium"
+                                        @change="onClientLogoChange"
+                                    />
+                                    <button
+                                        v-if="clientLogoPreview"
+                                        type="button"
+                                        class="text-xs text-red-600 hover:underline"
+                                        @click="removeClientLogo"
+                                    >
+                                        إزالة الشعار
+                                    </button>
+                                </div>
+                            </div>
+                            <InputError class="mt-1" :message="clientForm.errors.logo" />
+                        </div>
+                        <div>
                             <InputLabel for="name" value="الاسم" />
                             <TextInput
                                 id="name"
@@ -658,6 +741,33 @@ function localizeColumnName(name) {
                                 v-model="clientForm.notes"
                                 rows="3"
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                            />
+                        </div>
+                        <div>
+                            <InputLabel for="facebook_page" value="صفحة الفيسبوك" />
+                            <TextInput
+                                id="facebook_page"
+                                v-model="clientForm.facebook_page"
+                                class="mt-1 block w-full"
+                                placeholder="مثال: 123456789 أو رابط الصفحة"
+                            />
+                        </div>
+                        <div>
+                            <InputLabel for="instagram_page" value="صفحة الانستغرام" />
+                            <TextInput
+                                id="instagram_page"
+                                v-model="clientForm.instagram_page"
+                                class="mt-1 block w-full"
+                                placeholder="مثال: 1784... أو @username"
+                            />
+                        </div>
+                        <div>
+                            <InputLabel for="ad_account_id" value="رقم الحساب الإعلاني المرتبط" />
+                            <TextInput
+                                id="ad_account_id"
+                                :model-value="props.meta_profile?.ad_account_id ? (String(props.meta_profile.ad_account_id).startsWith('act_') ? props.meta_profile.ad_account_id : `act_${props.meta_profile.ad_account_id}`) : 'غير مرتبط'"
+                                class="mt-1 block w-full bg-gray-50"
+                                readonly
                             />
                         </div>
                         <div>
@@ -722,19 +832,31 @@ function localizeColumnName(name) {
                         >
                     </form>
 
-                    <h3 class="mt-6 text-sm font-semibold text-gray-800">السجل</h3>
-                    <ul class="mt-2 max-h-48 space-y-2 overflow-y-auto text-sm">
+                    <div class="mt-6 flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-gray-800">سجل المسار</h3>
+                        <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-600">
+                            {{ history?.length || 0 }} حدث
+                        </span>
+                    </div>
+                    <ul class="mt-3 max-h-60 space-y-2 overflow-y-auto pe-1 text-sm">
                         <li
                             v-for="h in history"
                             :key="h.id"
-                            class="rounded-xl border border-slate-200 bg-slate-50 px-2 py-1"
+                            class="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-3 py-2 shadow-sm"
                         >
-                            <span class="font-medium">{{ h.stage }}</span>
-                            <span class="text-gray-500"> — {{ h.user || '—' }}</span>
-                            <div class="text-xs text-gray-400">
-                                {{ formatDt(h.at) }}
-                                <span v-if="h.note"> · {{ h.note }}</span>
+                            <div class="flex items-start justify-between gap-2">
+                                <p class="font-semibold text-slate-900">{{ h.stage }}</p>
+                                <span class="text-[11px] text-slate-500">{{ formatDt(h.at) }}</span>
                             </div>
+                            <div class="mt-1 text-xs text-slate-600">
+                                بواسطة: <span class="font-medium">{{ h.user || 'غير محدد' }}</span>
+                            </div>
+                            <div v-if="h.note" class="mt-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                                {{ h.note }}
+                            </div>
+                        </li>
+                        <li v-if="!history?.length" class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-sm text-slate-500">
+                            لا يوجد سجل مسار حتى الآن.
                         </li>
                     </ul>
                 </div>
@@ -746,24 +868,43 @@ function localizeColumnName(name) {
                     <div
                         v-for="block in tasks_by_team"
                         :key="block.team"
-                        class="rounded-xl border border-slate-200 bg-white/75 p-3"
+                        class="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm"
                     >
-                        <h3 class="text-sm font-semibold text-gray-800">
-                            {{ localizeTeamName(block.team) }}
-                        </h3>
-                        <ul class="mt-2 text-sm text-gray-600">
-                            <li v-for="t in block.tasks" :key="t.id">
-                                {{ t.title }}
-                                <span class="text-gray-400"> · {{ localizeColumnName(t.column) || '—' }}</span>
-                                <span v-if="(t.assignees || []).length" class="text-gray-400">
-                                    — {{ t.assignees.join('، ') }}</span
-                                >
-                                <span v-else-if="t.assignee" class="text-gray-400">
-                                    — {{ t.assignee }}</span
-                                >
+                        <div class="flex items-center justify-between gap-2">
+                            <h3 class="text-sm font-semibold text-gray-800">
+                                {{ localizeTeamName(block.team) }}
+                            </h3>
+                            <span class="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600">
+                                {{ block.tasks?.length || 0 }} مهمة
+                            </span>
+                        </div>
+                        <ul class="mt-3 space-y-2">
+                            <li
+                                v-for="t in block.tasks"
+                                :key="t.id"
+                                class="rounded-xl border border-slate-200 bg-white p-3"
+                            >
+                                <p class="text-sm font-semibold text-slate-900">{{ t.title }}</p>
+                                <div class="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                                    <span class="rounded-md bg-slate-100 px-2 py-0.5 text-slate-700">
+                                        المرحلة: {{ localizeColumnName(t.column) || '—' }}
+                                    </span>
+                                    <span
+                                        v-if="(t.assignees || []).length"
+                                        class="rounded-md bg-brand-50 px-2 py-0.5 text-brand-700"
+                                    >
+                                        الأعضاء: {{ t.assignees.join('، ') }}
+                                    </span>
+                                    <span
+                                        v-else-if="t.assignee"
+                                        class="rounded-md bg-brand-50 px-2 py-0.5 text-brand-700"
+                                    >
+                                        المسؤول: {{ t.assignee }}
+                                    </span>
+                                </div>
                             </li>
-                            <li v-if="!block.tasks.length" class="text-gray-400">
-                                لا توجد مهام
+                            <li v-if="!block.tasks.length" class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+                                لا توجد مهام حالياً لهذا الفريق.
                             </li>
                         </ul>
                     </div>
@@ -771,8 +912,17 @@ function localizeColumnName(name) {
             </div>
 
             <div class="rounded-2xl border border-white/20 bg-white/70 p-6 shadow-xl shadow-slate-900/10 ring-1 ring-white/35 backdrop-blur-xl">
-                <h2 class="text-lg font-semibold text-gray-900">تغيّر حالات المهام</h2>
-                <ul class="mt-3 divide-y divide-gray-100 text-sm">
+                <div class="flex items-center justify-between gap-2">
+                    <h2 class="text-lg font-semibold text-gray-900">تغيّر حالات المهام</h2>
+                    <button
+                        type="button"
+                        class="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        @click="showTaskStatusHistory = !showTaskStatusHistory"
+                    >
+                        {{ showTaskStatusHistory ? 'تقليص' : 'توسيع' }}
+                    </button>
+                </div>
+                <ul v-if="showTaskStatusHistory" class="mt-3 divide-y divide-gray-100 text-sm">
                     <li
                         v-for="entry in task_status_history"
                         :key="entry.id"

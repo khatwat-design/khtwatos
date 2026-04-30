@@ -17,6 +17,7 @@ const unreadCount = ref(Number(page.props.notifications?.unread_count || 0));
 const browserNotificationsEnabled = ref(false);
 let lastUnreadCount = Number(page.props.notifications?.unread_count || 0);
 const vapidPublicKey = computed(() => String(page.props.notifications?.webpush_public_key || ''));
+const avatarUrl = computed(() => page.props.auth?.user?.avatar_url || '/images/mobile-logo.png');
 
 const nav = [
     ...(page.props.auth?.can?.viewAdminHome
@@ -288,8 +289,11 @@ async function openNotification(note) {
                     </Link>
                 </nav>
                 <div class="border-t border-slate-200 p-3 text-xs text-slate-600">
-                    <span v-if="!sidebarCollapsed">{{ page.props.auth.user?.name }}</span>
-                    <span v-else class="mx-auto block h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                    <div v-if="!sidebarCollapsed" class="flex items-center gap-2">
+                        <img :src="avatarUrl" alt="avatar" class="h-7 w-7 rounded-full border border-slate-200 object-cover" />
+                        <span>{{ page.props.auth.user?.name }}</span>
+                    </div>
+                    <img v-else :src="avatarUrl" alt="avatar" class="mx-auto h-7 w-7 rounded-full border border-slate-200 object-cover" />
                 </div>
             </aside>
 
@@ -369,8 +373,9 @@ async function openNotification(note) {
                             <template #trigger>
                                 <button
                                     type="button"
-                                    class="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-black transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-slate-50"
+                                    class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-black transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-slate-50"
                                 >
+                                    <img :src="avatarUrl" alt="avatar" class="h-7 w-7 rounded-full border border-slate-200 object-cover" />
                                     {{ page.props.auth.user.name }}
                                     <svg
                                         class="ms-1 h-4 w-4"

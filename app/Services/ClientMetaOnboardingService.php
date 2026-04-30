@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Client;
 use App\Models\ClientMetaIntegration;
 use App\Models\ClientMetaMediaBuyerMapping;
+use App\Models\MetaOAuthToken;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -230,13 +231,27 @@ class ClientMetaOnboardingService
 
         foreach ($mappings as $mapping) {
             $principalId = $mapping->meta_business_user_id ?: $mapping->meta_system_user_id;
+            if (!$principalId && $mapping->user_id && Schema::hasTable('meta_oauth_tokens')) {
+                $buyerToken = MetaOAuthToken::query()
+                    ->where('user_id', $mapping->user_id)
+                    ->first();
+
+                if ($buyerToken?->meta_user_id) {
+                    $principalId = (string) $buyerToken->meta_user_id;
+                    $mapping->update([
+                        'meta_business_user_id' => $mapping->meta_business_user_id ?: $principalId,
+                    ]);
+                    $actions->push("تم استخدام مصادقة الميديا باير {$mapping->user?->name} لالتقاط Meta User ID.");
+                }
+            }
+
             if (!$principalId) {
                 $issues->push([
                     'key' => "missing_business_user_{$mapping->id}",
                     'title' => 'نحتاج خطوة بسيطة منك',
-                    'message' => "الميديا باير {$mapping->user?->name} يحتاج business_user_id أو system_user_id.",
+                    'message' => "الميديا باير {$mapping->user?->name} يحتاج مصادقة Meta من ملفه الشخصي أو business_user_id/system_user_id.",
                     'fix_url' => null,
-                    'fix_label' => 'إضافة business_user_id',
+                    'fix_label' => 'طلب مصادقة الميديا باير',
                 ]);
                 continue;
             }

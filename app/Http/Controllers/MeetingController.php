@@ -51,7 +51,7 @@ class MeetingController extends Controller
         }
 
         $status = $request->query('status');
-        if (in_array($status, ['scheduled', 'completed', 'canceled'], true)) {
+        if (in_array($status, ['scheduled', 'completed', 'canceled', 'postponed'], true)) {
             $query->where('status', $status);
         }
 
@@ -95,7 +95,7 @@ class MeetingController extends Controller
             'filters' => [
                 'user_id' => $request->filled('user_id') ? (int) $request->query('user_id') : null,
                 'client_id' => $request->filled('client_id') ? (int) $request->query('client_id') : null,
-                'status' => in_array($status, ['scheduled', 'completed', 'canceled'], true) ? $status : null,
+                'status' => in_array($status, ['scheduled', 'completed', 'canceled', 'postponed'], true) ? $status : null,
                 'scope' => in_array($scope, ['internal', 'client'], true) ? $scope : null,
                 'include_archived' => $includeArchived,
             ],
@@ -261,6 +261,18 @@ class MeetingController extends Controller
         return redirect()->route('meetings.index');
     }
 
+    public function postpone(Meeting $meeting): RedirectResponse
+    {
+        $this->ensureInternal($meeting);
+
+        $meeting->update([
+            'status' => 'postponed',
+            'completed_at' => null,
+        ]);
+
+        return redirect()->route('meetings.index');
+    }
+
     public function archive(Request $request, Meeting $meeting): RedirectResponse
     {
         $this->ensureInternal($meeting);
@@ -334,7 +346,7 @@ class MeetingController extends Controller
         ];
 
         if ($isUpdate) {
-            $rules['status'] = ['required', 'in:scheduled,canceled,completed'];
+            $rules['status'] = ['required', 'in:scheduled,canceled,completed,postponed'];
         }
 
         return $request->validate($rules);

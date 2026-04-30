@@ -11,6 +11,7 @@ class ClientAttachment extends Model
         'client_id',
         'user_id',
         'path',
+        'url',
         'name',
         'mime',
         'size',
