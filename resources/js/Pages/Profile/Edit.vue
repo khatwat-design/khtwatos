@@ -4,7 +4,8 @@ import DeleteUserForm from './Partials/DeleteUserForm.vue';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm.vue';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
 const props = defineProps({
     mustVerifyEmail: {
@@ -20,9 +21,15 @@ const props = defineProps({
 });
 
 const disconnectMetaForm = useForm({});
+const page = usePage();
+const metaOAuthError = computed(() => page.props.errors?.meta_oauth || '');
 
 function disconnectMetaOAuth() {
     disconnectMetaForm.post(route('profile.meta.oauth.disconnect'));
+}
+
+function startMetaOAuth() {
+    window.location.assign('/profile/meta/oauth/redirect');
 }
 </script>
 
@@ -56,14 +63,18 @@ function disconnectMetaOAuth() {
                         <span class="font-semibold text-gray-800">{{ props.metaOAuth?.connected ? 'متصل' : 'غير متصل' }}</span>
                         <span v-if="props.metaOAuth?.meta_user_name"> · {{ props.metaOAuth.meta_user_name }}</span>
                     </p>
+                    <p v-if="metaOAuthError" class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                        {{ metaOAuthError }}
+                    </p>
 
                     <div class="flex items-center gap-2">
-                        <a
-                            :href="route('profile.meta.oauth.redirect')"
+                        <button
+                            type="button"
+                            @click="startMetaOAuth"
                             class="inline-flex items-center rounded-md bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700"
                         >
                             {{ props.metaOAuth?.connected ? 'إعادة مصادقة Meta' : 'ربط Meta الآن' }}
-                        </a>
+                        </button>
                         <PrimaryButton
                             v-if="props.metaOAuth?.connected"
                             type="button"
