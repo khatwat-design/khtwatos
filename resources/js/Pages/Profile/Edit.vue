@@ -4,7 +4,7 @@ import DeleteUserForm from './Partials/DeleteUserForm.vue';
 import UpdatePasswordForm from './Partials/UpdatePasswordForm.vue';
 import UpdateProfileInformationForm from './Partials/UpdateProfileInformationForm.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
     mustVerifyEmail: {
@@ -58,12 +58,12 @@ function disconnectMetaOAuth() {
                     </p>
 
                     <div class="flex items-center gap-2">
-                        <Link
+                        <a
                             :href="route('profile.meta.oauth.redirect')"
                             class="inline-flex items-center rounded-md bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700"
                         >
                             {{ props.metaOAuth?.connected ? 'إعادة مصادقة Meta' : 'ربط Meta الآن' }}
-                        </Link>
+                        </a>
                         <PrimaryButton
                             v-if="props.metaOAuth?.connected"
                             type="button"
