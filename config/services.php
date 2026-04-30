@@ -45,4 +45,13 @@ return [
         'subject' => env('VAPID_SUBJECT', 'mailto:admin@os.kharijm.com'),
     ],
 
+    'meta_ads' => [
+        'app_id' => env('META_ADS_APP_ID'),
+        'app_secret' => env('META_ADS_APP_SECRET'),
+        'redirect_uri' => env('META_ADS_REDIRECT_URI'),
+        'portal_redirect_uri' => env('META_ADS_PORTAL_REDIRECT_URI'),
+        'access_token' => env('META_ADS_ACCESS_TOKEN'),
+        'version' => env('META_ADS_GRAPH_VERSION', 'v22.0'),
+    ],
+
 ];

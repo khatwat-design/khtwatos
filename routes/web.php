@@ -39,6 +39,8 @@ Route::patch('/portal/products/{clientProduct}', [ClientPortalController::class,
 Route::delete('/portal/products/{clientProduct}', [ClientPortalController::class, 'destroyProduct'])->name('portal.products.destroy');
 Route::get('/portal/profile', [ClientPortalController::class, 'profile'])->name('portal.profile');
 Route::patch('/portal/profile', [ClientPortalController::class, 'updateProfile'])->name('portal.profile.update');
+Route::get('/portal/meta/oauth/redirect', [ClientPortalController::class, 'redirectMetaOAuth'])->name('portal.meta.oauth.redirect');
+Route::get('/portal/meta/oauth/callback', [ClientPortalController::class, 'handleMetaOAuthCallback'])->name('portal.meta.oauth.callback');
 Route::post('/portal/notes', [ClientPortalController::class, 'storeNote'])->name('portal.notes.store');
 
 Route::get('/dashboard', function () {
@@ -106,6 +108,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/warehouse/campaign-updates', [WarehouseController::class, 'upsertCampaignUpdate'])
             ->middleware('can:manage-campaign-updates')
             ->name('warehouse.campaign-updates.upsert');
+        Route::post('/warehouse/meta-integrations', [WarehouseController::class, 'upsertMetaIntegration'])
+            ->middleware('can:manage-campaign-updates')
+            ->name('warehouse.meta-integrations.upsert');
+        Route::post('/warehouse/meta-sync', [WarehouseController::class, 'syncMetaCampaigns'])
+            ->middleware('can:manage-campaign-updates')
+            ->name('warehouse.meta-sync');
+        Route::get('/warehouse/meta/oauth/redirect', [WarehouseController::class, 'redirectToMetaOAuth'])
+            ->middleware('can:manage-campaign-updates')
+            ->name('warehouse.meta.oauth.redirect');
+        Route::get('/warehouse/meta/oauth/callback', [WarehouseController::class, 'handleMetaOAuthCallback'])
+            ->middleware('can:manage-campaign-updates')
+            ->name('warehouse.meta.oauth.callback');
+        Route::post('/warehouse/meta/oauth/disconnect', [WarehouseController::class, 'disconnectMetaOAuth'])
+            ->middleware('can:manage-campaign-updates')
+            ->name('warehouse.meta.oauth.disconnect');
     });
 
     Route::middleware('can:manage-employees')->group(function () {

@@ -6,21 +6,27 @@ use App\Models\Client;
 use App\Models\ClientCampaignUpdate;
 use App\Models\ClientDailySale;
 use App\Models\ClientDailySaleItem;
+use App\Models\ClientMetaIntegration;
+use App\Models\ClientMetaOauthToken;
+use App\Models\MetaOAuthToken;
 use App\Models\Team;
-use App\Services\SmartNotificationService;
+use App\Services\MetaCampaignSyncService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class WarehouseController extends Controller
 {
-    public function __construct(private readonly SmartNotificationService $smartNotifications)
-    {
-    }
+    public function __construct(
+        private readonly MetaCampaignSyncService $metaSync,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -59,6 +65,9 @@ class WarehouseController extends Controller
             ->with(['client:id,name', 'updatedBy:id,name'])
             ->orderByDesc('report_date')
             ->orderByDesc('updated_at');
+        if (Schema::hasColumn('client_campaign_updates', 'data_source')) {
+            $campaignQuery->where('data_source', 'meta');
+        }
 
         if ($clientId) {
             $campaignQuery->where('client_id', $clientId);
@@ -69,6 +78,13 @@ class WarehouseController extends Controller
 
         $sales = $salesQuery->limit(60)->get();
         $campaignUpdates = $campaignQuery->limit(60)->get();
+        $metaIntegrations = collect();
+        if (Schema::hasTable('client_meta_integrations')) {
+            $metaIntegrations = ClientMetaIntegration::query()
+                ->when($clientId, fn ($q) => $q->where('client_id', $clientId))
+                ->get()
+                ->keyBy('client_id');
+        }
         $trend = $this->buildDailyTrend($clientId, $windowStart, $windowEnd);
         $analytics = $this->buildAnalyticsCards($clientId, $today, $yesterday);
         $alerts = $this->buildAlerts($clientId, $today);
@@ -106,7 +122,23 @@ class WarehouseController extends Controller
                 'clicks_count' => (int) $row->clicks_count,
                 'actions_taken' => $row->actions_taken,
                 'updated_by' => $row->updatedBy?->name,
+                'data_source' => $row->data_source ?: 'manual',
+                'source_ref' => $row->source_ref,
             ])->values(),
+            'meta_integrations' => $clients->map(fn (Client $client) => [
+                'client_id' => $client->id,
+                'ad_account_id' => $metaIntegrations->get($client->id)?->ad_account_id,
+                'meta_business_id' => $metaIntegrations->get($client->id)?->meta_business_id,
+                'meta_page_id' => $metaIntegrations->get($client->id)?->meta_page_id,
+                'meta_instagram_account_id' => $metaIntegrations->get($client->id)?->meta_instagram_account_id,
+                'setup_status' => $metaIntegrations->get($client->id)?->setup_status,
+                'is_active' => (bool) ($metaIntegrations->get($client->id)?->is_active ?? false),
+                'last_synced_at' => optional($metaIntegrations->get($client->id)?->last_synced_at)?->toDateTimeString(),
+                'last_error' => $metaIntegrations->get($client->id)?->last_error,
+                'issues' => (array) (($metaIntegrations->get($client->id)?->last_scan_payload ?? [])['issues'] ?? []),
+            ])->values(),
+            'meta_overview' => $this->buildMetaOverview(),
+            'meta_oauth' => $this->metaOAuthPayload($request),
             'alerts' => $alerts,
             'analytics' => $analytics,
             'daily_trend' => $trend,
@@ -120,55 +152,302 @@ class WarehouseController extends Controller
 
     public function upsertCampaignUpdate(Request $request): RedirectResponse
     {
+        return back()->withErrors([
+            'manual_input' => 'تم إيقاف الإدخال اليدوي للمخزن. استخدم ربط Meta والمزامنة التلقائية.',
+        ]);
+    }
+
+    public function upsertMetaIntegration(Request $request): RedirectResponse
+    {
         if (!Gate::forUser($request->user())->allows('manage-campaign-updates')) {
             abort(403, 'هذه العملية متاحة لمدير النظام أو مدراء الحملات.');
         }
 
         $data = $request->validate([
             'client_id' => ['required', 'exists:clients,id'],
-            'report_date' => ['required', 'date', 'before_or_equal:today'],
-            'ad_spend' => ['required', 'numeric', 'min:0', 'max:999999999.99'],
-            'messages_count' => ['required', 'integer', 'min:0', 'max:1000000'],
-            'clicks_count' => ['nullable', 'integer', 'min:0', 'max:1000000'],
-            'actions_taken' => ['nullable', 'string', 'max:5000'],
+            'ad_account_id' => ['required', 'string', 'max:50'],
+            'is_active' => ['nullable', 'boolean'],
         ]);
 
-        $reportDate = Carbon::parse($data['report_date'])->toDateString();
-        $reportDateSales = ClientDailySale::query()
-            ->where('client_id', $data['client_id'])
-            ->whereDate('sales_date', $reportDate)
-            ->first();
+        if (!Schema::hasTable('client_meta_integrations')) {
+            return back()->withErrors(['meta_integration' => 'يرجى تشغيل migrate أولاً لتفعيل ربط Meta.']);
+        }
 
-        $reportRevenue = (float) ($reportDateSales?->revenue ?? 0);
-        $reportOrders = (int) ($reportDateSales?->orders_count ?? 0);
-        $adSpend = (float) $data['ad_spend'];
-        $messages = (int) $data['messages_count'];
-        $clicks = (int) ($data['clicks_count'] ?? 0);
+        $accountId = preg_replace('/\D+/', '', (string) $data['ad_account_id']);
+        if (!$accountId) {
+            return back()->withErrors(['ad_account_id' => 'يرجى إدخال رقم حساب إعلاني صحيح.']);
+        }
 
-        $update = ClientCampaignUpdate::query()->updateOrCreate(
+        ClientMetaIntegration::query()->updateOrCreate(
+            ['client_id' => (int) $data['client_id']],
             [
-                'client_id' => $data['client_id'],
-                'report_date' => $reportDate,
-            ],
-            [
-                'ad_spend' => $adSpend,
-                'messages_count' => $messages,
-                'clicks_count' => $clicks,
-                'leads_count' => $messages,
-                'purchases_count' => $reportOrders,
-                'campaign_revenue' => $reportRevenue,
-                'roas' => $adSpend > 0 ? round($reportRevenue / $adSpend, 2) : null,
-                'cpa' => $reportOrders > 0 ? round($adSpend / $reportOrders, 2) : null,
-                'cvr' => $messages > 0 ? round(($reportOrders / $messages) * 100, 2) : null,
-                'summary' => null,
-                'actions_taken' => $data['actions_taken'] ?? null,
-                'updated_by_user_id' => $request->user()?->id,
+                'ad_account_id' => $accountId,
+                'is_active' => (bool) ($data['is_active'] ?? true),
             ]
         );
-        $update->loadMissing('client:id,name');
-        $this->smartNotifications->notifyWarehouseUpdated($update, $request->user()?->id);
 
         return redirect()->route('warehouse.index', ['client_id' => $data['client_id']]);
+    }
+
+    public function syncMetaCampaigns(Request $request): RedirectResponse
+    {
+        if (!Gate::forUser($request->user())->allows('manage-campaign-updates')) {
+            abort(403, 'هذه العملية متاحة لمدير النظام أو مدراء الحملات.');
+        }
+
+        $data = $request->validate([
+            'client_id' => ['required', 'exists:clients,id'],
+            'days' => ['nullable', 'integer', 'min:1', 'max:14'],
+        ]);
+
+        if (!Schema::hasTable('client_meta_integrations')) {
+            return back()->withErrors(['meta_integration' => 'يرجى تشغيل migrate أولاً لتفعيل مزامنة Meta.']);
+        }
+
+        $integration = ClientMetaIntegration::query()
+            ->where('client_id', (int) $data['client_id'])
+            ->where('is_active', true)
+            ->first();
+
+        if (!$integration) {
+            return back()->withErrors(['client_id' => 'لا يوجد ربط Meta نشط لهذا العميل.']);
+        }
+
+        $days = (int) ($data['days'] ?? 2);
+        $toDate = Carbon::today();
+        $fromDate = $toDate->copy()->subDays($days - 1);
+        $oauthToken = $this->resolveClientMetaAccessToken((int) $data['client_id']) ?? $this->resolveUserMetaAccessToken($request);
+        $result = $this->metaSync->syncIntegration($integration, $fromDate, $toDate, $request->user()?->id, $oauthToken);
+
+        if ($result['error']) {
+            return back()->withErrors(['meta_sync' => $result['error']]);
+        }
+
+        return redirect()
+            ->route('warehouse.index', ['client_id' => $data['client_id']])
+            ->with('success', "تمت مزامنة {$result['days']} يوم من Meta بنجاح.");
+    }
+
+    public function redirectToMetaOAuth(Request $request): RedirectResponse
+    {
+        if (!Gate::forUser($request->user())->allows('manage-campaign-updates')) {
+            abort(403, 'هذه العملية متاحة لمدير النظام أو مدراء الحملات.');
+        }
+
+        if (!Schema::hasTable('meta_oauth_tokens')) {
+            return back()->withErrors(['meta_oauth' => 'يرجى تشغيل migrate أولاً لتفعيل OAuth.']);
+        }
+
+        $appId = (string) config('services.meta_ads.app_id');
+        $redirectUri = (string) config('services.meta_ads.redirect_uri');
+        $version = (string) config('services.meta_ads.version', 'v22.0');
+        if ($appId === '' || $redirectUri === '') {
+            return back()->withErrors(['meta_oauth' => 'META_ADS_APP_ID أو META_ADS_REDIRECT_URI غير مضبوط.']);
+        }
+
+        $state = Str::random(40);
+        $request->session()->put('meta_oauth_state', $state);
+
+        $query = http_build_query([
+            'client_id' => $appId,
+            'redirect_uri' => $redirectUri,
+            'state' => $state,
+            'scope' => 'ads_read,read_insights,business_management',
+            'response_type' => 'code',
+        ]);
+
+        return redirect()->away("https://www.facebook.com/{$version}/dialog/oauth?{$query}");
+    }
+
+    public function handleMetaOAuthCallback(Request $request): RedirectResponse
+    {
+        if (!Gate::forUser($request->user())->allows('manage-campaign-updates')) {
+            abort(403, 'هذه العملية متاحة لمدير النظام أو مدراء الحملات.');
+        }
+
+        if (!Schema::hasTable('meta_oauth_tokens')) {
+            return redirect()->route('warehouse.index')->withErrors(['meta_oauth' => 'يرجى تشغيل migrate أولاً لتفعيل OAuth.']);
+        }
+
+        $state = (string) $request->query('state', '');
+        $expectedState = (string) $request->session()->pull('meta_oauth_state', '');
+        if ($state === '' || $expectedState === '' || !hash_equals($expectedState, $state)) {
+            return redirect()->route('warehouse.index')->withErrors(['meta_oauth' => 'فشل التحقق الأمني (state mismatch).']);
+        }
+
+        $code = (string) $request->query('code', '');
+        if ($code === '') {
+            return redirect()->route('warehouse.index')->withErrors(['meta_oauth' => 'لم يتم استلام code من Meta.']);
+        }
+
+        $appId = (string) config('services.meta_ads.app_id');
+        $appSecret = (string) config('services.meta_ads.app_secret');
+        $redirectUri = (string) config('services.meta_ads.redirect_uri');
+        $version = (string) config('services.meta_ads.version', 'v22.0');
+        if ($appId === '' || $appSecret === '' || $redirectUri === '') {
+            return redirect()->route('warehouse.index')->withErrors(['meta_oauth' => 'بيانات OAuth في .env غير مكتملة.']);
+        }
+
+        $tokenResponse = Http::timeout(40)->get("https://graph.facebook.com/{$version}/oauth/access_token", [
+            'client_id' => $appId,
+            'client_secret' => $appSecret,
+            'redirect_uri' => $redirectUri,
+            'code' => $code,
+        ]);
+
+        if ($tokenResponse->failed()) {
+            return redirect()->route('warehouse.index')->withErrors(['meta_oauth' => 'فشل الحصول على access token من Meta.']);
+        }
+
+        $shortToken = (string) $tokenResponse->json('access_token', '');
+        if ($shortToken === '') {
+            return redirect()->route('warehouse.index')->withErrors(['meta_oauth' => 'Meta لم يُرجع access token صالح.']);
+        }
+
+        $longTokenResponse = Http::timeout(40)->get("https://graph.facebook.com/{$version}/oauth/access_token", [
+            'grant_type' => 'fb_exchange_token',
+            'client_id' => $appId,
+            'client_secret' => $appSecret,
+            'fb_exchange_token' => $shortToken,
+        ]);
+
+        $finalToken = $shortToken;
+        $expiresIn = (int) $tokenResponse->json('expires_in', 0);
+        if ($longTokenResponse->ok() && $longTokenResponse->json('access_token')) {
+            $finalToken = (string) $longTokenResponse->json('access_token');
+            $expiresIn = (int) $longTokenResponse->json('expires_in', $expiresIn);
+        }
+
+        $meResponse = Http::timeout(20)->get("https://graph.facebook.com/{$version}/me", [
+            'access_token' => $finalToken,
+            'fields' => 'id,name',
+        ]);
+        $grantedResponse = Http::timeout(20)->get("https://graph.facebook.com/{$version}/me/permissions", [
+            'access_token' => $finalToken,
+        ]);
+
+        MetaOAuthToken::query()->updateOrCreate(
+            ['user_id' => $request->user()->id],
+            [
+                'access_token' => $finalToken,
+                'token_type' => 'bearer',
+                'expires_at' => $expiresIn > 0 ? now()->addSeconds($expiresIn) : null,
+                'meta_user_id' => (string) $meResponse->json('id', ''),
+                'meta_user_name' => (string) $meResponse->json('name', ''),
+                'scopes' => json_encode($grantedResponse->json('data', []), JSON_UNESCAPED_UNICODE),
+            ]
+        );
+
+        return redirect()->route('warehouse.index')->with('success', 'تم ربط Meta OAuth بنجاح.');
+    }
+
+    public function disconnectMetaOAuth(Request $request): RedirectResponse
+    {
+        if (!Gate::forUser($request->user())->allows('manage-campaign-updates')) {
+            abort(403, 'هذه العملية متاحة لمدير النظام أو مدراء الحملات.');
+        }
+
+        if (Schema::hasTable('meta_oauth_tokens')) {
+            MetaOAuthToken::query()->where('user_id', $request->user()->id)->delete();
+        }
+
+        return redirect()->route('warehouse.index')->with('success', 'تم فصل ربط Meta OAuth.');
+    }
+
+    private function resolveUserMetaAccessToken(Request $request): ?string
+    {
+        if (!Schema::hasTable('meta_oauth_tokens')) {
+            return null;
+        }
+
+        $row = MetaOAuthToken::query()
+            ->where('user_id', $request->user()->id)
+            ->first();
+
+        if (!$row) {
+            return null;
+        }
+
+        if ($row->expires_at && $row->expires_at->isPast()) {
+            return null;
+        }
+
+        return (string) $row->access_token;
+    }
+
+    private function metaOAuthPayload(Request $request): array
+    {
+        if (!Schema::hasTable('meta_oauth_tokens')) {
+            return [
+                'enabled' => false,
+                'connected' => false,
+            ];
+        }
+
+        $token = MetaOAuthToken::query()
+            ->where('user_id', $request->user()->id)
+            ->first();
+
+        return [
+            'enabled' => true,
+            'connected' => (bool) $token,
+            'meta_user_name' => $token?->meta_user_name,
+            'meta_user_id' => $token?->meta_user_id,
+            'expires_at' => optional($token?->expires_at)?->toDateTimeString(),
+        ];
+    }
+
+    private function resolveClientMetaAccessToken(int $clientId): ?string
+    {
+        if (!Schema::hasTable('client_meta_oauth_tokens')) {
+            return null;
+        }
+
+        $row = ClientMetaOauthToken::query()->where('client_id', $clientId)->first();
+        if (!$row) {
+            return null;
+        }
+        if ($row->expires_at && $row->expires_at->isPast()) {
+            return null;
+        }
+
+        return (string) $row->access_token;
+    }
+
+    private function buildMetaOverview(): array
+    {
+        if (!Schema::hasTable('client_meta_integrations')) {
+            return [
+                'connected_clients' => 0,
+                'ready_clients' => 0,
+                'issues_count' => 0,
+                'needs_attention' => [],
+            ];
+        }
+
+        $rows = ClientMetaIntegration::query()->with('client:id,name')->get();
+        $connected = $rows->filter(fn (ClientMetaIntegration $row) => (bool) $row->ad_account_id)->count();
+        $ready = $rows->filter(fn (ClientMetaIntegration $row) => $row->setup_status === 'completed')->count();
+        $attention = $rows
+            ->filter(function (ClientMetaIntegration $row) {
+                $issues = (array) (($row->last_scan_payload ?? [])['issues'] ?? []);
+                return $row->setup_status === 'needs_attention' || !empty($issues) || !empty($row->last_error);
+            })
+            ->map(fn (ClientMetaIntegration $row) => [
+                'client_id' => $row->client_id,
+                'client' => $row->client?->name ?? 'عميل',
+                'last_error' => $row->last_error,
+                'issues' => (array) (($row->last_scan_payload ?? [])['issues'] ?? []),
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'connected_clients' => $connected,
+            'ready_clients' => $ready,
+            'issues_count' => count($attention),
+            'needs_attention' => $attention,
+        ];
     }
 
     private function buildDailyTrend(?int $clientId, Carbon $windowStart, Carbon $windowEnd): Collection

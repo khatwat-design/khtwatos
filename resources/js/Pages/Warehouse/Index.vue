@@ -1,11 +1,10 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, watch } from 'vue';
 
 const props = defineProps({
     clients: Array,
@@ -21,6 +20,9 @@ const props = defineProps({
     product_performance: Array,
     team_performance: Array,
     smart_alerts: Array,
+    meta_integrations: Array,
+    meta_overview: Object,
+    meta_oauth: Object,
 });
 
 const filterForm = useForm({
@@ -30,15 +32,49 @@ const filterForm = useForm({
     end_date: props.filters?.end_date || '',
 });
 
-const campaignForm = useForm({
+const metaIntegrationForm = useForm({
     client_id: props.filters?.client_id || '',
-    report_date: props.filters?.end_date || new Date().toISOString().slice(0, 10),
-    ad_spend: 0,
-    messages_count: 0,
-    clicks_count: 0,
-    actions_taken: '',
+    ad_account_id: '',
+    is_active: true,
 });
-const showCampaignModal = ref(false);
+const metaSyncForm = useForm({
+    client_id: props.filters?.client_id || '',
+    days: 2,
+});
+const metaDisconnectForm = useForm({});
+
+const selectedMetaIntegration = computed(() =>
+    (props.meta_integrations || []).find((row) => String(row.client_id) === String(metaIntegrationForm.client_id || props.filters?.client_id || '')) || null
+);
+
+watch(
+    () => metaIntegrationForm.client_id,
+    (value) => {
+        metaSyncForm.client_id = value || '';
+        const row = (props.meta_integrations || []).find((item) => String(item.client_id) === String(value || ''));
+        if (row?.ad_account_id) {
+            metaIntegrationForm.ad_account_id = row.ad_account_id;
+        }
+    }
+);
+
+function saveMetaIntegration() {
+    metaIntegrationForm.post(route('warehouse.meta-integrations.upsert'), {
+        preserveScroll: true,
+    });
+}
+
+function runMetaSync() {
+    metaSyncForm.post(route('warehouse.meta-sync'), {
+        preserveScroll: true,
+    });
+}
+
+function disconnectMetaOAuth() {
+    metaDisconnectForm.post(route('warehouse.meta.oauth.disconnect'), {
+        preserveScroll: true,
+    });
+}
 
 function applyFilter() {
     router.get(
@@ -51,16 +87,6 @@ function applyFilter() {
         },
         { preserveState: true },
     );
-}
-
-function submitCampaign() {
-    campaignForm.post(route('warehouse.campaign-updates.upsert'), {
-        preserveScroll: true,
-        onSuccess: () => {
-            showCampaignModal.value = false;
-            campaignForm.reset('ad_spend', 'messages_count', 'clicks_count', 'actions_taken');
-        },
-    });
 }
 
 function formatMoney(value) {
@@ -266,15 +292,115 @@ const roasBars = computed(() => {
             </div>
 
             <div v-if="permissions?.can_manage_campaign_updates" class="ui-card p-5">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                    <h2 class="text-lg font-semibold text-gray-900">بيانات الحملة</h2>
-                    <PrimaryButton type="button" @click="showCampaignModal = true">
-                        إضافة بيانات الحملة
-                    </PrimaryButton>
+                <div class="flex items-center justify-between gap-2">
+                    <h2 class="text-lg font-semibold text-gray-900">تغذية المخزن من Meta (تلقائي)</h2>
+                    <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">Manual input disabled</span>
                 </div>
                 <p class="mt-2 text-xs text-gray-500">
-                    يتم إدخال بيانات اليوم عبر نافذة سريعة، والتحليل يُحتسب تلقائيًا من مبيعات بوابة العميل.
+                    الإدخال اليدوي للإنفاق والرسائل معطل. البيانات تُجلب تلقائياً من Meta لكل عميل مرتبط.
                 </p>
+            </div>
+
+            <div v-if="permissions?.can_manage_campaign_updates" class="ui-card p-5">
+                <div class="mb-4 grid gap-3 md:grid-cols-3">
+                    <div class="rounded-lg border border-gray-200 bg-white p-3">
+                        <p class="text-xs text-gray-500">عملاء مربوطين مع Meta</p>
+                        <p class="mt-1 text-2xl font-black text-gray-900">{{ meta_overview?.connected_clients || 0 }}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 bg-white p-3">
+                        <p class="text-xs text-gray-500">إعداد مكتمل</p>
+                        <p class="mt-1 text-2xl font-black text-emerald-700">{{ meta_overview?.ready_clients || 0 }}</p>
+                    </div>
+                    <div class="rounded-lg border border-gray-200 bg-white p-3">
+                        <p class="text-xs text-gray-500">يحتاج متابعة</p>
+                        <p class="mt-1 text-2xl font-black text-amber-700">{{ meta_overview?.issues_count || 0 }}</p>
+                    </div>
+                </div>
+                <div class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white/80 p-3">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-900">ربط OAuth مع Meta</p>
+                        <p class="text-xs text-gray-600">
+                            الحالة:
+                            <span v-if="meta_oauth?.connected" class="text-emerald-700">متصل ({{ meta_oauth?.meta_user_name || 'Meta User' }})</span>
+                            <span v-else class="text-amber-700">غير متصل</span>
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <a
+                            :href="route('warehouse.meta.oauth.redirect')"
+                            class="inline-flex items-center rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+                        >
+                            ربط Meta OAuth
+                        </a>
+                        <button
+                            v-if="meta_oauth?.connected"
+                            type="button"
+                            class="rounded-xl border border-gray-300 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                            @click="disconnectMetaOAuth"
+                        >
+                            فصل الربط
+                        </button>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h2 class="text-lg font-semibold text-gray-900">ربط Meta لكل عميل</h2>
+                    <span class="text-xs text-gray-500">كل عميل = حساب إعلاني مستقل لمنع تداخل البيانات</span>
+                </div>
+                <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+                    <div>
+                        <InputLabel for="meta_client_id" value="العميل" />
+                        <select id="meta_client_id" v-model="metaIntegrationForm.client_id" class="mt-1 block w-full rounded-xl border-slate-200 bg-white text-sm shadow-sm" required>
+                            <option value="" disabled>اختر العميل</option>
+                            <option v-for="client in clients" :key="`meta-client-${client.id}`" :value="client.id">{{ client.name }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <InputLabel for="meta_ad_account_id" value="Meta Ad Account ID" />
+                        <TextInput id="meta_ad_account_id" v-model="metaIntegrationForm.ad_account_id" type="text" class="mt-1 block w-full rounded-xl border-slate-200 bg-white text-sm shadow-sm" placeholder="act_123.. أو 123.." required />
+                    </div>
+                    <div>
+                        <InputLabel for="meta_sync_days" value="مزامنة آخر (أيام)" />
+                        <TextInput id="meta_sync_days" v-model="metaSyncForm.days" type="number" min="1" max="14" class="mt-1 block w-full rounded-xl border-slate-200 bg-white text-sm shadow-sm" />
+                    </div>
+                    <div class="flex flex-wrap items-end gap-2">
+                        <PrimaryButton type="button" :disabled="metaIntegrationForm.processing || !metaIntegrationForm.client_id || !metaIntegrationForm.ad_account_id" @click="saveMetaIntegration">
+                            حفظ الربط
+                        </PrimaryButton>
+                        <PrimaryButton type="button" :disabled="metaSyncForm.processing || !metaSyncForm.client_id" @click="runMetaSync">
+                            مزامنة الآن
+                        </PrimaryButton>
+                    </div>
+                </div>
+                <div class="mt-3 text-xs text-gray-600">
+                    <span v-if="selectedMetaIntegration?.ad_account_id">
+                        الحساب الحالي: <strong>{{ selectedMetaIntegration.ad_account_id }}</strong>
+                        <span class="mx-1">·</span>
+                        آخر مزامنة: {{ selectedMetaIntegration.last_synced_at || '—' }}
+                    </span>
+                    <span v-else>لا يوجد ربط Meta محفوظ لهذا العميل حتى الآن.</span>
+                </div>
+                <p v-if="selectedMetaIntegration?.last_error" class="mt-2 text-xs text-red-700">
+                    آخر خطأ من Meta: {{ selectedMetaIntegration.last_error }}
+                </p>
+                <div v-if="selectedMetaIntegration?.issues?.length" class="mt-3 space-y-2">
+                    <div
+                        v-for="(issue, idx) in selectedMetaIntegration.issues"
+                        :key="`selected-meta-issue-${idx}`"
+                        class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+                    >
+                        <p class="font-semibold">{{ issue.title || 'نحتاج خطوة بسيطة منك' }}</p>
+                        <p class="mt-1">{{ issue.message }}</p>
+                        <a
+                            v-if="issue.fix_url"
+                            :href="issue.fix_url"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="mt-2 inline-flex rounded-md bg-amber-600 px-2 py-1 text-[11px] font-semibold text-white"
+                        >
+                            {{ issue.fix_label || 'حل المشكلة' }}
+                        </a>
+                    </div>
+                </div>
             </div>
 
             <div class="ui-card p-5">
@@ -470,6 +596,7 @@ const roasBars = computed(() => {
                                     <th class="px-2 py-2">Spend</th>
                                     <th class="px-2 py-2">الرسائل</th>
                                     <th class="px-2 py-2">النقرات</th>
+                                    <th class="px-2 py-2">المصدر</th>
                                     <th class="px-2 py-2">الإجراءات</th>
                                 </tr>
                             </thead>
@@ -480,10 +607,11 @@ const roasBars = computed(() => {
                                     <td class="px-2 py-2">{{ formatMoney(row.ad_spend) }}</td>
                                     <td class="px-2 py-2">{{ row.messages_count }}</td>
                                     <td class="px-2 py-2">{{ row.clicks_count }}</td>
+                                    <td class="px-2 py-2">{{ row.data_source === 'meta' ? 'Meta API' : 'يدوي' }}</td>
                                     <td class="px-2 py-2">{{ row.actions_taken || '—' }}</td>
                                 </tr>
                                 <tr v-if="!campaign_rows?.length">
-                                    <td class="px-2 py-4 text-center text-gray-500" colspan="6">لا توجد تحديثات حملات حالياً.</td>
+                                    <td class="px-2 py-4 text-center text-gray-500" colspan="7">لا توجد تحديثات حملات حالياً.</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -492,76 +620,6 @@ const roasBars = computed(() => {
             </div>
         </div>
 
-        <div
-            v-if="showCampaignModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-            @click.self="showCampaignModal = false"
-        >
-            <div class="glass-modal campaign-light-modal w-full max-w-2xl p-5">
-                <div class="flex items-center justify-between gap-2">
-                    <h3 class="text-lg font-semibold text-gray-900">إضافة بيانات الحملة</h3>
-                    <button
-                        type="button"
-                        class="rounded-xl px-2 py-1 text-sm text-gray-500 transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-gray-100"
-                        @click="showCampaignModal = false"
-                    >
-                        إغلاق
-                    </button>
-                </div>
-                <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="submitCampaign">
-                    <div class="md:col-span-2 text-xs text-gray-600">
-                        أدخل بيانات الحملة اليومية ليتم احتساب التحليلات تلقائيًا مع مبيعات العميل.
-                    </div>
-                    <div>
-                        <InputLabel for="report_date_modal" value="تاريخ البيانات" />
-                        <input
-                            id="report_date_modal"
-                            v-model="campaignForm.report_date"
-                            type="date"
-                            class="mt-1 block w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200"
-                            required
-                        />
-                        <InputError class="mt-1" :message="campaignForm.errors.report_date" />
-                    </div>
-                    <div>
-                        <InputLabel for="client_id_modal" value="العميل" />
-                        <select id="client_id_modal" v-model="campaignForm.client_id" class="mt-1 block w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200" required>
-                            <option value="" disabled>اختر العميل</option>
-                            <option v-for="client in clients" :key="`campaign-modal-client-${client.id}`" :value="client.id">
-                                {{ client.name }}
-                            </option>
-                        </select>
-                        <InputError class="mt-1" :message="campaignForm.errors.client_id" />
-                    </div>
-                    <div>
-                        <InputLabel for="ad_spend_modal" value="الإنفاق الإعلاني" />
-                        <TextInput id="ad_spend_modal" v-model="campaignForm.ad_spend" type="number" min="0" step="0.01" class="mt-1 block w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200" required />
-                    </div>
-                    <div>
-                        <InputLabel for="messages_count_modal" value="عدد الرسائل" />
-                        <TextInput id="messages_count_modal" v-model="campaignForm.messages_count" type="number" min="0" class="mt-1 block w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200" required />
-                    </div>
-                    <div>
-                        <InputLabel for="clicks_count_modal" value="عدد النقرات (اختياري)" />
-                        <TextInput id="clicks_count_modal" v-model="campaignForm.clicks_count" type="number" min="0" class="mt-1 block w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200" />
-                    </div>
-                    <div class="md:col-span-2">
-                        <InputLabel for="actions_taken_modal" value="الإجراءات التي تمت (اختياري)" />
-                        <textarea id="actions_taken_modal" v-model="campaignForm.actions_taken" rows="3" class="mt-1 block w-full rounded-xl border-slate-200 bg-white/90 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200" />
-                    </div>
-                    <div class="md:col-span-2 flex justify-end gap-2">
-                        <button
-                            type="button"
-                            class="rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-700 transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-gray-50"
-                            @click="showCampaignModal = false"
-                        >
-                            إلغاء
-                        </button>
-                        <PrimaryButton :disabled="campaignForm.processing">حفظ بيانات الحملة</PrimaryButton>
-                    </div>
-                </form>
-            </div>
-        </div>
     </AuthenticatedLayout>
 </template>
 
@@ -576,42 +634,4 @@ const roasBars = computed(() => {
     background: #ffffff;
 }
 
-.glass-modal {
-    border-radius: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.35);
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(12px);
-    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.2);
-    animation: modal-in 220ms ease-out;
-}
-
-.campaign-light-modal,
-.campaign-light-modal :deep(*) {
-    color: #111111 !important;
-}
-
-.campaign-light-modal :deep(input),
-.campaign-light-modal :deep(select),
-.campaign-light-modal :deep(textarea),
-.campaign-light-modal :deep(option),
-.campaign-light-modal :deep(label),
-.campaign-light-modal :deep(.text-gray-900),
-.campaign-light-modal :deep(.text-gray-700),
-.campaign-light-modal :deep(.text-gray-600),
-.campaign-light-modal :deep(.text-gray-500),
-.campaign-light-modal :deep(.text-white),
-.campaign-light-modal :deep(.text-white\/90) {
-    color: #111111 !important;
-}
-
-@keyframes modal-in {
-    from {
-        opacity: 0;
-        transform: translateY(8px) scale(0.98);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
 </style>

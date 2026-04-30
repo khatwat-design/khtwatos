@@ -79,6 +79,11 @@ class User extends Authenticatable
         return $this->hasMany(PushSubscription::class);
     }
 
+    public function metaOAuthTokens(): HasMany
+    {
+        return $this->hasMany(MetaOAuthToken::class);
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';

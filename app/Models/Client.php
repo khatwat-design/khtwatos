@@ -6,6 +6,7 @@ use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Client extends Model
 {
@@ -82,6 +83,21 @@ class Client extends Model
     public function campaignUpdates(): HasMany
     {
         return $this->hasMany(ClientCampaignUpdate::class)->orderByDesc('report_date');
+    }
+
+    public function metaIntegration(): HasOne
+    {
+        return $this->hasOne(ClientMetaIntegration::class);
+    }
+
+    public function metaOauthToken(): HasOne
+    {
+        return $this->hasOne(ClientMetaOauthToken::class);
+    }
+
+    public function metaMediaBuyerMappings(): HasMany
+    {
+        return $this->hasMany(ClientMetaMediaBuyerMapping::class);
     }
 
     public function products(): HasMany

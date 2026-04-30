@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\ClientDailySale;
 use App\Models\ClientDailySaleItem;
+use App\Models\ClientMetaIntegration;
+use App\Models\ClientMetaOauthToken;
 use App\Models\ClientPortalNote;
 use App\Models\ClientProduct;
 use App\Models\Meeting;
@@ -17,13 +19,21 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Services\ClientMetaOnboardingService;
 
 class ClientPortalController extends Controller
 {
+    public function __construct(
+        private readonly ClientMetaOnboardingService $metaOnboarding
+    ) {}
+
     public function login(): Response
     {
         if ($this->authenticatedClient(request()) !== null) {
@@ -300,7 +310,126 @@ class ClientPortalController extends Controller
                 'phone' => $client->phone,
                 'portal_username' => $client->portal_username,
             ],
+            'meta_setup' => $this->portalMetaSetupPayload($client),
         ]);
+    }
+
+    public function redirectMetaOAuth(Request $request): RedirectResponse
+    {
+        $client = $this->authenticatedClient($request);
+        if (!$client) {
+            return redirect()->route('portal.login');
+        }
+
+        $appId = (string) config('services.meta_ads.app_id');
+        $redirectUri = (string) (config('services.meta_ads.portal_redirect_uri') ?: config('services.meta_ads.redirect_uri'));
+        $version = (string) config('services.meta_ads.version', 'v22.0');
+        if ($appId === '' || $redirectUri === '') {
+            return back()->withErrors(['meta_oauth' => 'META_ADS_APP_ID أو META_ADS_REDIRECT_URI غير مضبوط.']);
+        }
+
+        $state = Str::random(40);
+        $request->session()->put('portal_meta_oauth_state', $state);
+        $request->session()->put('portal_meta_oauth_client_id', (int) $client->id);
+
+        $query = http_build_query([
+            'client_id' => $appId,
+            'redirect_uri' => $redirectUri,
+            'state' => $state,
+            'scope' => 'ads_read,read_insights,business_management,pages_show_list,instagram_basic',
+            'response_type' => 'code',
+        ]);
+
+        return redirect()->away("https://www.facebook.com/{$version}/dialog/oauth?{$query}");
+    }
+
+    public function handleMetaOAuthCallback(Request $request): RedirectResponse
+    {
+        $state = (string) $request->query('state', '');
+        $expectedState = (string) $request->session()->pull('portal_meta_oauth_state', '');
+        $clientId = (int) $request->session()->pull('portal_meta_oauth_client_id', 0);
+
+        if ($state === '' || $expectedState === '' || !hash_equals($expectedState, $state) || $clientId <= 0) {
+            return redirect()->route('portal.profile')->withErrors(['meta_oauth' => 'فشل التحقق الأمني (state mismatch).']);
+        }
+
+        $client = Client::query()->find($clientId);
+        if (!$client) {
+            return redirect()->route('portal.profile')->withErrors(['meta_oauth' => 'تعذر تحديد العميل.']);
+        }
+
+        if (!Schema::hasTable('client_meta_oauth_tokens')) {
+            return redirect()->route('portal.profile')->withErrors(['meta_oauth' => 'يرجى تشغيل migrate أولاً لتفعيل OAuth.']);
+        }
+
+        $code = (string) $request->query('code', '');
+        if ($code === '') {
+            return redirect()->route('portal.profile')->withErrors(['meta_oauth' => 'لم يتم استلام code من Meta.']);
+        }
+
+        $appId = (string) config('services.meta_ads.app_id');
+        $appSecret = (string) config('services.meta_ads.app_secret');
+        $redirectUri = (string) (config('services.meta_ads.portal_redirect_uri') ?: config('services.meta_ads.redirect_uri'));
+        $version = (string) config('services.meta_ads.version', 'v22.0');
+        if ($appId === '' || $appSecret === '' || $redirectUri === '') {
+            return redirect()->route('portal.profile')->withErrors(['meta_oauth' => 'بيانات OAuth في .env غير مكتملة.']);
+        }
+
+        $tokenResponse = Http::timeout(40)->get("https://graph.facebook.com/{$version}/oauth/access_token", [
+            'client_id' => $appId,
+            'client_secret' => $appSecret,
+            'redirect_uri' => $redirectUri,
+            'code' => $code,
+        ]);
+        if ($tokenResponse->failed()) {
+            return redirect()->route('portal.profile')->withErrors(['meta_oauth' => 'فشل الحصول على access token.']);
+        }
+
+        $shortToken = (string) $tokenResponse->json('access_token', '');
+        if ($shortToken === '') {
+            return redirect()->route('portal.profile')->withErrors(['meta_oauth' => 'Meta لم تُرجع access token صالح.']);
+        }
+
+        $longTokenResponse = Http::timeout(40)->get("https://graph.facebook.com/{$version}/oauth/access_token", [
+            'grant_type' => 'fb_exchange_token',
+            'client_id' => $appId,
+            'client_secret' => $appSecret,
+            'fb_exchange_token' => $shortToken,
+        ]);
+
+        $finalToken = $shortToken;
+        $expiresIn = (int) $tokenResponse->json('expires_in', 0);
+        if ($longTokenResponse->ok() && $longTokenResponse->json('access_token')) {
+            $finalToken = (string) $longTokenResponse->json('access_token');
+            $expiresIn = (int) $longTokenResponse->json('expires_in', $expiresIn);
+        }
+
+        $meResponse = Http::timeout(20)->get("https://graph.facebook.com/{$version}/me", [
+            'access_token' => $finalToken,
+            'fields' => 'id,name',
+        ]);
+        $permsResponse = Http::timeout(20)->get("https://graph.facebook.com/{$version}/me/permissions", [
+            'access_token' => $finalToken,
+        ]);
+
+        ClientMetaOauthToken::query()->updateOrCreate(
+            ['client_id' => $client->id],
+            [
+                'access_token' => $finalToken,
+                'token_type' => 'bearer',
+                'expires_at' => $expiresIn > 0 ? now()->addSeconds($expiresIn) : null,
+                'meta_user_id' => (string) $meResponse->json('id', ''),
+                'meta_user_name' => (string) $meResponse->json('name', ''),
+                'scopes' => json_encode($permsResponse->json('data', []), JSON_UNESCAPED_UNICODE),
+            ]
+        );
+
+        $setup = $this->metaOnboarding->scanAndSetup($client, $finalToken);
+        $msg = $setup['completed']
+            ? 'تم الربط والإعداد التلقائي بنجاح.'
+            : 'تم الربط لكن توجد خطوات بسيطة متبقية.';
+
+        return redirect()->route('portal.profile')->with('success', $msg);
     }
 
     public function storeDailySales(Request $request): RedirectResponse
@@ -587,6 +716,32 @@ class ClientPortalController extends Controller
                 'current_stage' => $client->currentStage?->label,
                 'notes' => $client->notes,
             ],
+        ];
+    }
+
+    private function portalMetaSetupPayload(Client $client): array
+    {
+        if (!Schema::hasTable('client_meta_integrations')) {
+            return ['enabled' => false];
+        }
+
+        $integration = ClientMetaIntegration::query()
+            ->where('client_id', $client->id)
+            ->first();
+        $token = Schema::hasTable('client_meta_oauth_tokens')
+            ? ClientMetaOauthToken::query()->where('client_id', $client->id)->first()
+            : null;
+
+        return [
+            'enabled' => true,
+            'connected' => (bool) $token,
+            'meta_user_name' => $token?->meta_user_name,
+            'ad_account_id' => $integration?->ad_account_id,
+            'meta_business_id' => $integration?->meta_business_id,
+            'meta_page_id' => $integration?->meta_page_id,
+            'meta_instagram_account_id' => $integration?->meta_instagram_account_id,
+            'setup_status' => $integration?->setup_status,
+            'issues' => (array) ($integration?->last_scan_payload['issues'] ?? []),
         ];
     }
 

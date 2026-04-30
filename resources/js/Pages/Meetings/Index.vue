@@ -134,9 +134,14 @@ function formatDt(iso) {
 const completeModalOpen = ref(false);
 const completingMeetingId = ref(null);
 const isMeetingsLoading = ref(false);
+const showAnalytics = ref(false);
 const completeForm = useForm({
     summary: '',
 });
+
+function toggleAnalytics() {
+    showAnalytics.value = !showAnalytics.value;
+}
 
 function openCompleteModal(meetingId) {
     completingMeetingId.value = meetingId;
@@ -169,11 +174,37 @@ function submitComplete() {
         <template #title>الاجتماعات</template>
 
         <div class="mx-auto max-w-6xl space-y-4">
-            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div class="ui-card p-3 text-sm text-black">اجتماعات اليوم: <strong>{{ stats?.today || 0 }}</strong></div>
-                <div class="ui-card p-3 text-sm text-black">المجدولة: <strong>{{ stats?.scheduled || 0 }}</strong></div>
-                <div class="ui-card p-3 text-sm text-black">المكتملة: <strong>{{ stats?.completed || 0 }}</strong></div>
-                <div class="ui-card p-3 text-sm text-black">المؤرشفة: <strong>{{ stats?.archived || 0 }}</strong></div>
+            <div class="flex justify-end">
+                <button
+                    type="button"
+                    class="inline-flex items-center gap-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-all duration-200 ease-out hover:bg-slate-50"
+                    @click="toggleAnalytics"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path v-if="showAnalytics" fill-rule="evenodd" d="M3.23 7.21a.75.75 0 011.06.02L10 13.3l5.71-6.07a.75.75 0 111.08 1.04l-6.25 6.65a.75.75 0 01-1.08 0L3.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+                        <path v-else fill-rule="evenodd" d="M16.77 12.79a.75.75 0 01-1.06-.02L10 6.7l-5.71 6.07a.75.75 0 11-1.08-1.04l6.25-6.65a.75.75 0 011.08 0l6.25 6.65a.75.75 0 01-.02 1.06z" clip-rule="evenodd" />
+                    </svg>
+                    {{ showAnalytics ? 'إخفاء تحليلات الاجتماعات' : 'إظهار تحليلات الاجتماعات' }}
+                </button>
+            </div>
+
+            <div v-if="showAnalytics" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div class="ui-card p-4">
+                    <p class="text-xs text-slate-500">اجتماعات اليوم</p>
+                    <p class="mt-1 text-2xl font-black text-black">{{ stats?.today || 0 }}</p>
+                </div>
+                <div class="ui-card p-4">
+                    <p class="text-xs text-slate-500">المجدولة</p>
+                    <p class="mt-1 text-2xl font-black text-brand-700">{{ stats?.scheduled || 0 }}</p>
+                </div>
+                <div class="ui-card p-4">
+                    <p class="text-xs text-slate-500">المكتملة</p>
+                    <p class="mt-1 text-2xl font-black text-emerald-700">{{ stats?.completed || 0 }}</p>
+                </div>
+                <div class="ui-card p-4">
+                    <p class="text-xs text-slate-500">المؤرشفة</p>
+                    <p class="mt-1 text-2xl font-black text-slate-700">{{ stats?.archived || 0 }}</p>
+                </div>
             </div>
 
             <div class="ui-card p-4">

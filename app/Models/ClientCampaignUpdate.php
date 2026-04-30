@@ -10,6 +10,9 @@ class ClientCampaignUpdate extends Model
     protected $fillable = [
         'client_id',
         'report_date',
+        'data_source',
+        'source_ref',
+        'fetched_at',
         'ad_spend',
         'messages_count',
         'clicks_count',
@@ -28,6 +31,7 @@ class ClientCampaignUpdate extends Model
     {
         return [
             'report_date' => 'date',
+            'fetched_at' => 'datetime',
             'messages_count' => 'integer',
             'clicks_count' => 'integer',
             'leads_count' => 'integer',

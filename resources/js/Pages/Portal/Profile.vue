@@ -9,6 +9,7 @@ import { useForm } from '@inertiajs/vue3';
 const props = defineProps({
     client: Object,
     profile: Object,
+    meta_setup: Object,
 });
 
 const infoForm = useForm({
@@ -70,6 +71,61 @@ function saveAccount() {
                         <PrimaryButton :disabled="infoForm.processing">حفظ البيانات</PrimaryButton>
                     </div>
                 </form>
+            </div>
+
+            <div class="ui-card p-6">
+                <h2 class="text-lg font-semibold text-gray-900">ربط Meta (One-click setup)</h2>
+                <p class="mt-1 text-sm text-gray-600">
+                    من هنا تربط حساب Meta مرة واحدة، والنظام يسوي الفحص والإعداد التلقائي للحساب الإعلاني والصفحة والصلاحيات.
+                </p>
+
+                <div class="mt-4 rounded-xl border border-gray-200 bg-white/80 p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div class="text-sm">
+                            <p class="font-semibold text-gray-900">
+                                الحالة:
+                                <span v-if="meta_setup?.connected" class="text-emerald-700">متصل</span>
+                                <span v-else class="text-amber-700">غير متصل</span>
+                            </p>
+                            <p class="mt-1 text-xs text-gray-600">
+                                {{ meta_setup?.meta_user_name ? `Meta User: ${meta_setup.meta_user_name}` : 'لم يتم ربط Meta بعد' }}
+                            </p>
+                        </div>
+                        <a
+                            :href="route('portal.meta.oauth.redirect')"
+                            class="inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                        >
+                            ربط Meta الآن
+                        </a>
+                    </div>
+
+                    <div class="mt-4 grid gap-2 text-xs text-gray-700 md:grid-cols-2">
+                        <p>Business: <strong>{{ meta_setup?.meta_business_id || '—' }}</strong></p>
+                        <p>Ad Account: <strong>{{ meta_setup?.ad_account_id || '—' }}</strong></p>
+                        <p>Page: <strong>{{ meta_setup?.meta_page_id || '—' }}</strong></p>
+                        <p>Instagram: <strong>{{ meta_setup?.meta_instagram_account_id || '—' }}</strong></p>
+                    </div>
+                </div>
+
+                <div v-if="meta_setup?.issues?.length" class="mt-4 space-y-2">
+                    <div
+                        v-for="(issue, idx) in meta_setup.issues"
+                        :key="`meta-issue-${idx}`"
+                        class="rounded-xl border border-amber-200 bg-amber-50 p-3"
+                    >
+                        <p class="text-sm font-semibold text-amber-900">{{ issue.title }}</p>
+                        <p class="mt-1 text-xs text-amber-800">{{ issue.message }}</p>
+                        <a
+                            v-if="issue.fix_url"
+                            :href="issue.fix_url"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="mt-2 inline-flex rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+                        >
+                            {{ issue.fix_label || 'حل المشكلة' }}
+                        </a>
+                    </div>
+                </div>
             </div>
 
             <div class="ui-card p-6">
