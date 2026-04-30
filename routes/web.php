@@ -50,10 +50,6 @@ Route::get('/dashboard', function () {
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('/profile/meta/oauth/redirect', [ProfileController::class, 'redirectMetaOAuth'])->name('profile.meta.oauth.redirect');
-    Route::get('/profile/meta/oauth/callback', [ProfileController::class, 'handleMetaOAuthCallback'])->name('profile.meta.oauth.callback');
-    Route::post('/profile/meta/oauth/disconnect', [ProfileController::class, 'disconnectMetaOAuth'])->name('profile.meta.oauth.disconnect');
-
     Route::middleware('can:view-admin-home')->group(function () {
         Route::get('/home', [HomeController::class, 'index'])->name('home.index');
     });
@@ -140,6 +136,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
+    Route::get('/profile/meta/oauth/redirect', [ProfileController::class, 'redirectMetaOAuth'])->name('profile.meta.oauth.redirect');
+    Route::get('/profile/meta/oauth/callback', [ProfileController::class, 'handleMetaOAuthCallback'])->name('profile.meta.oauth.callback');
+    Route::post('/profile/meta/oauth/disconnect', [ProfileController::class, 'disconnectMetaOAuth'])->name('profile.meta.oauth.disconnect');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
