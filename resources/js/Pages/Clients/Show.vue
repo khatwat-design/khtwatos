@@ -5,7 +5,7 @@ import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
     client: Object,
@@ -87,6 +87,14 @@ const referenceLinkForm = useForm({
     title: '',
     url: '',
 });
+
+watch(
+    () => props.attachments,
+    (nextAttachments) => {
+        clientAttachments.value = [...(nextAttachments || [])];
+    },
+    { deep: true },
+);
 
 function saveClient() {
     clientForm
@@ -251,7 +259,13 @@ function saveReferenceLink() {
     }
     referenceLinkForm.post(route('clients.reference-links.store', props.client.id), {
         preserveScroll: true,
-        onSuccess: () => referenceLinkForm.reset(),
+        onSuccess: () => {
+            referenceLinkForm.reset();
+            router.reload({
+                only: ['attachments'],
+                preserveScroll: true,
+            });
+        },
     });
 }
 
