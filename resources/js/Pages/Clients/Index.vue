@@ -74,7 +74,7 @@ function deleteClient(clientId) {
         <template #title>العملاء</template>
 
         <div class="mx-auto max-w-6xl space-y-4">
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-2">
                     <button
                         type="button"
@@ -86,7 +86,7 @@ function deleteClient(clientId) {
                 </div>
                 <button
                     type="button"
-                    class="self-end inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white hover:bg-brand-700 sm:self-auto"
+                    class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white hover:bg-brand-700"
                     title="إضافة عميل"
                     @click="showCreateModal = true"
                 >
