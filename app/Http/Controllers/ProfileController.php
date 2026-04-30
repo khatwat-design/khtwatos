@@ -55,9 +55,9 @@ class ProfileController extends Controller
         }
 
         $appId = (string) config('services.meta_ads.app_id');
-        $redirectUri = (string) (config('services.meta_ads.profile_redirect_uri') ?: config('services.meta_ads.redirect_uri'));
+        $redirectUri = $this->resolveProfileMetaRedirectUri();
         $version = (string) config('services.meta_ads.version', 'v22.0');
-        if ($appId === '' || $redirectUri === '') {
+        if ($appId === '') {
             return redirect()->route('profile.edit')->withErrors(['meta_oauth' => 'META_ADS_APP_ID أو META_ADS_REDIRECT_URI غير مضبوط.']);
         }
 
@@ -98,9 +98,9 @@ class ProfileController extends Controller
 
         $appId = (string) config('services.meta_ads.app_id');
         $appSecret = (string) config('services.meta_ads.app_secret');
-        $redirectUri = (string) (config('services.meta_ads.profile_redirect_uri') ?: config('services.meta_ads.redirect_uri'));
+        $redirectUri = $this->resolveProfileMetaRedirectUri();
         $version = (string) config('services.meta_ads.version', 'v22.0');
-        if ($appId === '' || $appSecret === '' || $redirectUri === '') {
+        if ($appId === '' || $appSecret === '') {
             return redirect()->route('profile.edit')->withErrors(['meta_oauth' => 'بيانات OAuth في .env غير مكتملة.']);
         }
 
@@ -232,5 +232,14 @@ class ProfileController extends Controller
         }
 
         return $user->isAdmin() || $user->teams()->where('slug', 'media-buyer')->exists();
+    }
+
+    private function resolveProfileMetaRedirectUri(): string
+    {
+        return (string) (
+            config('services.meta_ads.profile_redirect_uri')
+            ?: config('services.meta_ads.redirect_uri')
+            ?: route('profile.meta.oauth.callback')
+        );
     }
 }
