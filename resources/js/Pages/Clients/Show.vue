@@ -153,8 +153,15 @@ function activateSubscription() {
     if (!props.can_manage_subscription || subscriptionForm.processing) {
         return;
     }
+    subscriptionForm.clearErrors();
     subscriptionForm.post(route('clients.subscription.activate', props.client.id), {
         preserveScroll: true,
+        onSuccess: () => {
+            router.reload({
+                only: ['client'],
+                preserveScroll: true,
+            });
+        },
     });
 }
 
@@ -176,10 +183,15 @@ function openSubscriptionModal() {
 }
 
 function saveSubscriptionDates() {
+    subscriptionDatesForm.clearErrors();
     subscriptionDatesForm.patch(route('clients.subscription.update', props.client.id), {
         preserveScroll: true,
         onSuccess: () => {
             showSubscriptionModal.value = false;
+            router.reload({
+                only: ['client'],
+                preserveScroll: true,
+            });
         },
     });
 }
@@ -1106,6 +1118,7 @@ function localizeColumnName(name) {
                 </div>
 
                 <div class="mt-5 flex flex-wrap items-center justify-end gap-2">
+                    <InputError class="w-full text-sm" :message="subscriptionForm.errors.subscription || subscriptionDatesForm.errors.subscription" />
                     <button
                         type="button"
                         class="rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"

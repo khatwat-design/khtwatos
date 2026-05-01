@@ -399,9 +399,9 @@ class ClientController extends Controller
             abort(403, 'هذه العملية متاحة للمحاسب أو مدير النظام.');
         }
         if (!$this->hasClientSubscriptionColumns()) {
-            return redirect()
-                ->route('clients.show', $client)
-                ->withErrors(['subscription' => 'يرجى تشغيل migrate أولاً لتفعيل الاشتراك.']);
+            throw ValidationException::withMessages([
+                'subscription' => 'يرجى تشغيل migrate أولاً لتفعيل الاشتراك.',
+            ]);
         }
 
         $startAt = now();
@@ -427,9 +427,9 @@ class ClientController extends Controller
             abort(403, 'هذه العملية متاحة للمحاسب أو مدير النظام.');
         }
         if (!$this->hasClientSubscriptionColumns()) {
-            return redirect()
-                ->route('clients.show', $client)
-                ->withErrors(['subscription' => 'يرجى تشغيل migrate أولاً لتفعيل الاشتراك.']);
+            throw ValidationException::withMessages([
+                'subscription' => 'يرجى تشغيل migrate أولاً لتفعيل الاشتراك.',
+            ]);
         }
 
         $data = $request->validate([
