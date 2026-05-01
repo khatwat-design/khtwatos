@@ -17,8 +17,7 @@ class OutsideController extends Controller
 {
     public function __construct(
         private readonly WhatsAppCloudService $whatsAppCloudService
-    ) {
-    }
+    ) {}
 
     public function index(): Response
     {
@@ -26,7 +25,7 @@ class OutsideController extends Controller
             ->with([
                 'contact:id,name,phone,last_message_at,assigned_user_id',
                 'contact.assignedUser:id,name',
-                'messages' => fn ($query) => $query->limit(20),
+                'messages' => fn ($query) => $query->limit(80),
             ])
             ->orderByDesc('updated_at')
             ->get();
@@ -60,7 +59,7 @@ class OutsideController extends Controller
                         'name' => $conversation->contact->assignedUser->name,
                     ] : null,
                 ],
-                'messages' => $conversation->messages->map(fn (OutsideMessage $message) => [
+                'messages' => $conversation->messages->reverse()->values()->map(fn (OutsideMessage $message) => [
                     'id' => $message->id,
                     'direction' => $message->direction,
                     'body' => $message->body,
@@ -68,7 +67,7 @@ class OutsideController extends Controller
                     'provider_error' => $message->provider_error,
                     'retry_count' => $message->retry_count,
                     'created_at' => $message->created_at?->toIso8601String(),
-                ])->values(),
+                ]),
             ])->values(),
             'users' => User::query()->orderBy('name')->get(['id', 'name']),
             'conversation_statuses' => [
@@ -102,7 +101,7 @@ class OutsideController extends Controller
             ]
         );
 
-        if (!$contact->name && !empty($data['name'])) {
+        if (! $contact->name && ! empty($data['name'])) {
             $contact->update(['name' => $data['name']]);
         }
 
@@ -217,4 +216,3 @@ class OutsideController extends Controller
         return redirect()->route('outside.index')->with('success', 'تم تنفيذ إعادة المحاولة.');
     }
 }
-

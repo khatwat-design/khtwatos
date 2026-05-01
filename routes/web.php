@@ -1,25 +1,26 @@
 <?php
 
+use App\Http\Controllers\AcademyController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientPortalController;
-use App\Http\Controllers\GoodsCustomerController;
-use App\Http\Controllers\AcademyController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\GoodsCustomerController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\PushSubscriptionController;
-use App\Http\Controllers\PublicBookingController;
 use App\Http\Controllers\OutsideController;
 use App\Http\Controllers\OutsideWebhookController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicBookingController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TeamChatController;
 use App\Http\Controllers\WarehouseController;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    if (!auth()->check()) {
+    if (! auth()->check()) {
         return redirect()->route('login');
     }
 
@@ -45,8 +46,13 @@ Route::patch('/portal/profile', [ClientPortalController::class, 'updateProfile']
 Route::get('/portal/meta/oauth/redirect', [ClientPortalController::class, 'redirectMetaOAuth'])->name('portal.meta.oauth.redirect');
 Route::get('/portal/meta/oauth/callback', [ClientPortalController::class, 'handleMetaOAuthCallback'])->name('portal.meta.oauth.callback');
 Route::post('/portal/notes', [ClientPortalController::class, 'storeNote'])->name('portal.notes.store');
-Route::get('/outside/webhook', [OutsideWebhookController::class, 'verify'])->name('outside.webhook.verify');
-Route::post('/outside/webhook', [OutsideWebhookController::class, 'receive'])->name('outside.webhook.receive');
+Route::get('/outside/webhook', [OutsideWebhookController::class, 'verify'])
+    ->name('outside.webhook.verify')
+    ->withoutMiddleware([ValidateCsrfToken::class]);
+
+Route::post('/outside/webhook', [OutsideWebhookController::class, 'receive'])
+    ->name('outside.webhook.receive')
+    ->withoutMiddleware([ValidateCsrfToken::class]);
 
 Route::get('/dashboard', function () {
     return auth()->user()?->isAdmin()

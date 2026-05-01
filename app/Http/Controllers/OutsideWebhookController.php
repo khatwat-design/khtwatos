@@ -8,7 +8,9 @@ use App\Models\OutsideMessage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class OutsideWebhookController extends Controller
 {
@@ -28,41 +30,74 @@ class OutsideWebhookController extends Controller
 
     public function receive(Request $request): JsonResponse
     {
-        $entries = Arr::wrap($request->input('entry', []));
+        try {
+            $entries = Arr::wrap($request->input('entry', []));
+            Log::info('whatsapp.webhook.payload', [
+                'object' => $request->input('object'),
+                'entries' => count($entries),
+            ]);
 
-        foreach ($entries as $entry) {
-            $changes = Arr::wrap(data_get($entry, 'changes', []));
-            foreach ($changes as $change) {
-                $value = data_get($change, 'value', []);
+            foreach ($entries as $entry) {
+                $changes = Arr::wrap(data_get($entry, 'changes', []));
+                foreach ($changes as $change) {
+                    $value = data_get($change, 'value', []);
+                    $configuredPhoneId = (string) config('services.whatsapp.phone_number_id');
+                    $payloadPhoneId = (string) data_get($value, 'metadata.phone_number_id', '');
+                    if ($configuredPhoneId !== '' && $payloadPhoneId !== '' && $payloadPhoneId !== $configuredPhoneId) {
+                        Log::warning('whatsapp.webhook.phone_number_id_mismatch', [
+                            'expected' => $configuredPhoneId,
+                            'got' => $payloadPhoneId,
+                        ]);
+                    }
 
-                $messages = Arr::wrap(data_get($value, 'messages', []));
-                foreach ($messages as $incoming) {
-                    $this->storeInboundMessage($incoming);
-                }
+                    $messages = Arr::wrap(data_get($value, 'messages', []));
+                    foreach ($messages as $incoming) {
+                        if (! is_array($incoming)) {
+                            continue;
+                        }
+                        $this->storeInboundMessage($incoming);
+                    }
 
-                $statuses = Arr::wrap(data_get($value, 'statuses', []));
-                foreach ($statuses as $status) {
-                    $this->applyStatusUpdate($status);
+                    $statuses = Arr::wrap(data_get($value, 'statuses', []));
+                    foreach ($statuses as $status) {
+                        if (is_array($status)) {
+                            $this->applyStatusUpdate($status);
+                        }
+                    }
                 }
             }
+        } catch (Throwable $e) {
+            Log::error('whatsapp.webhook.failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json(['ok' => false, 'error' => 'internal'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
         return response()->json(['ok' => true], Response::HTTP_OK);
     }
 
     /**
-     * @param array<string, mixed> $incoming
+     * @param  array<string, mixed>  $incoming
      */
     private function storeInboundMessage(array $incoming): void
     {
-        $phone = (string) data_get($incoming, 'from', '');
+        $phoneRaw = (string) data_get($incoming, 'from', '');
+        $phone = preg_replace('/\D+/', '', $phoneRaw) ?: $phoneRaw;
         if ($phone === '') {
+            Log::warning('whatsapp.webhook.inbound_skip', ['reason' => 'empty_from', 'keys' => array_keys($incoming)]);
+
             return;
         }
 
-        $body = (string) data_get($incoming, 'text.body', '');
+        [$body, $type] = $this->extractInboundBody($incoming);
+
         $externalId = (string) data_get($incoming, 'id', '');
-        $type = (string) data_get($incoming, 'type', 'text');
+        if ($externalId === '') {
+            $externalId = 'synthetic-'.bin2hex(random_bytes(8));
+        }
+
         $now = now();
 
         $contact = OutsideContact::query()->firstOrCreate(
@@ -74,7 +109,8 @@ class OutsideWebhookController extends Controller
             'outside_contact_id' => $contact->id,
         ]);
 
-        OutsideMessage::query()->firstOrCreate(
+        /** @var OutsideMessage $message */
+        $message = OutsideMessage::query()->firstOrCreate(
             ['external_message_id' => $externalId],
             [
                 'outside_conversation_id' => $conversation->id,
@@ -88,9 +124,17 @@ class OutsideWebhookController extends Controller
             ]
         );
 
+        if (! $message->wasRecentlyCreated) {
+            Log::info('whatsapp.webhook.duplicate_delivery', ['external_message_id' => $externalId]);
+
+            return;
+        }
+
+        $preview = $body !== '' ? $body : '[رسالة واردة]';
+
         $conversation->update([
             'status' => 'open',
-            'latest_message_preview' => mb_substr($body !== '' ? $body : '[رسالة واردة]', 0, 120),
+            'latest_message_preview' => mb_substr($preview, 0, 120),
             'unread_count' => (int) $conversation->unread_count + 1,
             'last_inbound_at' => $now,
             'updated_at' => $now,
@@ -99,10 +143,54 @@ class OutsideWebhookController extends Controller
         $contact->update([
             'last_message_at' => $now,
         ]);
+
+        Log::info('whatsapp.webhook.inbound_stored', [
+            'phone' => $phone,
+            'type' => $type,
+            'conversation_id' => $conversation->id,
+        ]);
     }
 
     /**
-     * @param array<string, mixed> $status
+     * @param  array<string, mixed>  $incoming
+     * @return array{0: string, 1: string}
+     */
+    private function extractInboundBody(array $incoming): array
+    {
+        $type = (string) data_get($incoming, 'type', 'text');
+
+        return match ($type) {
+            'text' => [(string) data_get($incoming, 'text.body', ''), 'text'],
+            'button' => [(string) data_get($incoming, 'button.text', '[زر]'), 'button'],
+            'interactive' => [
+                (string) (
+                    data_get($incoming, 'interactive.button_reply.title')
+                    ?: data_get($incoming, 'interactive.list_reply.title')
+                    ?: '[تفاعلي]'
+                ),
+                'interactive',
+            ],
+            'image' => [(string) (data_get($incoming, 'image.caption') ?: '[صورة]'), 'image'],
+            'video' => [(string) (data_get($incoming, 'video.caption') ?: '[فيديو]'), 'video'],
+            'audio' => ['[صوت]', 'audio'],
+            'document' => [
+                (string) (
+                    data_get($incoming, 'document.caption')
+                        ?: ('[مستند] '.(string) data_get($incoming, 'document.filename', ''))
+                ),
+                'document',
+            ],
+            'sticker' => ['[ملصق]', 'sticker'],
+            'location' => [
+                (string) (data_get($incoming, 'location.name') ?: data_get($incoming, 'location.address') ?: '[موقع]'),
+                'location',
+            ],
+            default => ['[رسالة ('.$type.')]', $type],
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $status
      */
     private function applyStatusUpdate(array $status): void
     {
@@ -112,14 +200,14 @@ class OutsideWebhookController extends Controller
         }
 
         $message = OutsideMessage::query()->where('external_message_id', $externalId)->first();
-        if (!$message) {
+        if (! $message) {
             return;
         }
 
         $providerStatus = (string) data_get($status, 'status', 'sent');
         $errors = Arr::wrap(data_get($status, 'errors', []));
         $errorMessage = null;
-        if (!empty($errors)) {
+        if (! empty($errors)) {
             $errorMessage = (string) data_get($errors[0], 'title', data_get($errors[0], 'message', ''));
         }
 
@@ -141,4 +229,3 @@ class OutsideWebhookController extends Controller
         $message->update($payload);
     }
 }
-
