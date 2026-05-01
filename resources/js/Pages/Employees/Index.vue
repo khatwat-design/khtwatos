@@ -67,7 +67,7 @@ const editingEmployeeId = ref(null);
 
 const createForm = useForm({
     name: '',
-    email: '',
+    username: '',
     password: '',
     role: 'member',
     is_bookable: true,
@@ -77,7 +77,7 @@ const createForm = useForm({
 
 const editForm = useForm({
     name: '',
-    email: '',
+    username: '',
     password: '',
     role: 'member',
     is_bookable: true,
@@ -103,7 +103,7 @@ function openEditModal(employee) {
     editingEmployeeId.value = employee.id;
     editForm.clearErrors();
     editForm.name = employee.name;
-    editForm.email = employee.email;
+    editForm.username = employee.username || '';
     editForm.password = '';
     editForm.role = employee.role;
     editForm.is_bookable = Boolean(employee.is_bookable);
@@ -203,7 +203,7 @@ function deleteEmployee(employee) {
                             />
                             <div>
                                 <div class="text-sm font-semibold text-gray-900">{{ emp.name }}</div>
-                                <div class="text-xs text-gray-500">{{ emp.email }}</div>
+                                <div class="text-xs text-gray-500" dir="ltr">{{ emp.username }}</div>
                             </div>
                         </div>
                         <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
@@ -285,7 +285,7 @@ function deleteEmployee(employee) {
                                     <span>{{ emp.name }}</span>
                                 </div>
                             </td>
-                            <td class="px-4 py-2 text-gray-700">{{ emp.email }}</td>
+                            <td class="px-4 py-2 text-gray-700" dir="ltr">{{ emp.username }}</td>
                             <td class="px-4 py-2 text-gray-700">
                                 {{ roleLabels[emp.role] || emp.role }}
                             </td>
@@ -354,9 +354,10 @@ function deleteEmployee(employee) {
                             <InputError class="mt-1" :message="createForm.errors.name" />
                         </div>
                         <div>
-                            <InputLabel for="c_email" value="اسم المستخدم" />
-                            <TextInput id="c_email" v-model="createForm.email" type="text" class="mt-1 block w-full" autocomplete="username" required />
-                            <InputError class="mt-1" :message="createForm.errors.email" />
+                            <InputLabel for="c_username" value="اسم المستخدم" />
+                            <TextInput id="c_username" v-model="createForm.username" type="text" class="mt-1 block w-full font-mono text-sm" dir="ltr" placeholder="مثال: aj2642" autocomplete="username" required />
+                            <p class="mt-0.5 text-[11px] text-gray-500">أحرف لاتينية صغيرة وأرقام فقط (بدون بريد إلكتروني).</p>
+                            <InputError class="mt-1" :message="createForm.errors.username" />
                         </div>
                     </div>
 
@@ -486,9 +487,9 @@ function deleteEmployee(employee) {
                             <InputError class="mt-1" :message="editForm.errors.name" />
                         </div>
                         <div>
-                            <InputLabel for="e_email" value="اسم المستخدم" />
-                            <TextInput id="e_email" v-model="editForm.email" type="text" class="mt-1 block w-full" autocomplete="username" required />
-                            <InputError class="mt-1" :message="editForm.errors.email" />
+                            <InputLabel for="e_username" value="اسم المستخدم" />
+                            <TextInput id="e_username" v-model="editForm.username" type="text" class="mt-1 block w-full font-mono text-sm" dir="ltr" autocomplete="username" required />
+                            <InputError class="mt-1" :message="editForm.errors.username" />
                         </div>
                     </div>
 

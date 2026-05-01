@@ -14,7 +14,7 @@ class ProfileUpdateRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $user = $this->user();
-        if (!$user) {
+        if (! $user) {
             return;
         }
 
@@ -60,13 +60,14 @@ class ProfileUpdateRequest extends FormRequest
                 'required',
                 'string',
                 'max:255',
-                Rule::unique(User::class, 'name')->ignore($this->user()->id),
             ],
-            'email' => [
+            'username' => [
                 'required',
                 'string',
-                'max:255',
-                Rule::unique(User::class)->ignore($this->user()->id),
+                'regex:/^[a-z0-9]+$/',
+                'min:3',
+                'max:32',
+                Rule::unique(User::class, 'username')->ignore($this->user()->id),
             ],
             'is_bookable' => ['sometimes', 'boolean'],
             'avatar' => ['nullable', 'image', 'max:4096'],
@@ -105,7 +106,7 @@ class ProfileUpdateRequest extends FormRequest
             $end = $enabled ? ($row['end'] ?? null) : null;
 
             if ($enabled) {
-                if (!$start || !$end) {
+                if (! $start || ! $end) {
                     throw ValidationException::withMessages([
                         "availability_schedule.$day.start" => 'حدّد وقت البداية والنهاية لهذا اليوم.',
                     ]);
@@ -129,7 +130,7 @@ class ProfileUpdateRequest extends FormRequest
             ];
         }
 
-        if (!count($enabledDays)) {
+        if (! count($enabledDays)) {
             throw ValidationException::withMessages([
                 'availability_schedule' => 'يجب اختيار يوم توفر واحد على الأقل.',
             ]);

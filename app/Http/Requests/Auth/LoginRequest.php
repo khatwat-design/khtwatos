@@ -46,11 +46,17 @@ class LoginRequest extends FormRequest
         $remember = $this->boolean('remember');
 
         $authenticated = Auth::attempt([
-            'email' => $username,
+            'username' => $username,
             'password' => $password,
         ], $remember);
 
-        // Backward compatibility for existing accounts that still use name as login identifier.
+        if (! $authenticated) {
+            $authenticated = Auth::attempt([
+                'email' => $username,
+                'password' => $password,
+            ], $remember);
+        }
+
         if (! $authenticated) {
             $authenticated = Auth::attempt([
                 'name' => $username,

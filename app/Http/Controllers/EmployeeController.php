@@ -8,7 +8,7 @@ use App\Services\SmartNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -16,9 +16,7 @@ use Inertia\Response;
 
 class EmployeeController extends Controller
 {
-    public function __construct(private readonly SmartNotificationService $smartNotifications)
-    {
-    }
+    public function __construct(private readonly SmartNotificationService $smartNotifications) {}
 
     public function index(Request $request): Response
     {
@@ -32,7 +30,7 @@ class EmployeeController extends Controller
             'employees' => $employees->map(fn (User $user) => [
                 'id' => $user->id,
                 'name' => $user->name,
-                'email' => $user->email,
+                'username' => $user->username,
                 'avatar_url' => $user->avatar_path ? Storage::disk('public')->url($user->avatar_path) : null,
                 'role' => $user->role,
                 'is_bookable' => (bool) $user->is_bookable,
@@ -64,8 +62,9 @@ class EmployeeController extends Controller
 
         $user = User::query()->create([
             'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => Hash::make($data['password']),
+            'username' => $data['username'],
+            'email' => null,
+            'password' => $data['password'],
             'role' => $data['role'],
             'is_bookable' => (bool) ($data['is_bookable'] ?? false),
             'availability_days' => $data['availability_days'],
@@ -95,7 +94,8 @@ class EmployeeController extends Controller
 
         $employee->fill([
             'name' => $data['name'],
-            'email' => $data['email'],
+            'username' => $data['username'],
+            'email' => null,
             'role' => $data['role'],
             'is_bookable' => (bool) ($data['is_bookable'] ?? false),
             'availability_days' => $data['availability_days'],
@@ -104,8 +104,8 @@ class EmployeeController extends Controller
             'availability_schedule' => $data['availability_schedule'],
         ]);
 
-        if (!empty($data['password'])) {
-            $employee->password = Hash::make($data['password']);
+        if (! empty($data['password'])) {
+            $employee->password = $data['password'];
         }
 
         $employee->save();
@@ -144,8 +144,8 @@ class EmployeeController extends Controller
             : ['nullable', 'string', 'min:8'];
 
         $data = $request->validate([
-            'name' => $nameRule,
-            'email' => $emailRule,
+            'name' => ['required', 'string', 'max:255'],
+            'username' => $usernameRule,
             'password' => $passwordRule,
             'role' => ['required', 'in:admin,lead,member'],
             'is_bookable' => ['nullable', 'boolean'],
@@ -160,7 +160,7 @@ class EmployeeController extends Controller
             'teams.*.is_lead' => ['nullable', 'boolean'],
         ]);
 
-        if (($data['role'] ?? null) === 'admin' && !$request->user()?->isAdmin()) {
+        if (($data['role'] ?? null) === 'admin' && ! $request->user()?->isAdmin()) {
             throw ValidationException::withMessages([
                 'role' => 'مدير الموارد البشرية لا يمكنه إنشاء أو تعيين مدير نظام.',
             ]);
@@ -182,7 +182,7 @@ class EmployeeController extends Controller
             $end = $enabled ? ($row['end'] ?? null) : null;
 
             if ($enabled) {
-                if (!$start || !$end) {
+                if (! $start || ! $end) {
                     throw ValidationException::withMessages([
                         "availability_schedule.$day.start" => 'حدد وقت البداية والنهاية لهذا اليوم.',
                     ]);
@@ -206,7 +206,7 @@ class EmployeeController extends Controller
             ];
         }
 
-        if (!count($enabledDays)) {
+        if (! count($enabledDays)) {
             throw ValidationException::withMessages([
                 'availability_schedule' => 'يجب اختيار يوم توفر واحد على الأقل.',
             ]);
@@ -221,7 +221,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * @param array<int, array<string, mixed>> $teams
+     * @param  array<int, array<string, mixed>>  $teams
      * @return array<int, array<string, mixed>>
      */
     private function teamPivotSyncPayload(array $teams): array
@@ -246,7 +246,7 @@ class EmployeeController extends Controller
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, Team>
+     * @return Collection<int, Team>
      */
     private function ensureTeams()
     {
@@ -271,8 +271,8 @@ class EmployeeController extends Controller
     }
 
     /**
-     * @param array<string, mixed>|null $schedule
-     * @param array<int, int> $days
+     * @param  array<string, mixed>|null  $schedule
+     * @param  array<int, int>  $days
      * @return array<int, array<string, mixed>>
      */
     private function normalizeAvailabilitySchedule(?array $schedule, array $days, string $defaultStart, string $defaultEnd): array

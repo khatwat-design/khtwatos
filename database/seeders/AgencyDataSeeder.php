@@ -12,7 +12,7 @@ use App\Models\TaskBoard;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class AgencyDataSeeder extends Seeder
 {
@@ -74,11 +74,17 @@ class AgencyDataSeeder extends Seeder
         ];
 
         foreach ($users as $row) {
+            $local = Str::lower(preg_replace('/[^a-z0-9]/', '', Str::before($row['email'], '@')) ?: 'u');
+            if (strlen($local) < 3) {
+                $local .= 'usr';
+            }
+
             $user = User::query()->updateOrCreate(
                 ['email' => $row['email']],
                 [
                     'name' => $row['name'],
-                    'password' => Hash::make('password'),
+                    'username' => $local,
+                    'password' => 'password',
                     'role' => $row['role'],
                     'calendly_url' => $row['calendly_url'],
                     'is_bookable' => filled($row['calendly_url'] ?? null),

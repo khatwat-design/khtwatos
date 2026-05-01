@@ -2,9 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Team;
 use App\Models\User;
 use App\Services\SmartNotificationService;
 use App\Services\WhatsAppCloudService;
+use App\Support\EmployeeUsername;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -15,16 +17,16 @@ class ProvisionEmployeeRosterCommand extends Command
 
     protected $signature = 'employee:provision-roster {--dry-run : عرض ما سيُنفَّذ دون كتابة أو واتساب}';
 
-    protected $description = 'إنشاء/تحديث حسابات الموظفين من القائمة المعتمدة وإرسال بيانات الدخول عبر واتساب';
+    protected $description = 'إنشاء/تحديث حسابات الموظفين من القائمة المعتمدة (اسم مستخدم حرفان+رقم، بدون بريد) وربط الفرق';
 
     public function handle(
         WhatsAppCloudService $whatsAppCloudService,
         SmartNotificationService $smartNotifications
     ): int {
         $dry = (bool) $this->option('dry-run');
-        $emailHost = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'local';
-        $emailHost = preg_replace('/^www\./', '', (string) $emailHost) ?: 'local';
         $loginUrl = rtrim((string) config('app.url'), '/');
+
+        $this->ensureTeams();
 
         $roster = $this->rosterRows();
         $created = 0;
@@ -44,6 +46,8 @@ class ProvisionEmployeeRosterCommand extends Command
             $title = trim((string) ($row['title'] ?? ''));
             $role = $row['role'];
             $skipCreate = (bool) ($row['skip_create'] ?? false);
+            /** @var array<int, array{slug: string, is_lead: bool, allocation?: int|null}> $teamsConfig */
+            $teamsConfig = $row['teams'] ?? [];
 
             if (! in_array($role, ['admin', 'lead', 'member'], true)) {
                 $this->error('دور غير صالح لـ '.$arabicName);
@@ -62,9 +66,9 @@ class ProvisionEmployeeRosterCommand extends Command
                     phoneDigits: $phoneDigits,
                     title: $title,
                     role: $role,
+                    teamsConfig: $teamsConfig,
                     skipCreate: $skipCreate,
                     findBy: $findBy,
-                    emailHost: $emailHost,
                     loginUrl: $loginUrl,
                     dryRun: $dry,
                     whatsAppCloudService: $whatsAppCloudService,
@@ -88,9 +92,9 @@ class ProvisionEmployeeRosterCommand extends Command
             }
 
             $this->line(sprintf(
-                '%s — بريد الدخول: %s — %s',
+                '%s — اسم المستخدم: %s — %s',
                 $arabicName,
-                $result['email'],
+                $result['username'],
                 $dry ? '[dry-run]' : ($result['wa_sent'] ? 'واتساب ✓' : 'واتساب ✗')
             ));
         }
@@ -99,7 +103,7 @@ class ProvisionEmployeeRosterCommand extends Command
             $adminIds = User::query()->where('role', 'admin')->pluck('id')->map(fn ($id) => (int) $id)->all();
             $smartNotifications->notifyUsers($adminIds, [
                 'title' => 'تزامنة قائمة الموظفين',
-                'body' => "إنشاء: {$created} | تحديث/كلمة مرور: {$updated} | واتساب ناجح: {$waOk}",
+                'body' => "إنشاء: {$created} | تحديث: {$updated} | واتساب ناجح: {$waOk}",
                 'severity' => 'info',
                 'category' => 'employees',
                 'link' => route('employees.index'),
@@ -113,65 +117,42 @@ class ProvisionEmployeeRosterCommand extends Command
     }
 
     /**
-     * @return array<int, array{name: string, phone: string, title: string, role: string, skip_create?: bool, find_by?: array<int, string>}>
+     * @return array<int, array<string, mixed>>
      */
     private function rosterRows(): array
     {
+        $t = fn (string $slug, bool $isLead, ?int $allocation = null) => ['slug' => $slug, 'is_lead' => $isLead, 'allocation' => $allocation];
+
         return [
-            ['name' => 'عبدالعزيز جاسم', 'phone' => '9647805872642', 'title' => 'مدير نظام', 'role' => 'admin'],
-            // «أني» = صاحب الحساب؛ الاسم في قاعدة البيانات 1xw (ليس «أني»)
-            ['name' => 'أني', 'phone' => '9647831038642', 'title' => '', 'role' => 'member', 'skip_create' => true, 'find_by' => ['1xw']],
-            ['name' => 'أحمد بشير', 'phone' => '9647868362896', 'title' => 'مدير موارد بشرية', 'role' => 'lead'],
-            ['name' => 'محمد ثائر', 'phone' => '9647824862386', 'title' => 'مدير مالي', 'role' => 'lead'],
-            ['name' => 'نبراس', 'phone' => '9647821319817', 'title' => 'مديرة الفريق — المبيعات', 'role' => 'lead'],
-            ['name' => 'حسين علي', 'phone' => '9647827478215', 'title' => 'موظف مبيعات', 'role' => 'member'],
-            ['name' => 'شذى', 'phone' => '963938466137', 'title' => 'مديرة مدراء الحسابات', 'role' => 'lead'],
-            ['name' => 'مها', 'phone' => '962781252331', 'title' => 'مديرة حساب', 'role' => 'lead'],
-            ['name' => 'حسين سلام', 'phone' => '9647830868941', 'title' => 'مدير الفريق — الكتابة', 'role' => 'lead'],
-            ['name' => 'ليث', 'phone' => '9647719516585', 'title' => 'كاتب + ميديا باير', 'role' => 'member'],
-            ['name' => 'محمود', 'phone' => '201278957988', 'title' => 'كاتب', 'role' => 'member'],
-            ['name' => 'محمد خالد', 'phone' => '201098865472', 'title' => 'مدير الفريق — الميديا باير', 'role' => 'lead'],
-            ['name' => 'عبدالله عبدالغفور', 'phone' => '201062216962', 'title' => 'ميديا باير', 'role' => 'member'],
+            ['name' => 'عبدالعزيز جاسم', 'phone' => '9647805872642', 'title' => 'مدير نظام', 'role' => 'admin', 'teams' => []],
+            ['name' => 'أني', 'phone' => '9647831038642', 'title' => '', 'role' => 'member', 'skip_create' => true, 'find_by' => ['1xw'], 'teams' => []],
+            ['name' => 'أحمد بشير', 'phone' => '9647868362896', 'title' => 'مدير موارد بشرية', 'role' => 'lead', 'teams' => [$t('hr', true)]],
+            ['name' => 'محمد ثائر', 'phone' => '9647824862386', 'title' => 'مدير مالي', 'role' => 'lead', 'teams' => [$t('accounting', true)]],
+            ['name' => 'نبراس', 'phone' => '9647821319817', 'title' => 'مديرة الفريق — المبيعات', 'role' => 'lead', 'teams' => [$t('sales', true)]],
+            ['name' => 'حسين علي', 'phone' => '9647827478215', 'title' => 'موظف مبيعات', 'role' => 'member', 'teams' => [$t('sales', false)]],
+            ['name' => 'شذى', 'phone' => '963938466137', 'title' => 'مديرة مدراء الحسابات', 'role' => 'lead', 'teams' => [$t('account', true)]],
+            ['name' => 'مها', 'phone' => '962781252331', 'title' => 'مديرة حساب', 'role' => 'lead', 'teams' => [$t('account', false)]],
+            ['name' => 'حسين سلام', 'phone' => '9647830868941', 'title' => 'مدير الفريق — الكتابة', 'role' => 'lead', 'teams' => [$t('writing', true)]],
+            ['name' => 'ليث', 'phone' => '9647719516585', 'title' => 'كاتب + ميديا باير', 'role' => 'member', 'teams' => [$t('writing', false, 60), $t('media-buyer', false, 40)]],
+            ['name' => 'محمود', 'phone' => '201278957988', 'title' => 'كاتب', 'role' => 'member', 'teams' => [$t('writing', false)]],
+            ['name' => 'محمد خالد', 'phone' => '201098865472', 'title' => 'مدير الفريق — الميديا باير', 'role' => 'lead', 'teams' => [$t('media-buyer', true)]],
+            ['name' => 'عبدالله عبدالغفور', 'phone' => '201062216962', 'title' => 'ميديا باير', 'role' => 'member', 'teams' => [$t('media-buyer', false)]],
         ];
     }
 
     /**
+     * @param  array<int, array{slug: string, is_lead: bool, allocation?: int|null}>  $teamsConfig
      * @param  array<int, string>  $findBy
-     */
-    private function findExistingUserForSkipRow(string $phoneDigits, string $arabicName, array $findBy): ?User
-    {
-        return User::query()
-            ->where(function ($q) use ($phoneDigits, $arabicName, $findBy): void {
-                $q->where('email', 'like', $phoneDigits.'@%')
-                    ->orWhere('name', $arabicName);
-                foreach ($findBy as $hint) {
-                    $hint = trim((string) $hint);
-                    if ($hint === '') {
-                        continue;
-                    }
-                    $q->orWhere('name', $hint);
-                    if (str_contains($hint, '@')) {
-                        $q->orWhere('email', $hint);
-                    } else {
-                        $q->orWhere('email', 'like', $hint.'@%');
-                    }
-                }
-            })
-            ->orderByDesc('id')
-            ->first();
-    }
-
-    /**
-     * @return array{email: string, created: bool, updated: bool, wa_sent: bool, wa_skipped?: bool}
+     * @return array{username: string, created: bool, updated: bool, wa_sent: bool, wa_skipped?: bool}
      */
     private function provisionOne(
         string $arabicName,
         string $phoneDigits,
         string $title,
         string $role,
+        array $teamsConfig,
         bool $skipCreate,
         array $findBy,
-        string $emailHost,
         string $loginUrl,
         bool $dryRun,
         WhatsAppCloudService $whatsAppCloudService,
@@ -182,52 +163,48 @@ class ProvisionEmployeeRosterCommand extends Command
         $user = null;
         $created = false;
         $updated = false;
-
-        $resolvedEmail = '';
+        $resolvedUsername = '';
 
         if ($skipCreate) {
             $user = $this->findExistingUserForSkipRow($phoneDigits, $arabicName, $findBy);
 
             if ($dryRun) {
-                $resolvedEmail = $user?->email ?: '(لم يُعثر على حساب — أضف find_by مثل 1xw أو رقم البريد المشتق من الجوال)';
+                $resolvedUsername = $user?->username ?: '(لم يُعثر على حساب — راجع find_by)';
 
-                return ['email' => $resolvedEmail, 'created' => false, 'updated' => false, 'wa_sent' => false, 'wa_skipped' => true];
+                return ['username' => $resolvedUsername, 'created' => false, 'updated' => false, 'wa_sent' => false, 'wa_skipped' => true];
             }
 
             if (! $user) {
-                $hints = implode(', ', $findBy) ?: '—';
-                throw new \RuntimeException(
-                    'لم يُعثر على حساب موجود (بحث بالرقم في البريد، أو الاسم «'.$arabicName.'»، أو find_by: '.$hints.').'
-                );
+                throw new \RuntimeException('لم يُعثر على حساب موجود لهذا الصف.');
             }
 
-            $resolvedEmail = $user->email;
+            $resolvedUsername = (string) $user->username;
 
             DB::transaction(function () use ($user, $plainPassword, $role): void {
                 $user->password = $plainPassword;
                 if ($user->role !== 'admin') {
                     $user->role = $role;
                 }
+                $user->email = null;
                 $user->save();
             });
             $updated = true;
         } else {
-            $localPart = $this->uniqueEmailLocalPart($arabicName, $phoneDigits, $emailHost);
-            $email = $localPart.'@staff.'.$emailHost;
-
-            $existing = User::query()->where('email', $email)->first()
-                ?? User::query()->where('email', 'like', $phoneDigits.'@%')->first();
+            $existing = User::query()->where('name', $arabicName)->first();
+            $username = EmployeeUsername::uniqueFromArabicNameAndPhone($arabicName, $phoneDigits, $existing?->id);
 
             if ($dryRun) {
-                $resolvedEmail = $existing?->email ?? $email;
+                $resolvedUsername = $existing?->username ?? $username;
 
-                return ['email' => $resolvedEmail, 'created' => false, 'updated' => false, 'wa_sent' => false, 'wa_skipped' => true];
+                return ['username' => $resolvedUsername, 'created' => false, 'updated' => false, 'wa_sent' => false, 'wa_skipped' => true];
             }
 
             if ($existing) {
                 $user = $existing;
-                DB::transaction(function () use ($user, $arabicName, $plainPassword, $role, $availability): void {
+                DB::transaction(function () use ($user, $arabicName, $username, $plainPassword, $role, $availability): void {
                     $user->name = $arabicName;
+                    $user->username = $username;
+                    $user->email = null;
                     $user->password = $plainPassword;
                     $user->role = $role;
                     $user->is_bookable = true;
@@ -240,10 +217,11 @@ class ProvisionEmployeeRosterCommand extends Command
                 });
                 $updated = true;
             } else {
-                $user = DB::transaction(function () use ($arabicName, $email, $plainPassword, $role, $availability) {
+                $user = DB::transaction(function () use ($arabicName, $username, $plainPassword, $role, $availability) {
                     return User::query()->create([
                         'name' => $arabicName,
-                        'email' => $email,
+                        'username' => $username,
+                        'email' => null,
                         'password' => $plainPassword,
                         'role' => $role,
                         'is_bookable' => true,
@@ -257,12 +235,16 @@ class ProvisionEmployeeRosterCommand extends Command
                 $created = true;
             }
 
-            $resolvedEmail = $user->email;
+            $resolvedUsername = (string) $user->username;
+
+            if (! $dryRun) {
+                $user->teams()->sync($this->teamSyncPayload($teamsConfig));
+            }
         }
 
         $message = $this->buildWhatsAppBody(
             userName: $user->name,
-            email: $resolvedEmail,
+            username: $resolvedUsername,
             arabicDisplayName: $arabicName,
             title: $title,
             loginUrl: $loginUrl,
@@ -271,25 +253,79 @@ class ProvisionEmployeeRosterCommand extends Command
         );
 
         $waSent = false;
-        try {
-            $whatsAppCloudService->sendText($phoneDigits, $message);
-            $waSent = true;
-        } catch (Throwable) {
-            $this->warn('فشل واتساب لـ '.$arabicName.' — انسخ الرسالة يدويًا:');
-            $this->line($message);
+        if (! $dryRun) {
+            try {
+                $whatsAppCloudService->sendText($phoneDigits, $message);
+                $waSent = true;
+            } catch (Throwable) {
+                $this->warn('فشل واتساب لـ '.$arabicName.' — انسخ الرسالة يدويًا:');
+                $this->line($message);
+            }
         }
 
         return [
-            'email' => $resolvedEmail,
+            'username' => $resolvedUsername,
             'created' => $created,
             'updated' => $updated,
             'wa_sent' => $waSent,
         ];
     }
 
+    /**
+     * @param  array<int, array{slug: string, is_lead: bool, allocation?: int|null}>  $teamsConfig
+     * @return array<int, array<string, mixed>>
+     */
+    private function teamSyncPayload(array $teamsConfig): array
+    {
+        $payload = [];
+
+        foreach ($teamsConfig as $row) {
+            $slug = (string) ($row['slug'] ?? '');
+            if ($slug === '') {
+                continue;
+            }
+            $team = Team::query()->where('slug', $slug)->first();
+            if (! $team) {
+                continue;
+            }
+            $payload[$team->id] = [
+                'allocation_percent' => array_key_exists('allocation', $row) && $row['allocation'] !== null
+                    ? (int) $row['allocation']
+                    : null,
+                'is_lead' => (bool) ($row['is_lead'] ?? false),
+            ];
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @param  array<int, string>  $findBy
+     */
+    private function findExistingUserForSkipRow(string $phoneDigits, string $arabicName, array $findBy): ?User
+    {
+        return User::query()
+            ->where(function ($q) use ($arabicName, $findBy): void {
+                $q->where('name', $arabicName);
+                foreach ($findBy as $hint) {
+                    $hint = trim((string) $hint);
+                    if ($hint === '') {
+                        continue;
+                    }
+                    $q->orWhere('name', $hint);
+                    $q->orWhere('username', $hint);
+                    if (str_contains($hint, '@')) {
+                        $q->orWhere('email', $hint);
+                    }
+                }
+            })
+            ->orderByDesc('id')
+            ->first();
+    }
+
     private function buildWhatsAppBody(
         string $userName,
-        string $email,
+        string $username,
         string $arabicDisplayName,
         string $title,
         string $loginUrl,
@@ -316,11 +352,13 @@ class ProvisionEmployeeRosterCommand extends Command
         $lines[] = 'رابط الدخول:';
         $lines[] = $loginUrl;
         $lines[] = '';
-        $lines[] = 'يمكنك تسجيل الدخول بإحدى الطريقتين في حقل اسم المستخدم:';
-        $lines[] = '• البريد (الأسهل): '.$email;
-        $lines[] = '• أو الاسم الكامل كما بالنظام: '.$userName;
+        $lines[] = 'اسم المستخدم:';
+        $lines[] = $username;
         $lines[] = '';
-        $lines[] = 'كلمة المرور الموحدة للجميع حاليًا:';
+        $lines[] = 'يمكنك أيضًا تسجيل الدخول بالاسم الكامل إن وُجد مطابقًا:';
+        $lines[] = $userName;
+        $lines[] = '';
+        $lines[] = 'كلمة المرور الموحدة حاليًا:';
         $lines[] = $plainPassword;
         $lines[] = '';
         $lines[] = 'الدور في النظام: '.$roleLabel;
@@ -330,54 +368,24 @@ class ProvisionEmployeeRosterCommand extends Command
         return implode("\n", $lines);
     }
 
-    /**
-     * حرفان لاتينيان مشتقّان من الاسم + آخر 4 أرقام من الهاتف، مع تجنب تعارض البريد.
-     */
-    private function uniqueEmailLocalPart(string $arabicName, string $phoneDigits, string $emailHost): string
+    private function ensureTeams(): void
     {
-        $suffix = substr($phoneDigits, -4);
-        $two = $this->twoLetterLatinKey($arabicName);
-        $base = strtolower(preg_replace('/[^a-z0-9]/', '', $two.$suffix) ?: 'u'.$suffix);
-
-        $candidate = $base;
-        $n = 0;
-        while (User::query()->where('email', $candidate.'@staff.'.$emailHost)->exists()) {
-            $n++;
-            $candidate = $base.$n;
+        if (Team::query()->exists()) {
+            return;
         }
 
-        return $candidate;
-    }
-
-    private function twoLetterLatinKey(string $arabicName): string
-    {
-        $name = trim($arabicName);
-        $parts = preg_split('/\s+/u', $name, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-
-        if (count($parts) >= 2) {
-            $a = mb_substr($parts[0], 0, 1);
-            $b = mb_substr($parts[1], 0, 1);
-        } else {
-            $single = $parts[0] ?? $name;
-            $a = mb_substr($single, 0, 1);
-            $b = mb_substr($single, 1, 1) ?: $a;
-        }
-
-        return $this->translitChar($a).$this->translitChar($b);
-    }
-
-    private function translitChar(string $ch): string
-    {
-        static $map = [
-            'أ' => 'a', 'إ' => 'i', 'آ' => 'a', 'ا' => 'a', 'ب' => 'b', 'ت' => 't', 'ث' => 's',
-            'ج' => 'j', 'ح' => 'h', 'خ' => 'k', 'د' => 'd', 'ذ' => 'z', 'ر' => 'r', 'ز' => 'z',
-            'س' => 's', 'ش' => 's', 'ص' => 's', 'ض' => 'd', 'ط' => 't', 'ظ' => 'z', 'ع' => 'a',
-            'غ' => 'g', 'ف' => 'f', 'ق' => 'q', 'ك' => 'k', 'ل' => 'l', 'م' => 'm', 'ن' => 'n',
-            'ه' => 'h', 'و' => 'w', 'ي' => 'y', 'ى' => 'a', 'ة' => 'h', 'ؤ' => 'w', 'ئ' => 'y',
-            'ء' => 'a',
+        $defaults = [
+            ['name' => 'فريق الكتابة', 'slug' => 'writing', 'sort_order' => 10],
+            ['name' => 'مدراء الحملات', 'slug' => 'media-buyer', 'sort_order' => 20],
+            ['name' => 'مدراء الحسابات', 'slug' => 'account', 'sort_order' => 30],
+            ['name' => 'المبيعات', 'slug' => 'sales', 'sort_order' => 40],
+            ['name' => 'الموارد البشرية', 'slug' => 'hr', 'sort_order' => 50],
+            ['name' => 'المحاسبة', 'slug' => 'accounting', 'sort_order' => 60],
         ];
 
-        return $map[$ch] ?? 'x';
+        foreach ($defaults as $team) {
+            Team::query()->firstOrCreate(['slug' => $team['slug']], $team);
+        }
     }
 
     private function normalizePhoneDigits(string $input): string

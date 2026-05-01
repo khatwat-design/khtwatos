@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\MetaOAuthToken;
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\MetaOAuthToken;
 use App\Models\User;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -47,10 +47,10 @@ class ProfileController extends Controller
     public function redirectMetaOAuth(Request $request): RedirectResponse
     {
         $user = $request->user();
-        if (!$this->canConnectMetaOAuth($user)) {
+        if (! $this->canConnectMetaOAuth($user)) {
             abort(403, 'هذه العملية متاحة للميديا باير أو مدير النظام.');
         }
-        if (!Schema::hasTable('meta_oauth_tokens')) {
+        if (! Schema::hasTable('meta_oauth_tokens')) {
             return redirect()->route('profile.edit')->withErrors(['meta_oauth' => 'يرجى تشغيل migrate أولاً لتفعيل OAuth.']);
         }
 
@@ -78,16 +78,16 @@ class ProfileController extends Controller
     public function handleMetaOAuthCallback(Request $request): RedirectResponse
     {
         $user = $request->user();
-        if (!$this->canConnectMetaOAuth($user)) {
+        if (! $this->canConnectMetaOAuth($user)) {
             abort(403, 'هذه العملية متاحة للميديا باير أو مدير النظام.');
         }
-        if (!Schema::hasTable('meta_oauth_tokens')) {
+        if (! Schema::hasTable('meta_oauth_tokens')) {
             return redirect()->route('profile.edit')->withErrors(['meta_oauth' => 'يرجى تشغيل migrate أولاً لتفعيل OAuth.']);
         }
 
         $state = (string) $request->query('state', '');
         $expectedState = (string) $request->session()->pull('meta_oauth_profile_state', '');
-        if ($state === '' || $expectedState === '' || !hash_equals($expectedState, $state)) {
+        if ($state === '' || $expectedState === '' || ! hash_equals($expectedState, $state)) {
             return redirect()->route('profile.edit')->withErrors(['meta_oauth' => 'فشل التحقق الأمني (state mismatch).']);
         }
 
@@ -159,7 +159,7 @@ class ProfileController extends Controller
     public function disconnectMetaOAuth(Request $request): RedirectResponse
     {
         $user = $request->user();
-        if (!$this->canConnectMetaOAuth($user)) {
+        if (! $this->canConnectMetaOAuth($user)) {
             abort(403, 'هذه العملية متاحة للميديا باير أو مدير النظام.');
         }
         if (Schema::hasTable('meta_oauth_tokens')) {
@@ -181,10 +181,6 @@ class ProfileController extends Controller
         unset($data['avatar'], $data['remove_avatar']);
 
         $user->fill($data);
-
-        if ($user->isDirty('email')) {
-            $user->email_verified_at = null;
-        }
 
         if ($removeAvatar && $user->avatar_path) {
             Storage::disk('public')->delete($user->avatar_path);
@@ -227,7 +223,7 @@ class ProfileController extends Controller
 
     private function canConnectMetaOAuth(?User $user): bool
     {
-        if (!$user) {
+        if (! $user) {
             return false;
         }
 

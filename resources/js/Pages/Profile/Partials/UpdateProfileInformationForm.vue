@@ -57,7 +57,7 @@ function buildAvailabilitySchedule(rawSchedule, fallbackDays = [0, 1, 2, 3, 4]) 
 
 const form = useForm({
     name: user.name,
-    email: user.email,
+    username: user.username || '',
     is_bookable: Boolean(user.is_bookable),
     availability_schedule: buildAvailabilitySchedule(
         user.availability_schedule,
@@ -145,18 +145,21 @@ function removeAvatar() {
             </div>
 
             <div>
-                <InputLabel for="email" value="اسم المستخدم" />
+                <InputLabel for="username" value="اسم المستخدم" />
 
                 <TextInput
-                    id="email"
+                    id="username"
                     type="text"
-                    class="mt-1 block w-full"
-                    v-model="form.email"
+                    class="mt-1 block w-full font-mono text-sm"
+                    dir="ltr"
+                    v-model="form.username"
                     required
                     autocomplete="username"
                 />
 
-                <InputError class="mt-2" :message="form.errors.email" />
+                <p class="mt-1 text-xs text-gray-500">أحرف إنجليزية صغيرة وأرقام فقط.</p>
+
+                <InputError class="mt-2" :message="form.errors.username" />
             </div>
 
             <div class="flex items-center gap-2">

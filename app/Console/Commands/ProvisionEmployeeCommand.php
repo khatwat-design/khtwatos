@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\User;
 use App\Services\SmartNotificationService;
 use App\Services\WhatsAppCloudService;
+use App\Support\EmployeeUsername;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -54,22 +55,14 @@ class ProvisionEmployeeCommand extends Command
             return self::FAILURE;
         }
 
-        $emailHost = parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'local';
-        $emailHost = preg_replace('/^www\./', '', (string) $emailHost) ?: 'local';
-        $email = $phoneDigits.'@staff.'.$emailHost;
-
-        if (User::query()->where('email', $email)->exists()) {
-            $this->error('يوجد مستخدم بنفس البريد المشتق من الرقم: '.$email);
-
-            return self::FAILURE;
-        }
-
         $name = $displayName;
         if (User::query()->where('name', $name)->exists()) {
             $suffix = substr($phoneDigits, -4);
             $name = "{$displayName} {$suffix}";
-            $this->warn('الاسم مستخدم مسبقًا؛ تم استخدام: '.$name);
+            $this->warn('الاسم الظاهر مستخدم مسبقًا؛ تم استخدام: '.$name);
         }
+
+        $username = EmployeeUsername::uniqueFromArabicNameAndPhone($name, $phoneDigits);
 
         $plainPassword = $this->option('password');
         if (! is_string($plainPassword) || $plainPassword === '') {
@@ -85,10 +78,11 @@ class ProvisionEmployeeCommand extends Command
 
         try {
             /** @var User $user */
-            $user = DB::transaction(function () use ($name, $email, $plainPassword, $role, $availability) {
+            $user = DB::transaction(function () use ($name, $username, $plainPassword, $role, $availability) {
                 return User::query()->create([
                     'name' => $name,
-                    'email' => $email,
+                    'username' => $username,
+                    'email' => null,
                     'password' => $plainPassword,
                     'role' => $role,
                     'is_bookable' => true,
@@ -129,9 +123,11 @@ class ProvisionEmployeeCommand extends Command
         $lines[] = 'رابط الدخول:';
         $lines[] = $loginUrl;
         $lines[] = '';
-        $lines[] = 'يمكنك تسجيل الدخول بأحد الخيارين في حقل اسم المستخدم:';
-        $lines[] = '• البريد: '.$user->email;
-        $lines[] = '• أو الاسم الظاهر: '.$user->name;
+        $lines[] = 'اسم المستخدم:';
+        $lines[] = $user->username;
+        $lines[] = '';
+        $lines[] = 'أو الاسم الظاهر في النظام:';
+        $lines[] = $user->name;
         $lines[] = '';
         $lines[] = 'كلمة المرور:';
         $lines[] = $plainPassword;
@@ -145,7 +141,7 @@ class ProvisionEmployeeCommand extends Command
 
         $message = implode("\n", $lines);
 
-        $this->info('تم إنشاء المستخدم #'.$user->id.' — '.$user->email);
+        $this->info('تم إنشاء المستخدم #'.$user->id.' — '.$user->username);
 
         if ($this->option('no-wa')) {
             $this->comment('تم تخطي الواتساب. انسخ الرسالة يدويًا:');

@@ -61,7 +61,8 @@ class ProcessCalendlyWebhook
 
         $host = null;
         if (is_string($hostEmail) && $hostEmail !== '') {
-            $host = User::query()->where('email', $hostEmail)->first();
+            $host = User::query()->where('email', $hostEmail)->first()
+                ?? User::query()->where('username', $hostEmail)->first();
         }
 
         $inviteeEmail = Arr::get($invitee, 'email');

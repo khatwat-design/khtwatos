@@ -14,6 +14,7 @@ use Illuminate\Notifications\Notifiable;
 
 #[Fillable([
     'name',
+    'username',
     'email',
     'password',
     'role',
