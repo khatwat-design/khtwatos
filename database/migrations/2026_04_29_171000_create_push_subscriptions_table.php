@@ -11,7 +11,9 @@ return new class extends Migration
         Schema::create('push_subscriptions', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->text('endpoint');
+            // VARCHAR required for MySQL composite UNIQUE (TEXT/BLOB needs prefix length).
+            // Web Push endpoints are typically well under 512 chars.
+            $table->string('endpoint', 512);
             $table->string('public_key')->nullable();
             $table->string('auth_token')->nullable();
             $table->string('content_encoding')->nullable();
