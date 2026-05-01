@@ -65,6 +65,10 @@ class OutsideWhatsappInboundService
         ?string $profileName,
         string $messageBodyPreview
     ): void {
+        if (data_get($contact->meta, 'employee_user_id')) {
+            return;
+        }
+
         if (GoodsCustomer::query()->where('outside_contact_id', $contact->id)->exists()) {
             return;
         }

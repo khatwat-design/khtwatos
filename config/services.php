@@ -61,6 +61,12 @@ return [
         'business_account_id' => env('WHATSAPP_BUSINESS_ACCOUNT_ID'),
         'webhook_verify_token' => env('WHATSAPP_WEBHOOK_VERIFY_TOKEN'),
         'version' => env('WHATSAPP_GRAPH_VERSION', 'v22.0'),
+        /**
+         * قالب معتمد في Meta لإرسال بيانات دخول الموظفين لمن لم يتواصل مع رقم الواتساب خلال 24 ساعة.
+         * نص القالب يجب أن يحتوي متغيرات الجسم {{1}} … {{5}} بالترتيب: الاسم، اسم المستخدم، كلمة المرور، رابط الدخول، الدور.
+         */
+        'employee_credentials_template' => env('WHATSAPP_EMPLOYEE_CREDENTIALS_TEMPLATE'),
+        'employee_credentials_template_lang' => env('WHATSAPP_EMPLOYEE_CREDENTIALS_LANG', 'ar'),
     ],
 
     'goods' => [

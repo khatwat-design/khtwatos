@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\GoodsCustomer;
+use App\Models\OutsideContact;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -111,5 +112,54 @@ class OutsideWebhookInboundTest extends TestCase
         $this->assertDatabaseHas('goods_customers', [
             'name' => 'اسم من الرسالة',
         ]);
+    }
+
+    public function test_inbound_skips_goods_customer_for_employee_outside_contact(): void
+    {
+        $employee = User::factory()->create(['role' => 'member']);
+
+        OutsideContact::query()->create([
+            'phone' => '966509998877',
+            'channel' => 'whatsapp',
+            'name' => 'موظف',
+            'meta' => [
+                'employee_user_id' => $employee->id,
+                'source' => 'employee_provision',
+            ],
+        ]);
+
+        $payload = [
+            'object' => 'whatsapp_business_account',
+            'entry' => [
+                [
+                    'id' => 'WABA_ID',
+                    'changes' => [
+                        [
+                            'field' => 'messages',
+                            'value' => [
+                                'messaging_product' => 'whatsapp',
+                                'metadata' => [
+                                    'phone_number_id' => (string) config('services.whatsapp.phone_number_id') ?: '123456',
+                                ],
+                                'contacts' => [],
+                                'messages' => [
+                                    [
+                                        'from' => '966509998877',
+                                        'id' => 'wamid.EMPLOYEE_FIRST',
+                                        'timestamp' => '1234567890',
+                                        'type' => 'text',
+                                        'text' => ['body' => 'مرحبا'],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $this->postJson(route('outside.webhook.receive'), $payload)->assertOk();
+
+        $this->assertSame(0, GoodsCustomer::query()->count());
     }
 }

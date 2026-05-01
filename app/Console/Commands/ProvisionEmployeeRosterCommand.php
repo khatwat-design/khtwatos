@@ -6,6 +6,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\SmartNotificationService;
 use App\Services\WhatsAppCloudService;
+use App\Support\EmployeeOutsideContactSync;
 use App\Support\EmployeeUsername;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -112,6 +113,13 @@ class ProvisionEmployeeRosterCommand extends Command
         }
 
         $this->info("تم. إنشاء: {$created}, تحديثات: {$updated}, واتساب: {$waOk} ناجح".($waFail ? ", {$waFail} فشل" : ''));
+
+        if (! $dry) {
+            $this->newLine();
+            $this->comment(
+                'واتساب: إن وصلت الرسائل لك فقط، فغالبًا التطبيق في وضع تطوير Meta — أضف أرقام الموظفين كمستلمين معتمدين في لوحة مطوري واتساب، أو انشر التطبيق للإنتاج، أو عيّن قالبًا معتمدًا: WHATSAPP_EMPLOYEE_CREDENTIALS_TEMPLATE (+ LANG) في .env.'
+            );
+        }
 
         return $waFail > 0 ? self::FAILURE : self::SUCCESS;
     }
@@ -252,13 +260,29 @@ class ProvisionEmployeeRosterCommand extends Command
             role: $role,
         );
 
+        $roleLabel = match ($role) {
+            'admin' => 'مدير نظام',
+            'lead' => 'قائد فريق',
+            default => 'موظف',
+        };
+
         $waSent = false;
         if (! $dryRun) {
+            EmployeeOutsideContactSync::sync((int) $user->id, $phoneDigits, $arabicName);
             try {
-                $whatsAppCloudService->sendText($phoneDigits, $message);
+                $whatsAppCloudService->sendEmployeeCredentials(
+                    $phoneDigits,
+                    $message,
+                    $arabicName,
+                    $resolvedUsername,
+                    $plainPassword,
+                    $loginUrl,
+                    $roleLabel,
+                );
                 $waSent = true;
-            } catch (Throwable) {
-                $this->warn('فشل واتساب لـ '.$arabicName.' — انسخ الرسالة يدويًا:');
+            } catch (Throwable $e) {
+                $this->warn('فشل واتساب لـ '.$arabicName.' — '.$e->getMessage());
+                $this->line('انسخ الرسالة يدويًا:');
                 $this->line($message);
             }
         }

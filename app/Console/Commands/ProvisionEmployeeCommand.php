@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\User;
 use App\Services\SmartNotificationService;
 use App\Services\WhatsAppCloudService;
+use App\Support\EmployeeOutsideContactSync;
 use App\Support\EmployeeUsername;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -133,15 +134,18 @@ class ProvisionEmployeeCommand extends Command
         $lines[] = $plainPassword;
         $lines[] = '';
         $lines[] = 'يُنصح بتغيير كلمة المرور بعد أول دخول من الإعدادات.';
-        $lines[] = 'الدور في النظام: '.match ($role) {
+        $roleLabel = match ($role) {
             'admin' => 'مدير نظام',
             'lead' => 'قائد فريق',
             default => 'موظف',
         };
+        $lines[] = 'الدور في النظام: '.$roleLabel;
 
         $message = implode("\n", $lines);
 
         $this->info('تم إنشاء المستخدم #'.$user->id.' — '.$user->username);
+
+        EmployeeOutsideContactSync::sync((int) $user->id, $phoneDigits, (string) $user->name);
 
         if ($this->option('no-wa')) {
             $this->comment('تم تخطي الواتساب. انسخ الرسالة يدويًا:');
@@ -151,7 +155,15 @@ class ProvisionEmployeeCommand extends Command
         }
 
         try {
-            $whatsAppCloudService->sendText($phoneDigits, $message);
+            $whatsAppCloudService->sendEmployeeCredentials(
+                $phoneDigits,
+                $message,
+                (string) $user->name,
+                (string) $user->username,
+                $plainPassword,
+                $loginUrl,
+                $roleLabel,
+            );
             $this->info('تم إرسال بيانات الدخول إلى واتساب '.$phoneDigits.'.');
         } catch (Throwable $e) {
             $this->warn('تعذّر إرسال الواتساب: '.$e->getMessage());
