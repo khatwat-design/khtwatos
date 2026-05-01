@@ -54,6 +54,10 @@ class HandleInertiaRequests extends Middleware
                 'unread_count' => ($user && Schema::hasTable('notifications')) ? (int) $user->unreadNotifications()->count() : 0,
                 'webpush_public_key' => config('services.webpush.public_key'),
             ],
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
+            ],
         ];
     }
 }

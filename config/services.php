@@ -55,4 +55,12 @@ return [
         'version' => env('META_ADS_GRAPH_VERSION', 'v22.0'),
     ],
 
+    'whatsapp' => [
+        'token' => env('WHATSAPP_TOKEN'),
+        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+        'business_account_id' => env('WHATSAPP_BUSINESS_ACCOUNT_ID'),
+        'webhook_verify_token' => env('WHATSAPP_WEBHOOK_VERIFY_TOKEN'),
+        'version' => env('WHATSAPP_GRAPH_VERSION', 'v22.0'),
+    ],
+
 ];

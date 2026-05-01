@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientPortalController;
+use App\Http\Controllers\GoodsCustomerController;
 use App\Http\Controllers\AcademyController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\HomeController;
@@ -10,6 +11,8 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\PublicBookingController;
+use App\Http\Controllers\OutsideController;
+use App\Http\Controllers\OutsideWebhookController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TeamChatController;
 use App\Http\Controllers\WarehouseController;
@@ -42,6 +45,8 @@ Route::patch('/portal/profile', [ClientPortalController::class, 'updateProfile']
 Route::get('/portal/meta/oauth/redirect', [ClientPortalController::class, 'redirectMetaOAuth'])->name('portal.meta.oauth.redirect');
 Route::get('/portal/meta/oauth/callback', [ClientPortalController::class, 'handleMetaOAuthCallback'])->name('portal.meta.oauth.callback');
 Route::post('/portal/notes', [ClientPortalController::class, 'storeNote'])->name('portal.notes.store');
+Route::get('/outside/webhook', [OutsideWebhookController::class, 'verify'])->name('outside.webhook.verify');
+Route::post('/outside/webhook', [OutsideWebhookController::class, 'receive'])->name('outside.webhook.receive');
 
 Route::get('/dashboard', function () {
     return auth()->user()?->isAdmin()
@@ -78,6 +83,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/chat/messages/{teamChatMessage}', [TeamChatController::class, 'destroy'])->name('chat.messages.destroy');
     Route::post('/chat/typing', [TeamChatController::class, 'typingUpdate'])->name('chat.typing.update');
     Route::get('/chat/typing', [TeamChatController::class, 'typingUsers'])->name('chat.typing.index');
+    Route::get('/outside', [OutsideController::class, 'index'])->name('outside.index');
+    Route::post('/outside/contacts', [OutsideController::class, 'storeContact'])->name('outside.contacts.store');
+    Route::post('/outside/conversations/{outsideConversation}/messages', [OutsideController::class, 'storeMessage'])->name('outside.messages.store');
+    Route::patch('/outside/conversations/{outsideConversation}', [OutsideController::class, 'updateConversation'])->name('outside.conversations.update');
+    Route::post('/outside/messages/{outsideMessage}/retry', [OutsideController::class, 'retryMessage'])->name('outside.messages.retry');
+    Route::get('/goods', [GoodsCustomerController::class, 'index'])->name('goods.index');
+    Route::post('/goods/customers', [GoodsCustomerController::class, 'store'])->name('goods.customers.store');
+    Route::patch('/goods/customers/{goodsCustomer}/status', [GoodsCustomerController::class, 'updateStatus'])->name('goods.customers.status');
+    Route::post('/goods/customers/{goodsCustomer}/sales-reminder', [GoodsCustomerController::class, 'sendSalesReminder'])->name('goods.customers.sales-reminder');
+    Route::post('/goods/customers/{goodsCustomer}/weekly-survey', [GoodsCustomerController::class, 'sendWeeklySurvey'])->name('goods.customers.weekly-survey');
 
     Route::get('/meetings', [MeetingController::class, 'index'])->name('meetings.index');
     Route::get('/meetings/create', [MeetingController::class, 'create'])->name('meetings.create');

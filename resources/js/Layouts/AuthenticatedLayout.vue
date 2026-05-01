@@ -25,6 +25,8 @@ const nav = [
         : []),
     { label: 'المهام', routeName: 'tasks.index', match: 'tasks.*' },
     { label: 'الدردشة', routeName: 'chat.index', match: 'chat.*' },
+    { label: 'الخارج', routeName: 'outside.index', match: 'outside.*' },
+    { label: 'البضاعة', routeName: 'goods.index', match: 'goods.*' },
     { label: 'الاجتماعات', routeName: 'meetings.index', match: 'meetings.*' },
     { label: 'العملاء', routeName: 'clients.index', match: 'clients.*' },
     ...(page.props.auth?.can?.viewWarehouse
@@ -52,6 +54,8 @@ function navIcon(item) {
     if (item.routeName === 'home.index') return 'home';
     if (item.routeName === 'tasks.index') return 'tasks';
     if (item.routeName === 'chat.index') return 'chat';
+    if (item.routeName === 'outside.index') return 'outside';
+    if (item.routeName === 'goods.index') return 'goods';
     if (item.routeName === 'meetings.index') return 'calendar';
     if (item.routeName === 'clients.index') return 'users';
     if (item.routeName === 'warehouse.index') return 'warehouse';
@@ -446,6 +450,16 @@ async function openNotification(note) {
                             </svg>
                             <svg v-else-if="navIcon(item) === 'chat'" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                 <path d="M21 12a8.5 8.5 0 0 1-8.5 8.5H5l-2 2V12A8.5 8.5 0 1 1 21 12z" />
+                            </svg>
+                            <svg v-else-if="navIcon(item) === 'outside'" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path d="M7 10h10M7 14h7" />
+                                <path d="M4 6h16a1 1 0 0 1 1 1v10l-4-2H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z" />
+                            </svg>
+                            <svg v-else-if="navIcon(item) === 'goods'" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path d="M3 7h18" />
+                                <path d="M5 7l1.5 12h11L19 7" />
+                                <path d="M9 11v5M15 11v5" />
+                                <path d="M9 7V5a3 3 0 0 1 6 0v2" />
                             </svg>
                             <svg v-else-if="navIcon(item) === 'calendar'" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                 <rect x="3" y="5" width="18" height="16" rx="2" />
