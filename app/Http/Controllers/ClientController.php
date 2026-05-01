@@ -171,6 +171,7 @@ class ClientController extends Controller
                 'account_manager' => $client->accountManager ? ['id' => $client->accountManager->id, 'name' => $client->accountManager->name] : null,
                 'campaign_manager' => $client->campaignManager ? ['id' => $client->campaignManager->id, 'name' => $client->campaignManager->name] : null,
                 'updated_at' => $client->updated_at->toIso8601String(),
+                'subscription' => $this->clientSubscriptionPayload($client),
             ],
             'history' => $client->stageHistories->map(fn (ClientStageHistory $h) => [
                 'id' => $h->id,
@@ -299,6 +300,7 @@ class ClientController extends Controller
             ],
             'accountManagers' => User::orderBy('name')->get(['id', 'name']),
             'campaignManagers' => $this->campaignManagers(),
+            'can_manage_subscription' => $this->canManageClientSubscription($request->user()),
         ]);
     }
 
@@ -389,6 +391,61 @@ class ClientController extends Controller
         }
 
         return redirect()->route('clients.show', $client);
+    }
+
+    public function activateSubscription(Request $request, Client $client): RedirectResponse
+    {
+        if (!$this->canManageClientSubscription($request->user())) {
+            abort(403, 'هذه العملية متاحة للمحاسب أو مدير النظام.');
+        }
+        if (!$this->hasClientSubscriptionColumns()) {
+            return redirect()
+                ->route('clients.show', $client)
+                ->withErrors(['subscription' => 'يرجى تشغيل migrate أولاً لتفعيل الاشتراك.']);
+        }
+
+        $startAt = now();
+        $base = $client->subscription_ends_at && $client->subscription_ends_at->isFuture()
+            ? $client->subscription_ends_at->copy()
+            : $startAt->copy();
+        $endAt = $base->addDays(30);
+
+        $client->update([
+            'subscription_started_at' => $startAt,
+            'subscription_ends_at' => $endAt,
+            'subscription_activated_by' => $request->user()?->id,
+        ]);
+
+        return redirect()
+            ->route('clients.show', $client)
+            ->with('success', 'تم تفعيل الاشتراك لمدة 30 يوم بنجاح.');
+    }
+
+    public function updateSubscription(Request $request, Client $client): RedirectResponse
+    {
+        if (!$this->canManageClientSubscription($request->user())) {
+            abort(403, 'هذه العملية متاحة للمحاسب أو مدير النظام.');
+        }
+        if (!$this->hasClientSubscriptionColumns()) {
+            return redirect()
+                ->route('clients.show', $client)
+                ->withErrors(['subscription' => 'يرجى تشغيل migrate أولاً لتفعيل الاشتراك.']);
+        }
+
+        $data = $request->validate([
+            'subscription_started_at' => ['required', 'date'],
+            'subscription_ends_at' => ['required', 'date', 'after:subscription_started_at'],
+        ]);
+
+        $client->update([
+            'subscription_started_at' => $data['subscription_started_at'],
+            'subscription_ends_at' => $data['subscription_ends_at'],
+            'subscription_activated_by' => $request->user()?->id,
+        ]);
+
+        return redirect()
+            ->route('clients.show', $client)
+            ->with('success', 'تم تحديث تواريخ الاشتراك بنجاح.');
     }
 
     public function destroy(Request $request, Client $client): RedirectResponse
@@ -652,6 +709,41 @@ class ClientController extends Controller
         }
 
         return Gate::forUser($user)->allows('view-client-portal-link');
+    }
+
+    private function canManageClientSubscription(?User $user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        return $user->isAdmin() || $user->teams()->where('slug', 'accounting')->exists();
+    }
+
+    private function hasClientSubscriptionColumns(): bool
+    {
+        return Schema::hasColumns('clients', [
+            'subscription_started_at',
+            'subscription_ends_at',
+            'subscription_activated_by',
+        ]);
+    }
+
+    private function clientSubscriptionPayload(Client $client): array
+    {
+        if (!$this->hasClientSubscriptionColumns()) {
+            return [
+                'is_active' => false,
+                'started_at' => null,
+                'ends_at' => null,
+            ];
+        }
+
+        return [
+            'is_active' => $client->subscription_ends_at ? $client->subscription_ends_at->isFuture() : false,
+            'started_at' => $client->subscription_started_at?->toIso8601String(),
+            'ends_at' => $client->subscription_ends_at?->toIso8601String(),
+        ];
     }
 
     private function hasAttachmentUrlColumn(): bool

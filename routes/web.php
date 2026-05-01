@@ -95,6 +95,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/clients', [ClientController::class, 'store'])->name('clients.store');
     Route::get('/clients/{client}', [ClientController::class, 'show'])->name('clients.show');
     Route::patch('/clients/{client}', [ClientController::class, 'update'])->name('clients.update');
+    Route::post('/clients/{client}/activate-subscription', [ClientController::class, 'activateSubscription'])->name('clients.subscription.activate');
+    Route::patch('/clients/{client}/subscription', [ClientController::class, 'updateSubscription'])->name('clients.subscription.update');
     Route::patch('/clients/{client}/portal-credentials', [ClientController::class, 'updatePortalCredentials'])->name('clients.portal-credentials.update');
     Route::post('/clients/{client}/products', [ClientController::class, 'storeProduct'])->name('clients.products.store');
     Route::delete('/client-products/{clientProduct}', [ClientController::class, 'destroyProduct'])->name('clients.products.destroy');

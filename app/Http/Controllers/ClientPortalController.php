@@ -313,6 +313,7 @@ class ClientPortalController extends Controller
                 'portal_username' => $client->portal_username,
             ],
             'meta_setup' => $this->portalMetaSetupPayload($client),
+            'subscription' => $this->portalSubscriptionPayload($client),
         ]);
     }
 
@@ -725,7 +726,31 @@ class ClientPortalController extends Controller
                 'phone' => $client->phone,
                 'current_stage' => $client->currentStage?->label,
                 'notes' => $client->notes,
+                'subscription' => $this->portalSubscriptionPayload($client),
             ],
+        ];
+    }
+
+    private function portalSubscriptionPayload(Client $client): array
+    {
+        if (!Schema::hasColumns('clients', [
+            'subscription_started_at',
+            'subscription_ends_at',
+            'subscription_activated_by',
+        ])) {
+            return [
+                'is_active' => false,
+                'started_at' => null,
+                'ends_at' => null,
+            ];
+        }
+
+        $isActive = $client->subscription_ends_at ? $client->subscription_ends_at->isFuture() : false;
+
+        return [
+            'is_active' => $isActive,
+            'started_at' => $client->subscription_started_at?->toIso8601String(),
+            'ends_at' => $client->subscription_ends_at?->toIso8601String(),
         ];
     }
 

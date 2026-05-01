@@ -23,6 +23,14 @@ class Client extends Model
         'portal_username',
         'portal_password',
         'logo_path',
+        'subscription_started_at',
+        'subscription_ends_at',
+        'subscription_activated_by',
+    ];
+
+    protected $casts = [
+        'subscription_started_at' => 'datetime',
+        'subscription_ends_at' => 'datetime',
     ];
 
     protected static function booted(): void

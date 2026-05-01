@@ -25,6 +25,10 @@ const props = defineProps({
     accountManagers: Array,
     campaignManagers: Array,
     meta_profile: Object,
+    can_manage_subscription: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const history = computed(() =>
@@ -47,8 +51,16 @@ const attachmentFile = ref(null);
 const showProductModal = ref(false);
 const showPortalAccessCard = ref(true);
 const showTaskStatusHistory = ref(true);
+const showSubscriptionModal = ref(false);
+const showUploadAttachmentModal = ref(false);
+const showReferenceLinkModal = ref(false);
 const maxAttachmentSizeBytes = 10 * 1024 * 1024;
 const clientLogoPreview = ref(props.client.logo_url || '');
+const subscriptionForm = useForm({});
+const subscriptionDatesForm = useForm({
+    subscription_started_at: '',
+    subscription_ends_at: '',
+});
 
 const clientForm = useForm({
     name: props.client.name,
@@ -137,6 +149,41 @@ function savePortalCredentials() {
     });
 }
 
+function activateSubscription() {
+    if (!props.can_manage_subscription || subscriptionForm.processing) {
+        return;
+    }
+    subscriptionForm.post(route('clients.subscription.activate', props.client.id), {
+        preserveScroll: true,
+    });
+}
+
+const subscriptionStatus = computed(() => props.client?.subscription || {});
+
+function toDateTimeLocal(iso) {
+    if (!iso) return '';
+    const date = new Date(iso);
+    const offsetMs = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function openSubscriptionModal() {
+    subscriptionDatesForm.reset();
+    subscriptionDatesForm.clearErrors();
+    subscriptionDatesForm.subscription_started_at = toDateTimeLocal(subscriptionStatus.value?.started_at || new Date().toISOString());
+    subscriptionDatesForm.subscription_ends_at = toDateTimeLocal(subscriptionStatus.value?.ends_at || new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)).toISOString());
+    showSubscriptionModal.value = true;
+}
+
+function saveSubscriptionDates() {
+    subscriptionDatesForm.patch(route('clients.subscription.update', props.client.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            showSubscriptionModal.value = false;
+        },
+    });
+}
+
 function saveProduct() {
     if (!canManageProducts) {
         return;
@@ -206,6 +253,16 @@ function onAttachmentChange(event) {
     attachmentFile.value = selected;
 }
 
+function openUploadAttachmentModal() {
+    attachmentError.value = '';
+    attachmentProgress.value = 0;
+    attachmentFile.value = null;
+    if (attachmentInputRef.value) {
+        attachmentInputRef.value.value = '';
+    }
+    showUploadAttachmentModal.value = true;
+}
+
 async function uploadClientAttachment() {
     if (!attachmentFile.value || attachmentUploading.value) {
         return;
@@ -245,6 +302,7 @@ async function uploadClientAttachment() {
                 attachmentInputRef.value.value = '';
             }
             attachmentProgress.value = 0;
+            showUploadAttachmentModal.value = false;
         }
     } catch (error) {
         attachmentError.value = error?.response?.data?.message || 'تعذر رفع المرفق، حاول مرة أخرى.';
@@ -265,8 +323,15 @@ function saveReferenceLink() {
                 only: ['attachments'],
                 preserveScroll: true,
             });
+            showReferenceLinkModal.value = false;
         },
     });
+}
+
+function openReferenceLinkModal() {
+    referenceLinkForm.reset();
+    referenceLinkForm.clearErrors();
+    showReferenceLinkModal.value = true;
 }
 
 function canDeleteAttachment(attachment) {
@@ -484,57 +549,29 @@ function localizeColumnName(name) {
                     </div>
 
                     <div class="space-y-3 rounded-xl border border-slate-200 bg-white/80 p-3">
-                        <InputLabel for="client_attachment_file" value="رفع ملف مرجعي" />
-                        <input
-                            id="client_attachment_file"
-                            ref="attachmentInputRef"
-                            type="file"
-                            class="block w-full text-xs text-gray-600 file:me-2 file:rounded-xl file:border-0 file:bg-gray-100 file:px-2 file:py-1 file:text-xs file:font-medium"
-                            @change="onAttachmentChange"
-                        />
-                        <p class="text-[11px] text-gray-500">الحد الأقصى: 10MB</p>
-                        <div v-if="attachmentUploading" class="h-1.5 overflow-hidden rounded-full bg-gray-100">
-                            <div
-                                class="h-full rounded-full bg-brand-600 transition-all"
-                                :style="{ width: `${attachmentProgress}%` }"
-                            />
-                        </div>
-                        <InputError class="mt-1" :message="attachmentError" />
-                        <PrimaryButton
+                        <button
                             type="button"
-                            :disabled="attachmentUploading || !attachmentFile"
-                            @click="uploadClientAttachment"
+                            class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                            @click="openUploadAttachmentModal"
                         >
-                            {{ attachmentUploading ? 'جاري الرفع...' : 'رفع المرفق' }}
-                        </PrimaryButton>
-
-                        <div class="my-1 h-px bg-slate-200" />
-
-                        <InputLabel for="reference_link_title" value="عنوان الرابط (اختياري)" />
-                        <TextInput
-                            id="reference_link_title"
-                            v-model="referenceLinkForm.title"
-                            type="text"
-                            class="mt-1 block w-full"
-                            placeholder="مثال: صفحة المنتج"
-                        />
-                        <InputLabel for="reference_link_url" value="رابط مرجعي" />
-                        <TextInput
-                            id="reference_link_url"
-                            v-model="referenceLinkForm.url"
-                            type="url"
-                            class="mt-1 block w-full"
-                            placeholder="https://example.com"
-                            dir="ltr"
-                        />
-                        <InputError class="mt-1" :message="referenceLinkForm.errors.url || referenceLinkForm.errors.title" />
-                        <PrimaryButton
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 3v12" />
+                                <path d="m7 8 5-5 5 5" />
+                                <path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+                            </svg>
+                            رفع ملف
+                        </button>
+                        <button
                             type="button"
-                            :disabled="referenceLinkForm.processing || !referenceLinkForm.url"
-                            @click="saveReferenceLink"
+                            class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                            @click="openReferenceLinkModal"
                         >
-                            {{ referenceLinkForm.processing ? 'جاري الحفظ...' : 'إضافة رابط' }}
-                        </PrimaryButton>
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M10 13a5 5 0 0 0 7.54.54l2.12-2.12a5 5 0 0 0-7.07-7.07L11.3 5.6" />
+                                <path d="M14 11a5 5 0 0 0-7.54-.54L4.34 12.58a5 5 0 0 0 7.07 7.07l1.28-1.28" />
+                            </svg>
+                            إضافة رابط
+                        </button>
                     </div>
                 </div>
             </div>
@@ -666,7 +703,36 @@ function localizeColumnName(name) {
 
             <div class="grid gap-6 lg:grid-cols-2">
                 <div class="rounded-2xl border border-white/20 bg-white/70 p-6 shadow-xl shadow-slate-900/10 ring-1 ring-white/35 backdrop-blur-xl">
-                    <h2 class="text-lg font-semibold text-gray-900">البيانات</h2>
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <h2 class="text-lg font-semibold text-gray-900">البيانات</h2>
+                        <div class="flex items-center gap-2">
+                            <span
+                                class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                                :class="subscriptionStatus?.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'"
+                            >
+                                {{ subscriptionStatus?.is_active ? 'اشتراك مفعل' : 'اشتراك غير مفعل' }}
+                            </span>
+                            <button
+                                v-if="can_manage_subscription"
+                                type="button"
+                                class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                                title="إدارة الاشتراك"
+                                @click="openSubscriptionModal"
+                            >
+                                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 7.5V6a2 2 0 0 0-2-2h-1.5" />
+                                    <path d="M3 7.5V6a2 2 0 0 1 2-2h1.5" />
+                                    <path d="M21 16.5V18a2 2 0 0 1-2 2h-1.5" />
+                                    <path d="M3 16.5V18a2 2 0 0 0 2 2h1.5" />
+                                    <rect x="7" y="7" width="10" height="10" rx="2" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-3 grid gap-2 text-xs text-gray-600 sm:grid-cols-2">
+                        <p>بداية الاشتراك: <strong>{{ subscriptionStatus?.started_at ? formatDt(subscriptionStatus.started_at) : '—' }}</strong></p>
+                        <p>انتهاء الاشتراك: <strong>{{ subscriptionStatus?.ends_at ? formatDt(subscriptionStatus.ends_at) : '—' }}</strong></p>
+                    </div>
                     <form class="mt-4 space-y-3" @submit.prevent="saveClient">
                         <div>
                             <InputLabel for="client_logo" value="شعار العميل" />
@@ -996,6 +1062,159 @@ function localizeColumnName(name) {
                 >
                     حذف العميل
                 </button>
+            </div>
+        </div>
+
+        <div
+            v-if="showSubscriptionModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            @click.self="showSubscriptionModal = false"
+        >
+            <div class="glass-modal w-full max-w-lg p-5">
+                <div class="flex items-center justify-between gap-2">
+                    <h3 class="text-lg font-semibold text-gray-900">إدارة اشتراك العميل</h3>
+                    <button
+                        type="button"
+                        class="rounded-xl px-2 py-1 text-sm text-gray-500 hover:bg-gray-100"
+                        @click="showSubscriptionModal = false"
+                    >
+                        إغلاق
+                    </button>
+                </div>
+
+                <div class="mt-4 grid gap-3">
+                    <div>
+                        <InputLabel for="subscription_started_at" value="تاريخ بدء الاشتراك" />
+                        <TextInput
+                            id="subscription_started_at"
+                            v-model="subscriptionDatesForm.subscription_started_at"
+                            type="datetime-local"
+                            class="mt-1 block w-full"
+                        />
+                        <InputError class="mt-1" :message="subscriptionDatesForm.errors.subscription_started_at" />
+                    </div>
+                    <div>
+                        <InputLabel for="subscription_ends_at" value="تاريخ انتهاء الاشتراك" />
+                        <TextInput
+                            id="subscription_ends_at"
+                            v-model="subscriptionDatesForm.subscription_ends_at"
+                            type="datetime-local"
+                            class="mt-1 block w-full"
+                        />
+                        <InputError class="mt-1" :message="subscriptionDatesForm.errors.subscription_ends_at || subscriptionDatesForm.errors.subscription" />
+                    </div>
+                </div>
+
+                <div class="mt-5 flex flex-wrap items-center justify-end gap-2">
+                    <button
+                        type="button"
+                        class="rounded-xl border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        :disabled="subscriptionForm.processing"
+                        @click="activateSubscription"
+                    >
+                        {{ subscriptionForm.processing ? 'جارٍ التفعيل...' : 'تفعيل 30 يوم من الآن' }}
+                    </button>
+                    <PrimaryButton
+                        type="button"
+                        :disabled="subscriptionDatesForm.processing"
+                        @click="saveSubscriptionDates"
+                    >
+                        {{ subscriptionDatesForm.processing ? 'جارٍ الحفظ...' : 'حفظ التواريخ' }}
+                    </PrimaryButton>
+                </div>
+            </div>
+        </div>
+
+        <div
+            v-if="showUploadAttachmentModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            @click.self="showUploadAttachmentModal = false"
+        >
+            <div class="glass-modal w-full max-w-md p-5">
+                <div class="flex items-center justify-between gap-2">
+                    <h3 class="text-lg font-semibold text-gray-900">رفع ملف مرجعي</h3>
+                    <button
+                        type="button"
+                        class="rounded-xl px-2 py-1 text-sm text-gray-500 hover:bg-gray-100"
+                        @click="showUploadAttachmentModal = false"
+                    >
+                        إغلاق
+                    </button>
+                </div>
+                <div class="mt-4 space-y-3">
+                    <input
+                        id="client_attachment_file"
+                        ref="attachmentInputRef"
+                        type="file"
+                        class="block w-full text-xs text-gray-600 file:me-2 file:rounded-xl file:border-0 file:bg-gray-100 file:px-2 file:py-1 file:text-xs file:font-medium"
+                        @change="onAttachmentChange"
+                    />
+                    <p class="text-[11px] text-gray-500">الحد الأقصى: 10MB</p>
+                    <div v-if="attachmentUploading" class="h-1.5 overflow-hidden rounded-full bg-gray-100">
+                        <div
+                            class="h-full rounded-full bg-brand-600 transition-all"
+                            :style="{ width: `${attachmentProgress}%` }"
+                        />
+                    </div>
+                    <InputError class="mt-1" :message="attachmentError" />
+                    <PrimaryButton
+                        type="button"
+                        :disabled="attachmentUploading || !attachmentFile"
+                        @click="uploadClientAttachment"
+                    >
+                        {{ attachmentUploading ? 'جاري الرفع...' : 'رفع المرفق' }}
+                    </PrimaryButton>
+                </div>
+            </div>
+        </div>
+
+        <div
+            v-if="showReferenceLinkModal"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            @click.self="showReferenceLinkModal = false"
+        >
+            <div class="glass-modal w-full max-w-md p-5">
+                <div class="flex items-center justify-between gap-2">
+                    <h3 class="text-lg font-semibold text-gray-900">إضافة رابط مرجعي</h3>
+                    <button
+                        type="button"
+                        class="rounded-xl px-2 py-1 text-sm text-gray-500 hover:bg-gray-100"
+                        @click="showReferenceLinkModal = false"
+                    >
+                        إغلاق
+                    </button>
+                </div>
+                <div class="mt-4 space-y-3">
+                    <div>
+                        <InputLabel for="reference_link_title" value="عنوان الرابط (اختياري)" />
+                        <TextInput
+                            id="reference_link_title"
+                            v-model="referenceLinkForm.title"
+                            type="text"
+                            class="mt-1 block w-full"
+                            placeholder="مثال: صفحة المنتج"
+                        />
+                    </div>
+                    <div>
+                        <InputLabel for="reference_link_url" value="رابط مرجعي" />
+                        <TextInput
+                            id="reference_link_url"
+                            v-model="referenceLinkForm.url"
+                            type="url"
+                            class="mt-1 block w-full"
+                            placeholder="https://example.com"
+                            dir="ltr"
+                        />
+                    </div>
+                    <InputError class="mt-1" :message="referenceLinkForm.errors.url || referenceLinkForm.errors.title" />
+                    <PrimaryButton
+                        type="button"
+                        :disabled="referenceLinkForm.processing || !referenceLinkForm.url"
+                        @click="saveReferenceLink"
+                    >
+                        {{ referenceLinkForm.processing ? 'جاري الحفظ...' : 'إضافة رابط' }}
+                    </PrimaryButton>
+                </div>
             </div>
         </div>
 

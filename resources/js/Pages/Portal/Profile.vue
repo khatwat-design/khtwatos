@@ -5,12 +5,34 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import PortalLayout from '@/Layouts/PortalLayout.vue';
 import { useForm } from '@inertiajs/vue3';
+import { computed } from 'vue';
 
 const props = defineProps({
     client: Object,
     profile: Object,
     meta_setup: Object,
+    subscription: {
+        type: Object,
+        default: () => ({}),
+    },
 });
+
+const subscriptionBadgeClass = computed(() => (
+    props.subscription?.is_active
+        ? 'bg-emerald-100 text-emerald-700'
+        : 'bg-amber-100 text-amber-700'
+));
+
+function formatDt(iso) {
+    if (!iso) return '—';
+    return new Intl.DateTimeFormat('ar-SA', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(new Date(iso));
+}
 
 const infoForm = useForm({
     section: 'info',
@@ -44,6 +66,19 @@ function saveAccount() {
 <template>
     <PortalLayout title="الملف الشخصي" :client="client">
         <div class="mx-auto max-w-4xl space-y-6">
+            <div class="ui-card p-6">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <h2 class="text-lg font-semibold text-gray-900">حالة الاشتراك</h2>
+                    <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold" :class="subscriptionBadgeClass">
+                        {{ subscription?.is_active ? 'مفعل' : 'غير مفعل' }}
+                    </span>
+                </div>
+                <div class="mt-3 grid gap-2 text-sm text-gray-700 md:grid-cols-2">
+                    <p>بداية الاشتراك: <strong>{{ formatDt(subscription?.started_at) }}</strong></p>
+                    <p>انتهاء الاشتراك: <strong>{{ formatDt(subscription?.ends_at) }}</strong></p>
+                </div>
+            </div>
+
             <div class="ui-card p-6">
                 <h2 class="text-lg font-semibold text-gray-900">بيانات العميل</h2>
                 <form class="mt-4 grid gap-3 md:grid-cols-2" @submit.prevent="saveInfo">
