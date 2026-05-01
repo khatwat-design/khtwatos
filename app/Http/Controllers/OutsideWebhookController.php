@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\OutsideContact;
 use App\Models\OutsideConversation;
 use App\Models\OutsideMessage;
+use App\Services\OutsideWhatsappInboundService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -14,6 +15,10 @@ use Throwable;
 
 class OutsideWebhookController extends Controller
 {
+    public function __construct(
+        private readonly OutsideWhatsappInboundService $inboundService
+    ) {}
+
     public function verify(Request $request)
     {
         $mode = (string) $request->query('hub_mode', $request->query('hub.mode', ''));
@@ -50,12 +55,16 @@ class OutsideWebhookController extends Controller
                         ]);
                     }
 
+                    $profileMap = $this->inboundService->profileNamesByNormalizedPhone(
+                        is_array($value) ? $value : []
+                    );
+
                     $messages = Arr::wrap(data_get($value, 'messages', []));
                     foreach ($messages as $incoming) {
                         if (! is_array($incoming)) {
                             continue;
                         }
-                        $this->storeInboundMessage($incoming);
+                        $this->storeInboundMessage($incoming, $profileMap);
                     }
 
                     $statuses = Arr::wrap(data_get($value, 'statuses', []));
@@ -80,8 +89,9 @@ class OutsideWebhookController extends Controller
 
     /**
      * @param  array<string, mixed>  $incoming
+     * @param  array<string, string>  $profileNamesByPhone
      */
-    private function storeInboundMessage(array $incoming): void
+    private function storeInboundMessage(array $incoming, array $profileNamesByPhone): void
     {
         $phoneRaw = (string) data_get($incoming, 'from', '');
         $phone = preg_replace('/\D+/', '', $phoneRaw) ?: $phoneRaw;
@@ -100,10 +110,20 @@ class OutsideWebhookController extends Controller
 
         $now = now();
 
+        $profileName = $profileNamesByPhone[$phone] ?? null;
+
+        $createAttrs = ['channel' => 'whatsapp'];
+        if (is_string($profileName) && trim($profileName) !== '') {
+            $createAttrs['name'] = mb_substr(trim($profileName), 0, 255);
+        }
+
+        /** @var OutsideContact $contact */
         $contact = OutsideContact::query()->firstOrCreate(
             ['phone' => $phone],
-            ['channel' => 'whatsapp']
+            $createAttrs
         );
+
+        $this->inboundService->enrichOutsideContact($contact, $profileName);
 
         $conversation = OutsideConversation::query()->firstOrCreate([
             'outside_contact_id' => $contact->id,
@@ -143,6 +163,8 @@ class OutsideWebhookController extends Controller
         $contact->update([
             'last_message_at' => $now,
         ]);
+
+        $this->inboundService->ensureGoodsCustomerForNewInbound($contact, $profileName, $preview);
 
         Log::info('whatsapp.webhook.inbound_stored', [
             'phone' => $phone,

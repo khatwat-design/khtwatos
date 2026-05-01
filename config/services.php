@@ -63,4 +63,9 @@ return [
         'version' => env('WHATSAPP_GRAPH_VERSION', 'v22.0'),
     ],
 
+    'goods' => [
+        /** وقت إرسال تذكير المبيعات اليومي (توقيت التطبيق APP_TIMEZONE) */
+        'daily_sales_reminder_at' => env('GOODS_DAILY_SALES_REMINDER_AT', '09:00'),
+    ],
+
 ];
