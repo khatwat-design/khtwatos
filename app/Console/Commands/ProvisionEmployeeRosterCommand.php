@@ -51,6 +51,11 @@ class ProvisionEmployeeRosterCommand extends Command
                 return self::FAILURE;
             }
 
+            $findBy = array_values(array_filter(
+                array_map('trim', $row['find_by'] ?? []),
+                fn ($h) => is_string($h) && trim($h) !== ''
+            ));
+
             try {
                 $result = $this->provisionOne(
                     arabicName: $arabicName,
@@ -58,6 +63,7 @@ class ProvisionEmployeeRosterCommand extends Command
                     title: $title,
                     role: $role,
                     skipCreate: $skipCreate,
+                    findBy: $findBy,
                     emailHost: $emailHost,
                     loginUrl: $loginUrl,
                     dryRun: $dry,
@@ -107,13 +113,14 @@ class ProvisionEmployeeRosterCommand extends Command
     }
 
     /**
-     * @return array<int, array{name: string, phone: string, title: string, role: string, skip_create?: bool}>
+     * @return array<int, array{name: string, phone: string, title: string, role: string, skip_create?: bool, find_by?: array<int, string>}>
      */
     private function rosterRows(): array
     {
         return [
             ['name' => 'عبدالعزيز جاسم', 'phone' => '9647805872642', 'title' => 'مدير نظام', 'role' => 'admin'],
-            ['name' => 'أني', 'phone' => '9647831038642', 'title' => '', 'role' => 'member', 'skip_create' => true],
+            // «أني» = صاحب الحساب؛ الاسم في قاعدة البيانات 1xw (ليس «أني»)
+            ['name' => 'أني', 'phone' => '9647831038642', 'title' => '', 'role' => 'member', 'skip_create' => true, 'find_by' => ['1xw']],
             ['name' => 'أحمد بشير', 'phone' => '9647868362896', 'title' => 'مدير موارد بشرية', 'role' => 'lead'],
             ['name' => 'محمد ثائر', 'phone' => '9647824862386', 'title' => 'مدير مالي', 'role' => 'lead'],
             ['name' => 'نبراس', 'phone' => '9647821319817', 'title' => 'مديرة الفريق — المبيعات', 'role' => 'lead'],
@@ -129,6 +136,32 @@ class ProvisionEmployeeRosterCommand extends Command
     }
 
     /**
+     * @param  array<int, string>  $findBy
+     */
+    private function findExistingUserForSkipRow(string $phoneDigits, string $arabicName, array $findBy): ?User
+    {
+        return User::query()
+            ->where(function ($q) use ($phoneDigits, $arabicName, $findBy): void {
+                $q->where('email', 'like', $phoneDigits.'@%')
+                    ->orWhere('name', $arabicName);
+                foreach ($findBy as $hint) {
+                    $hint = trim((string) $hint);
+                    if ($hint === '') {
+                        continue;
+                    }
+                    $q->orWhere('name', $hint);
+                    if (str_contains($hint, '@')) {
+                        $q->orWhere('email', $hint);
+                    } else {
+                        $q->orWhere('email', 'like', $hint.'@%');
+                    }
+                }
+            })
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /**
      * @return array{email: string, created: bool, updated: bool, wa_sent: bool, wa_skipped?: bool}
      */
     private function provisionOne(
@@ -137,6 +170,7 @@ class ProvisionEmployeeRosterCommand extends Command
         string $title,
         string $role,
         bool $skipCreate,
+        array $findBy,
         string $emailHost,
         string $loginUrl,
         bool $dryRun,
@@ -152,22 +186,19 @@ class ProvisionEmployeeRosterCommand extends Command
         $resolvedEmail = '';
 
         if ($skipCreate) {
-            $user = User::query()
-                ->where(function ($q) use ($phoneDigits, $arabicName): void {
-                    $q->where('email', 'like', $phoneDigits.'@%')
-                        ->orWhere('name', $arabicName);
-                })
-                ->orderByDesc('id')
-                ->first();
+            $user = $this->findExistingUserForSkipRow($phoneDigits, $arabicName, $findBy);
 
             if ($dryRun) {
-                $resolvedEmail = $user?->email ?: '(لم يُعثر على حساب أني — شغّل بدون dry-run بعد التأكد من وجود المستخدم)';
+                $resolvedEmail = $user?->email ?: '(لم يُعثر على حساب — أضف find_by مثل 1xw أو رقم البريد المشتق من الجوال)';
 
                 return ['email' => $resolvedEmail, 'created' => false, 'updated' => false, 'wa_sent' => false, 'wa_skipped' => true];
             }
 
             if (! $user) {
-                throw new \RuntimeException('لم يُعثر على حساب موجود لـ أني. أنشئ الحساب أولًا أو أزل خاصية skip_create مؤقتًا.');
+                $hints = implode(', ', $findBy) ?: '—';
+                throw new \RuntimeException(
+                    'لم يُعثر على حساب موجود (بحث بالرقم في البريد، أو الاسم «'.$arabicName.'»، أو find_by: '.$hints.').'
+                );
             }
 
             $resolvedEmail = $user->email;
