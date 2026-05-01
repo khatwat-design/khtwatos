@@ -15,6 +15,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\ClientWorkflowAutomationService;
 use App\Services\SmartNotificationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -346,7 +347,7 @@ class TaskController extends Controller
         return redirect()->back();
     }
 
-    public function sync(Request $request, TaskBoard $taskBoard): RedirectResponse
+    public function sync(Request $request, TaskBoard $taskBoard): RedirectResponse|JsonResponse
     {
         $data = $request->validate([
             'columns' => ['required', 'array'],
