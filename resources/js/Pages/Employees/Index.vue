@@ -8,7 +8,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 
 const props = defineProps({
     employees: Array,
@@ -105,6 +105,59 @@ const editForm = useForm({
 
 const sendingLoginId = ref(null);
 
+/** نص تشخيصي يظهر حتى لو لم تُعرَض أخطاء الحقول (شبكة، 419، استثناء، إلخ). */
+const createSubmitDiagnostics = ref('');
+const editSubmitDiagnostics = ref('');
+
+/**
+ * @param {unknown} errors
+ * @returns {string[]}
+ */
+function collectAllFormErrors(errors) {
+    if (!errors || typeof errors !== 'object') {
+        return [];
+    }
+    const out = [];
+    for (const [key, val] of Object.entries(errors)) {
+        if (Array.isArray(val)) {
+            val.forEach((item) => out.push(`${key}: ${item}`));
+        } else if (val != null && String(val).trim() !== '') {
+            out.push(`${key}: ${String(val)}`);
+        }
+    }
+    return out;
+}
+
+/**
+ * @param {unknown} inertiaErrors
+ * @param {string} headline
+ */
+function buildSubmitDiagnostics(inertiaErrors, headline) {
+    const lines = collectAllFormErrors(inertiaErrors);
+    if (!lines.length) {
+        return headline;
+    }
+    return `${headline}\n${lines.join('\n')}`;
+}
+
+watch(
+    () => page.props.errors,
+    (errs) => {
+        const bag = errs && typeof errs === 'object' ? errs : {};
+        if (!Object.keys(bag).length) {
+            return;
+        }
+        const text = collectAllFormErrors(bag).join('\n') || JSON.stringify(bag);
+        if (createModalOpen.value) {
+            createSubmitDiagnostics.value = `أخطاء عامة من الخادم:\n${text}`;
+        }
+        if (editModalOpen.value) {
+            editSubmitDiagnostics.value = `أخطاء عامة من الخادم:\n${text}`;
+        }
+    },
+    { deep: true },
+);
+
 /** يُرسل مع الطلب: أرقام فقط لمفتاح الدولة، و allocation_percent الفارغ → null (لا يفشل تحقق integer على السيرفر). */
 function normalizeAllocationPercent(val) {
     if (val === '' || val === undefined || val === null) {
@@ -147,6 +200,7 @@ createForm.transform((data) => employeePayloadTransform(data));
 editForm.transform((data) => employeePayloadTransform(data));
 
 function openCreateModal() {
+    createSubmitDiagnostics.value = '';
     createForm.reset();
     createForm.clearErrors();
     createForm.role = 'member';
@@ -163,6 +217,7 @@ function closeCreateModal() {
 }
 
 function openEditModal(employee) {
+    editSubmitDiagnostics.value = '';
     editingEmployeeId.value = employee.id;
     editForm.clearErrors();
     editForm.name = employee.name;
@@ -214,20 +269,89 @@ function teamItem(form, teamId) {
 }
 
 function submitCreate() {
+    createSubmitDiagnostics.value = '';
     createForm.post(route('employees.store'), {
         preserveScroll: true,
-        onSuccess: () => closeCreateModal(),
+        onSuccess: () => {
+            createSubmitDiagnostics.value = '';
+            closeCreateModal();
+        },
+        onError: (errors) => {
+            createSubmitDiagnostics.value = buildSubmitDiagnostics(
+                errors,
+                'رفض الخادم الطلب (تحقق Laravel):',
+            );
+            nextTick(() => {
+                document.getElementById('employee-create-diagnostics')?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                });
+            });
+        },
+        onFinish: () => {
+            const fieldErrors = Object.keys(createForm.errors || {}).length;
+            if (
+                createModalOpen.value &&
+                !createForm.recentlySuccessful &&
+                !fieldErrors &&
+                !createSubmitDiagnostics.value
+            ) {
+                createSubmitDiagnostics.value =
+                    'انتهى الطلب دون رسائل تحقق. افتح Network في DevTools وراقب طلب POST إلى /employees (حالة 419/500/302)، أو حدّث الصفحة وأعد المحاولة.';
+            }
+            nextTick(() => {
+                document.getElementById('employee-create-diagnostics')?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                });
+            });
+        },
     });
 }
 
 function submitEdit() {
     if (!editingEmployeeId.value) {
+        editSubmitDiagnostics.value = 'تعذّر الحفظ: لم يُحدَّد رقم الموظف.';
         return;
     }
 
+    editSubmitDiagnostics.value = '';
     editForm.patch(route('employees.update', editingEmployeeId.value), {
         preserveScroll: true,
-        onSuccess: () => closeEditModal(),
+        onSuccess: () => {
+            editSubmitDiagnostics.value = '';
+            closeEditModal();
+        },
+        onError: (errors) => {
+            editSubmitDiagnostics.value = buildSubmitDiagnostics(
+                errors,
+                'رفض الخادم الطلب (تحقق Laravel):',
+            );
+            nextTick(() => {
+                document.getElementById('employee-edit-diagnostics')?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                });
+            });
+        },
+        onFinish: () => {
+            const fieldErrors = Object.keys(editForm.errors || {}).length;
+            if (
+                editModalOpen.value &&
+                !editForm.recentlySuccessful &&
+                !fieldErrors &&
+                !editSubmitDiagnostics.value
+            ) {
+                editSubmitDiagnostics.value =
+                    'انتهى الطلب دون رسائل تحقق. افتح Network في DevTools وراقب طلب PATCH (حالة 419/500/302)، أو حدّث الصفحة وأعد المحاولة.';
+            }
+            nextTick(() => {
+                document.getElementById('employee-edit-diagnostics')?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                });
+            });
+        },
     });
 }
 
@@ -472,6 +596,15 @@ function sendLoginWhatsApp(employee) {
             <div class="glass-modal employee-light-modal p-4 sm:p-6">
                 <h2 class="text-lg font-semibold text-gray-900">إضافة موظف جديد</h2>
                 <div
+                    v-if="createSubmitDiagnostics"
+                    id="employee-create-diagnostics"
+                    class="mt-3 rounded-lg border-2 border-rose-600 bg-rose-100 px-3 py-3 text-sm text-rose-950"
+                    dir="auto"
+                >
+                    <p class="font-bold">تشخيص الحفظ</p>
+                    <pre class="mt-2 max-h-52 overflow-y-auto whitespace-pre-wrap break-words font-sans text-xs leading-relaxed">{{ createSubmitDiagnostics }}</pre>
+                </div>
+                <div
                     v-if="Object.keys(createForm.errors).length"
                     class="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900"
                 >
@@ -648,6 +781,15 @@ function sendLoginWhatsApp(employee) {
         <Modal :show="editModalOpen" @close="closeEditModal">
             <div class="glass-modal employee-light-modal p-4 sm:p-6">
                 <h2 class="text-lg font-semibold text-gray-900">تعديل الموظف</h2>
+                <div
+                    v-if="editSubmitDiagnostics"
+                    id="employee-edit-diagnostics"
+                    class="mt-3 rounded-lg border-2 border-rose-600 bg-rose-100 px-3 py-3 text-sm text-rose-950"
+                    dir="auto"
+                >
+                    <p class="font-bold">تشخيص الحفظ</p>
+                    <pre class="mt-2 max-h-52 overflow-y-auto whitespace-pre-wrap break-words font-sans text-xs leading-relaxed">{{ editSubmitDiagnostics }}</pre>
+                </div>
                 <div
                     v-if="Object.keys(editForm.errors).length"
                     class="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900"
