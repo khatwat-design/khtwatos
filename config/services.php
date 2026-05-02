@@ -71,6 +71,16 @@ return [
         /** المفتاح السري لمنتج Instagram في لوحة المطورين إن اختلف عن تطبيق فيسبوك الرئيسي */
         'app_secret' => env('INSTAGRAM_APP_SECRET', env('META_ADS_APP_SECRET')),
         'graph_version' => env('INSTAGRAM_GRAPH_VERSION', env('META_ADS_GRAPH_VERSION', 'v22.0')),
+        /**
+         * رمز وصول طويل من مدير الأعمال → مستخدم النظام → إنشاء رمز (صلاحيات Instagram messaging).
+         * إن وُجد يُستخدم لإرسال DM بدل توكن بوابة العميل.
+         */
+        'access_token' => env('INSTAGRAM_ACCESS_TOKEN'),
+        /**
+         * معرّف Instagram Business Account لاستدعاء ‎POST /{ig-id}/messages‎ (نفس اللي في الويب هوك entry.id عادةً).
+         * إن وُجد مع access_token يُفضَّل على قيمة التكامل للعميل.
+         */
+        'business_account_id' => env('INSTAGRAM_BUSINESS_ACCOUNT_ID'),
     ],
 
     'whatsapp' => [

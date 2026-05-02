@@ -303,7 +303,22 @@ class OutsideController extends Controller
         }
 
         $integration = ClientMetaIntegration::query()->where('client_id', $clientId)->first();
-        $igBiz = (string) ($integration?->meta_instagram_account_id ?? '');
+        $igFromIntegration = (string) ($integration?->meta_instagram_account_id ?? '');
+
+        $systemToken = trim((string) config('services.instagram.access_token', ''));
+        if ($systemToken !== '') {
+            $igBiz = trim((string) config('services.instagram.business_account_id', ''));
+            if ($igBiz === '') {
+                $igBiz = $igFromIntegration;
+            }
+            if ($igBiz === '') {
+                throw new \RuntimeException('ضبط INSTAGRAM_BUSINESS_ACCOUNT_ID في .env أو أضف meta_instagram_account_id لتكامل العميل.');
+            }
+
+            return [$igBiz, $systemToken, $psid];
+        }
+
+        $igBiz = $igFromIntegration;
         if ($igBiz === '') {
             throw new \RuntimeException('لا يوجد حساب إنستغرام أعمال في تكامل ميتا لهذا العميل.');
         }
@@ -311,7 +326,7 @@ class OutsideController extends Controller
         $tokenRow = ClientMetaOauthToken::query()->where('client_id', $clientId)->first();
         $token = $tokenRow && $tokenRow->access_token !== null ? (string) $tokenRow->access_token : '';
         if ($token === '') {
-            throw new \RuntimeException('لا يوجد رمز وصول ميتا صالح للعميل؛ أعد الربط من بوابة العميل.');
+            throw new \RuntimeException('لا يوجد رمز وصول ميتا صالح للعميل؛ أعد الربط من بوابة العميل أو ضبط INSTAGRAM_ACCESS_TOKEN من مدير الأعمال.');
         }
 
         return [$igBiz, $token, $psid];
