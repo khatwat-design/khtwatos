@@ -20,6 +20,7 @@ const props = defineProps({
 
 const mobilePanel = ref('list');
 const activeConversationId = ref(props.conversations?.[0]?.id || null);
+const channelFilter = ref('all');
 const conversationSearch = ref('');
 const messagesEl = ref(null);
 const composerEl = ref(null);
@@ -44,12 +45,24 @@ const activeConversation = computed(() =>
     (props.conversations || []).find((item) => item.id === activeConversationId.value) || null,
 );
 
+const channelFilteredConversations = computed(() => {
+    const list = props.conversations || [];
+    if (channelFilter.value === 'all') {
+        return list;
+    }
+    if (channelFilter.value === 'instagram') {
+        return list.filter((c) => c.contact?.channel === 'instagram');
+    }
+    return list.filter((c) => (c.contact?.channel || 'whatsapp') !== 'instagram');
+});
+
 const filteredConversations = computed(() => {
     const keyword = conversationSearch.value.trim().toLowerCase();
+    const base = channelFilteredConversations.value;
     if (!keyword) {
-        return props.conversations || [];
+        return base;
     }
-    return (props.conversations || []).filter((conversation) => {
+    return base.filter((conversation) => {
         const name = String(conversation.contact?.name || '').toLowerCase();
         const phone = String(conversation.contact?.phone || '').toLowerCase();
         const ig = String(conversation.contact?.instagram_psid || '').toLowerCase();
@@ -122,6 +135,20 @@ watch(
         }
     },
     { deep: true },
+);
+
+watch(
+    filteredConversations,
+    (list) => {
+        if (!list?.length) {
+            activeConversationId.value = null;
+            return;
+        }
+        if (!list.some((c) => c.id === activeConversationId.value)) {
+            activeConversationId.value = list[0].id;
+        }
+    },
+    { immediate: true },
 );
 
 watch(
@@ -399,7 +426,9 @@ const threadBgStyle = {
     <AuthenticatedLayout>
         <template #title>الخارج</template>
 
-        <div class="outside-inbox -mx-3 flex min-h-0 flex-1 flex-col sm:-mx-4 lg:-mx-6">
+        <div
+            class="outside-inbox -mx-3 flex min-h-0 flex-col overflow-hidden sm:-mx-4 lg:-mx-6 max-md:h-[calc(100dvh-8.75rem)] max-md:max-h-[calc(100dvh-8.75rem)] md:max-h-[calc(100dvh-7rem)] md:h-[calc(100dvh-7rem)] lg:h-[min(56rem,calc(100vh-9rem))] lg:max-h-[calc(100vh-8rem)]"
+        >
             <!-- شريط علوي: زر التحليلات + ملخص سريع + مزامنة -->
             <div class="mb-3 shrink-0 space-y-2 px-1 sm:mb-4 sm:px-0 lg:px-1">
                 <div class="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -498,11 +527,11 @@ const threadBgStyle = {
             </div>
 
             <div
-                class="grid min-h-0 flex-1 gap-0 overflow-hidden rounded-2xl border border-app-surface-border/90 bg-app-surface/90 shadow-xl shadow-slate-900/[0.06] ring-1 ring-black/[0.03] backdrop-blur-md sm:rounded-3xl lg:grid-cols-[minmax(260px,1fr)_minmax(0,2.2fr)] xl:grid-cols-[380px_minmax(0,1fr)] 2xl:grid-cols-[420px_minmax(0,1fr)]"
+                class="grid h-full min-h-0 flex-1 grid-cols-1 grid-rows-1 overflow-hidden rounded-2xl border border-app-surface-border/90 bg-app-surface/90 shadow-xl shadow-slate-900/[0.06] ring-1 ring-black/[0.03] backdrop-blur-md auto-rows-[minmax(0,1fr)] sm:rounded-3xl lg:grid-cols-[minmax(260px,1fr)_minmax(0,2.2fr)] xl:grid-cols-[380px_minmax(0,1fr)] 2xl:grid-cols-[420px_minmax(0,1fr)]"
             >
                 <aside
                     :class="[
-                        'flex min-h-0 min-h-[52dvh] flex-col border-app-surface-border/80 bg-gradient-to-b from-white/98 to-slate-50/90 lg:min-h-0 lg:border-e',
+                        'flex h-full min-h-0 flex-col overflow-hidden border-app-surface-border/80 bg-gradient-to-b from-white/98 to-slate-50/90 lg:border-e',
                         mobilePanel === 'chat' ? 'hidden lg:flex' : 'flex',
                     ]"
                 >
@@ -524,9 +553,67 @@ const threadBgStyle = {
                                 placeholder="بحث بالاسم، الرقم، أو المعرف…"
                             >
                         </div>
+                        <div
+                            class="mt-3 flex flex-wrap gap-1.5"
+                            role="group"
+                            aria-label="تصفية حسب القناة"
+                        >
+                            <button
+                                type="button"
+                                class="rounded-xl px-3 py-1.5 text-[11px] font-bold transition sm:text-xs"
+                                :class="
+                                    channelFilter === 'all'
+                                        ? 'bg-slate-900 text-white shadow-sm ring-1 ring-slate-900/10'
+                                        : 'border border-slate-200/90 bg-white text-slate-700 hover:border-brand-300 hover:bg-brand-50/50'
+                                "
+                                @click="channelFilter = 'all'"
+                            >
+                                الكل
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-[11px] font-bold transition sm:text-xs"
+                                :class="
+                                    channelFilter === 'whatsapp'
+                                        ? 'border-emerald-500/40 bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-600/20'
+                                        : 'border-slate-200/90 bg-white text-slate-700 hover:border-emerald-300 hover:bg-emerald-50/60'
+                                "
+                                @click="channelFilter = 'whatsapp'"
+                            >
+                                <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.881 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+                                </svg>
+                                واتساب
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-[11px] font-bold transition sm:text-xs"
+                                :class="
+                                    channelFilter === 'instagram'
+                                        ? 'border-pink-500/50 bg-gradient-to-r from-[#f09433] via-[#e6683c] to-[#bc1888] text-white shadow-sm'
+                                        : 'border-slate-200/90 bg-white text-slate-700 hover:border-pink-300 hover:bg-pink-50/50'
+                                "
+                                @click="channelFilter = 'instagram'"
+                            >
+                                <svg
+                                    class="h-3.5 w-3.5 shrink-0"
+                                    :class="channelFilter === 'instagram' ? 'text-white' : 'text-pink-600'"
+                                    viewBox="0 0 24 24"
+                                    aria-hidden="true"
+                                >
+                                    <path
+                                        fill="currentColor"
+                                        d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"
+                                    />
+                                </svg>
+                                <span :class="channelFilter === 'instagram' ? 'text-white' : 'text-pink-700'">إنستغرام</span>
+                            </button>
+                        </div>
                     </div>
 
-                    <div class="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-2 py-2 sm:px-2.5 sm:py-2.5">
+                    <div
+                        class="outside-scroll min-h-0 flex-1 touch-pan-y space-y-1 overflow-y-auto overscroll-y-contain px-2 py-2 [-webkit-overflow-scrolling:touch] sm:px-2.5 sm:py-2.5"
+                    >
                         <button
                             v-for="conversation in filteredConversations"
                             :key="conversation.id"
@@ -619,7 +706,7 @@ const threadBgStyle = {
                             </div>
                             <p class="mt-3 text-sm font-medium text-slate-600">لا توجد محادثات مطابقة</p>
                             <p class="mt-1 max-w-[260px] text-xs text-slate-500">
-                                جرّب تغيير البحث. تُنشأ المحادثات تلقائياً عند وصول رسائل واتساب أو إنستغرام.
+                                جرّب البحث أو تصفية القناة (واتساب / إنستغرام). تُنشأ المحادثات تلقائياً عند وصول رسائل.
                             </p>
                         </div>
                     </div>
@@ -627,7 +714,7 @@ const threadBgStyle = {
 
                 <section
                     :class="[
-                        'flex min-h-0 min-h-[60dvh] flex-col bg-[#e5ddd5] lg:min-h-0',
+                        'flex h-full min-h-0 flex-col overflow-hidden bg-[#e5ddd5]',
                         mobilePanel === 'list' ? 'hidden lg:flex' : 'flex',
                     ]"
                 >
@@ -764,7 +851,7 @@ const threadBgStyle = {
                         <div
                             ref="messagesEl"
                             dir="ltr"
-                            class="outside-thread flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain px-2 py-3 sm:px-4 sm:py-4"
+                            class="outside-thread outside-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain px-2 py-3 touch-pan-y [-webkit-overflow-scrolling:touch] sm:px-4 sm:py-4"
                             :style="threadBgStyle"
                         >
                             <template v-for="item in messageTimeline" :key="item.key">
