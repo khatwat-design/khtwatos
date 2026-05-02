@@ -78,25 +78,34 @@ class EmployeeController extends Controller
     {
         $data = $this->validatedEmployee($request, isCreate: true);
 
-        $user = User::query()->create([
-            'name' => $data['name'],
-            'username' => $data['username'],
-            'phone' => $data['phone'] ?? null,
-            'email' => null,
-            'password' => $data['password'],
-            'role' => $data['role'],
-            'is_bookable' => (bool) ($data['is_bookable'] ?? false),
-            'availability_days' => $data['availability_days'],
-            'availability_start_time' => $data['availability_start_time'],
-            'availability_end_time' => $data['availability_end_time'],
-            'availability_schedule' => $data['availability_schedule'],
-            'email_verified_at' => now(),
-        ]);
+        try {
+            $user = User::query()->create([
+                'name' => $data['name'],
+                'username' => $data['username'],
+                'phone' => $data['phone'] ?? null,
+                'email' => null,
+                'password' => $data['password'],
+                'role' => $data['role'],
+                'is_bookable' => (bool) ($data['is_bookable'] ?? false),
+                'availability_days' => $data['availability_days'],
+                'availability_start_time' => $data['availability_start_time'],
+                'availability_end_time' => $data['availability_end_time'],
+                'availability_schedule' => $data['availability_schedule'],
+                'email_verified_at' => now(),
+            ]);
 
-        $user->teams()->sync($this->teamPivotSyncPayload($data['teams'] ?? []));
-        if (! empty($user->phone)) {
-            EmployeeOutsideContactSync::sync((int) $user->id, (string) $user->phone, (string) $user->name);
+            $user->teams()->sync($this->teamPivotSyncPayload($data['teams'] ?? []));
+            if (! empty($user->phone)) {
+                EmployeeOutsideContactSync::sync((int) $user->id, (string) $user->phone, (string) $user->name);
+            }
+        } catch (Throwable $e) {
+            report($e);
+
+            throw ValidationException::withMessages([
+                'employee' => $this->employeeSaveFailureMessage($e),
+            ]);
         }
+
         $adminIds = User::query()->where('role', 'admin')->pluck('id')->map(fn ($id) => (int) $id)->all();
         $this->smartNotifications->notifyUsers($adminIds, [
             'title' => 'إضافة موظف جديد',
@@ -201,6 +210,11 @@ class EmployeeController extends Controller
     private function validatedEmployee(Request $request, bool $isCreate, ?int $userId = null): array
     {
         $this->normalizeEmployeeRequestInput($request);
+
+        if (! $isCreate && $request->has('password') && $request->input('password') === '') {
+            $request->merge(['password' => null]);
+        }
+
         $this->ensureTeams();
         $allowedDialCodes = ArabCountryDialCodes::dialCodesForValidation();
 
@@ -475,5 +489,16 @@ class EmployeeController extends Controller
         }
 
         return ['phone_country_code' => '964', 'phone_local' => $digits];
+    }
+
+    private function employeeSaveFailureMessage(Throwable $e): string
+    {
+        $hint = ' راجع ملف السجل ‎storage/logs/laravel.log‎ أو ضع APP_DEBUG=true مؤقتًا لعرض السبب في الواجهة.';
+
+        if (config('app.debug')) {
+            return 'فشل حفظ الموظف: '.$e->getMessage().' ('.basename((string) $e->getFile()).':'.$e->getLine().').';
+        }
+
+        return 'فشل حفظ الموظف بسبب خطأ في الخادم.'.$hint;
     }
 }

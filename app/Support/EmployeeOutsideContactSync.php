@@ -28,7 +28,12 @@ final class EmployeeOutsideContactSync
             ]
         );
 
-        $meta = array_merge($contact->meta ?? [], [
+        $existingMeta = $contact->meta;
+        if (! is_array($existingMeta)) {
+            $existingMeta = [];
+        }
+
+        $meta = array_merge($existingMeta, [
             'employee_user_id' => $userId,
             'source' => 'employee_provision',
         ]);

@@ -44,10 +44,21 @@ final class ArabCountryDialCodes
      */
     public static function codesLongestFirst(): array
     {
-        $codes = array_keys(self::options());
+        /** مفاتيح PHP الرقمية تصبح int؛ نُحوّل كلها إلى نص قبل الفرز لتجنب أخطاء الأنواع مع usort */
+        $codes = array_map('strval', array_keys(self::options()));
         usort($codes, fn (string $a, string $b): int => strlen($b) <=> strlen($a));
 
         return $codes;
+    }
+
+    /**
+     * لاستخدام Rule::in بعد أن تحوّل PHP مفاتيحًا مثل "966" إلى أعداد صحيحة داخل المصفوفة.
+     *
+     * @return list<string>
+     */
+    public static function dialCodesForValidation(): array
+    {
+        return array_values(array_unique(array_map('strval', array_keys(self::options()))));
     }
 
     /**
@@ -57,7 +68,8 @@ final class ArabCountryDialCodes
     {
         $out = [];
         foreach (self::options() as $code => $label) {
-            $out[] = ['value' => $code, 'label' => $label];
+            /** إجبار value كنص في JSON حتى لا يحدّد Vue الرقم كـ number فيرفض Laravel قاعدة string */
+            $out[] = ['value' => (string) $code, 'label' => $label];
         }
 
         return $out;

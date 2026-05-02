@@ -112,4 +112,38 @@ class EmployeeDialCodeSaveTest extends TestCase
 
         $response->assertSessionHasNoErrors()->assertRedirect(route('employees.index'));
     }
+
+    public function test_can_patch_employee_with_syrian_phone_and_outside_sync(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+        $employee = User::factory()->create([
+            'username' => 'sypatch01',
+            'role' => 'lead',
+            'phone' => null,
+        ]);
+
+        $payload = [
+            'name' => $employee->name,
+            'username' => 'sypatch01',
+            'password' => '',
+            'role' => 'lead',
+            'is_bookable' => true,
+            'phone_country_code' => '963',
+            'phone_local' => '938466137',
+            'availability_schedule' => $this->sampleAvailabilitySchedule(),
+            'teams' => [],
+        ];
+
+        $response = $this->actingAs($admin)->patch(route('employees.update', $employee), $payload);
+
+        $response->assertSessionHasNoErrors()->assertRedirect(route('employees.index'));
+
+        $this->assertDatabaseHas('users', [
+            'id' => $employee->id,
+            'phone' => '963938466137',
+        ]);
+        $this->assertDatabaseHas('outside_contacts', [
+            'phone' => '963938466137',
+        ]);
+    }
 }
