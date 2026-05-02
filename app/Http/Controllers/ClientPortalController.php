@@ -335,11 +335,12 @@ class ClientPortalController extends Controller
         $request->session()->put('portal_meta_oauth_state', $state);
         $request->session()->put('portal_meta_oauth_client_id', (int) $client->id);
 
+        // instagram_manage_messages + pages_messaging: لإرسال/استقبال DM في «الخارج» عبر Instagram Messaging API
         $query = http_build_query([
             'client_id' => $appId,
             'redirect_uri' => $redirectUri,
             'state' => $state,
-            'scope' => 'ads_read,read_insights,business_management,pages_show_list,instagram_basic',
+            'scope' => 'ads_read,read_insights,business_management,pages_show_list,instagram_basic,instagram_manage_messages,pages_messaging',
             'response_type' => 'code',
         ]);
 
