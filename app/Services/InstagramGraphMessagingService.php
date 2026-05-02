@@ -14,11 +14,13 @@ class InstagramGraphMessagingService
      */
     public function sendText(string $instagramBusinessAccountId, string $pageAccessToken, string $recipientPsid, string $text): array
     {
+        $pageAccessToken = $this->normalizeGraphAccessToken($pageAccessToken);
+
         $version = (string) config('services.instagram.graph_version', config('services.meta_ads.version', 'v22.0'));
         $url = sprintf(
             'https://graph.facebook.com/%s/%s/messages',
             $version,
-            $instagramBusinessAccountId
+            trim($instagramBusinessAccountId)
         );
 
         $payload = [
@@ -39,5 +41,19 @@ class InstagramGraphMessagingService
 
         /** @var array<string, mixed> */
         return $response->json() ?? [];
+    }
+
+    /**
+     * يزيل المسافات/الأسطر والـ BOM اللاصقة باللصق من nano أو .env متعدد الأسطر الخاطئ.
+     */
+    private function normalizeGraphAccessToken(string $raw): string
+    {
+        $t = preg_replace('/^\xEF\xBB\xBF/', '', $raw) ?? $raw;
+        $t = trim($t);
+        if ($t !== '' && ($t[0] === '"' || $t[0] === "'")) {
+            $t = trim($t, " \t\n\r\0\x0B\"'");
+        }
+
+        return preg_replace('/\s+/u', '', $t) ?? $t;
     }
 }
