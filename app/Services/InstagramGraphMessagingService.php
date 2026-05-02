@@ -14,7 +14,7 @@ class InstagramGraphMessagingService
      */
     public function sendText(string $instagramBusinessAccountId, string $pageAccessToken, string $recipientPsid, string $text): array
     {
-        $version = (string) config('services.meta_ads.version', 'v22.0');
+        $version = (string) config('services.instagram.graph_version', config('services.meta_ads.version', 'v22.0'));
         $url = sprintf(
             'https://graph.facebook.com/%s/%s/messages',
             $version,

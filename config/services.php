@@ -57,14 +57,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Instagram (قسم الخارج — ويب هوك الرسائل)
+    | Instagram (قسم الخارج — Webhook + Graph Messaging)
     |--------------------------------------------------------------------------
     |
-    | يمكن استخدام نفس رمز التحقق الخاص بالواتساب إذا كان endpoint واحد في Meta.
+    | التحقق من الويب هوك: نفس مسار Laravel ‎/outside/webhook‎ لـ WhatsApp و Instagram.
+    | إن تركت INSTAGRAM_* فارغة تُستخدم قيم META_ADS_* (نفس تطبيق ميتا غالباً).
     |
     */
     'instagram' => [
         'webhook_verify_token' => env('INSTAGRAM_WEBHOOK_VERIFY_TOKEN', env('WHATSAPP_WEBHOOK_VERIFY_TOKEN')),
+        /** معرّف يظهر في Meta → Instagram (أو نفس META_ADS_APP_ID) */
+        'app_id' => env('INSTAGRAM_APP_ID', env('META_ADS_APP_ID')),
+        /** المفتاح السري لمنتج Instagram في لوحة المطورين إن اختلف عن تطبيق فيسبوك الرئيسي */
+        'app_secret' => env('INSTAGRAM_APP_SECRET', env('META_ADS_APP_SECRET')),
+        'graph_version' => env('INSTAGRAM_GRAPH_VERSION', env('META_ADS_GRAPH_VERSION', 'v22.0')),
     ],
 
     'whatsapp' => [
