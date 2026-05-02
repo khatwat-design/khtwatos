@@ -39,16 +39,6 @@ class OutsideController extends Controller
             ->orderByDesc('updated_at')
             ->get();
 
-        $outboundLast7Days = OutsideMessage::query()
-            ->where('direction', 'outbound')
-            ->where('created_at', '>=', now()->subDays(7))
-            ->count();
-        $failedLast7Days = OutsideMessage::query()
-            ->where('direction', 'outbound')
-            ->where('provider_status', 'failed')
-            ->where('created_at', '>=', now()->subDays(7))
-            ->count();
-
         return Inertia::render('Outside/Index', [
             'can_delete_outside_contacts' => (bool) auth()->user()?->isAdmin(),
             'conversations' => $conversations->map(fn (OutsideConversation $conversation) => [
@@ -90,13 +80,6 @@ class OutsideController extends Controller
                 ['value' => 'unlikely', 'label' => 'عميل غير محتمل'],
                 ['value' => 'qualified', 'label' => 'مؤهل'],
                 ['value' => 'closed', 'label' => 'مغلقة'],
-            ],
-            'metrics' => [
-                'total_conversations' => $conversations->count(),
-                'new_conversations' => $conversations->where('status', 'new')->count(),
-                'closed_conversations' => $conversations->where('status', 'closed')->count(),
-                'outbound_last_7_days' => $outboundLast7Days,
-                'failed_last_7_days' => $failedLast7Days,
             ],
         ]);
     }

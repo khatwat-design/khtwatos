@@ -9,6 +9,7 @@ use App\Models\PipelineStage;
 use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\OutsideConversationMetrics;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -18,7 +19,7 @@ class HomeController extends Controller
 {
     public function index(Request $request): Response
     {
-        if (!$request->user()?->isAdmin()) {
+        if (! $request->user()?->isAdmin()) {
             abort(403, 'هذه الصفحة لمدير النظام فقط.');
         }
 
@@ -90,6 +91,7 @@ class HomeController extends Controller
             ->pluck('total', 'campaign_manager_id');
 
         return Inertia::render('Home/Index', [
+            'outside_metrics' => OutsideConversationMetrics::summary(),
             'cards' => [
                 'clients_total' => Client::query()
                     ->where(function ($q) {
@@ -138,4 +140,3 @@ class HomeController extends Controller
         ]);
     }
 }
-

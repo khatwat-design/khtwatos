@@ -11,7 +11,6 @@ const props = defineProps({
     conversations: Array,
     users: Array,
     conversation_statuses: Array,
-    metrics: Object,
     can_delete_outside_contacts: {
         type: Boolean,
         default: false,
@@ -26,7 +25,6 @@ const messagesEl = ref(null);
 const composerEl = ref(null);
 const page = usePage();
 const conversationSettingsOpen = ref(false);
-const analyticsOpen = ref(false);
 
 const authUser = computed(() => page.props.auth?.user || null);
 const selfAvatarUrl = computed(() => authUser.value?.avatar_url || '/images/mobile-logo.png');
@@ -165,7 +163,7 @@ watch(
         }
         router.post(route('outside.conversations.read', conversationId), {}, {
             preserveScroll: true,
-            only: ['conversations', 'metrics'],
+            only: ['conversations'],
         });
     },
     { immediate: true },
@@ -220,7 +218,7 @@ function submitMessage() {
     messageForm.post(route('outside.messages.store', activeConversation.value.id), {
         preserveScroll: true,
         preserveState: true,
-        only: ['conversations', 'metrics'],
+        only: ['conversations'],
         onSuccess: () => {
             messageForm.reset();
             nextTick(() => scrollMessagesToEnd());
@@ -240,7 +238,7 @@ function submitConversationMeta() {
     conversationForm.patch(route('outside.conversations.update', activeConversation.value.id), {
         preserveScroll: true,
         preserveState: true,
-        only: ['conversations', 'metrics'],
+        only: ['conversations'],
     });
 }
 
@@ -251,7 +249,7 @@ function retryMessage(messageId) {
     retryForm.post(route('outside.messages.retry', messageId), {
         preserveScroll: true,
         preserveState: true,
-        only: ['conversations', 'metrics'],
+        only: ['conversations'],
     });
 }
 
@@ -388,7 +386,7 @@ function reloadOutsideDataQuietly() {
         return;
     }
     router.reload({
-        only: ['conversations', 'metrics'],
+        only: ['conversations'],
         preserveScroll: true,
         preserveState: true,
     });
@@ -402,13 +400,38 @@ function onVisibilityOrFocus() {
     }
 }
 
+/** روابط من صفحة العميل: ?client=&channel=&conversation= */
+function applyDeepLinkFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    const convParam = params.get('conversation');
+    const clientParam = params.get('client');
+    const channelParam = params.get('channel');
+    if (channelParam === 'instagram' || channelParam === 'whatsapp') {
+        channelFilter.value = channelParam;
+    }
+    nextTick(() => {
+        const convId = convParam ? Number(convParam) : NaN;
+        if (!Number.isNaN(convId) && convId > 0 && props.conversations.some((c) => c.id === convId)) {
+            activeConversationId.value = convId;
+            mobilePanel.value = 'chat';
+        } else if (clientParam) {
+            const match = filteredConversations.value.find(
+                (c) => String(c.contact?.client_id ?? '') === String(clientParam),
+            );
+            if (match) {
+                activeConversationId.value = match.id;
+                mobilePanel.value = 'chat';
+            }
+        }
+        nextTick(() => scrollMessagesToEnd());
+    });
+}
+
 onMounted(() => {
+    applyDeepLinkFromQuery();
     pollTimer = window.setInterval(reloadOutsideDataQuietly, OUTSIDE_POLL_MS);
     document.addEventListener('visibilitychange', onVisibilityOrFocus);
     window.addEventListener('focus', onVisibilityOrFocus);
-    if (typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches) {
-        analyticsOpen.value = true;
-    }
     nextTick(() => scrollMessagesToEnd());
 });
 
@@ -435,89 +458,7 @@ const threadBgStyle = {
         <div
             class="outside-inbox -mx-3 flex min-h-0 w-full flex-1 flex-col overflow-hidden sm:-mx-4 lg:-mx-6 max-md:h-[calc(100dvh-10.5rem)] max-md:max-h-[calc(100dvh-10.5rem)] md:max-h-[calc(100dvh-9.5rem)] md:h-[calc(100dvh-9.5rem)] lg:h-[min(42rem,calc(100svh-13.5rem))] lg:max-h-[min(42rem,calc(100svh-13.5rem))] xl:h-[min(46rem,calc(100svh-12.5rem))] xl:max-h-[min(46rem,calc(100svh-12.5rem))]"
         >
-            <!-- شريط علوي: زر التحليلات + ملخص سريع + مزامنة -->
             <div class="mb-3 shrink-0 space-y-2 px-1 sm:mb-4 sm:px-0 lg:px-1">
-                <div class="flex flex-wrap items-center gap-2 sm:gap-3">
-                    <button
-                        type="button"
-                        class="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200/90 bg-white px-4 text-sm font-bold text-slate-800 shadow-sm transition hover:border-brand-300 hover:bg-brand-50/40 sm:flex-none sm:justify-start sm:px-5"
-                        :aria-expanded="analyticsOpen"
-                        @click="analyticsOpen = !analyticsOpen"
-                    >
-                        <svg class="h-5 w-5 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
-                        <span>ملخص الأداء والتحليلات</span>
-                        <svg
-                            class="h-4 w-4 text-slate-400 transition sm:ms-1"
-                            :class="analyticsOpen ? 'rotate-180' : ''"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="2"
-                            aria-hidden="true"
-                        >
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </button>
-
-                    <div
-                        class="flex min-h-[2.5rem] flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/90 px-3 py-2 text-xs font-medium text-slate-600 sm:flex-none sm:justify-start sm:px-4"
-                    >
-                        <span class="tabular-nums font-bold text-slate-900">{{ metrics?.total_conversations ?? 0 }}</span>
-                        <span class="text-slate-500">محادثة</span>
-                        <span class="hidden h-4 w-px bg-slate-200 sm:inline" aria-hidden="true" />
-                        <span class="hidden items-center gap-1.5 sm:inline-flex">
-                            <span class="relative flex h-2 w-2 shrink-0">
-                                <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-45" />
-                                <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                            </span>
-                            <span class="text-[11px] text-emerald-800/90">مزامنة مباشرة</span>
-                        </span>
-                    </div>
-                </div>
-
-                <Transition
-                    enter-active-class="transition duration-200 ease-out"
-                    enter-from-class="opacity-0 -translate-y-1"
-                    enter-to-class="opacity-100 translate-y-0"
-                    leave-active-class="transition duration-150 ease-in"
-                    leave-from-class="opacity-100 translate-y-0"
-                    leave-to-class="opacity-0 -translate-y-1"
-                >
-                    <div
-                        v-show="analyticsOpen"
-                        class="rounded-2xl border border-slate-200/90 bg-white/95 p-3 shadow-md sm:rounded-3xl sm:p-4"
-                    >
-                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-3">
-                            <div class="rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-3 sm:p-3.5">
-                                <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">الإجمالي</p>
-                                <p class="mt-1 text-2xl font-bold tabular-nums text-slate-900">{{ metrics?.total_conversations ?? 0 }}</p>
-                                <p class="mt-0.5 text-[10px] text-slate-500">كل المحادثات</p>
-                            </div>
-                            <div class="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/90 to-white p-3 sm:p-3.5">
-                                <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-800/80">جديد</p>
-                                <p class="mt-1 text-2xl font-bold tabular-nums text-emerald-900">{{ metrics?.new_conversations ?? 0 }}</p>
-                            </div>
-                            <div class="rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-3 sm:p-3.5">
-                                <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">مغلقة</p>
-                                <p class="mt-1 text-2xl font-bold tabular-nums text-slate-900">{{ metrics?.closed_conversations ?? 0 }}</p>
-                            </div>
-                            <div class="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50/90 to-white p-3 sm:p-3.5">
-                                <p class="text-[10px] font-bold uppercase tracking-wide text-sky-800/80">صادر ٧ أيام</p>
-                                <p class="mt-1 text-2xl font-bold tabular-nums text-sky-950">{{ metrics?.outbound_last_7_days ?? 0 }}</p>
-                            </div>
-                            <div class="col-span-2 rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50/90 to-white p-3 sm:col-span-1 sm:p-3.5">
-                                <p class="text-[10px] font-bold uppercase tracking-wide text-rose-800/80">فشل إرسال ٧ أيام</p>
-                                <p class="mt-1 text-2xl font-bold tabular-nums text-rose-950">{{ metrics?.failed_last_7_days ?? 0 }}</p>
-                            </div>
-                        </div>
-                        <p class="mt-3 text-center text-[11px] leading-relaxed text-slate-500 sm:text-start">
-                            يشمل واتساب وإنستغرام. التحديث التلقائي ~كل ثانية أثناء بقائك في الصفحة.
-                        </p>
-                    </div>
-                </Transition>
-
                 <div
                     v-if="page.props.flash?.success"
                     class="rounded-xl border border-emerald-200/80 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"

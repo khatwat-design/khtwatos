@@ -1,9 +1,10 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
 const props = defineProps({
+    outside_metrics: Object,
     cards: Object,
     clientsByStage: Array,
     tasksByColumn: Array,
@@ -210,6 +211,59 @@ const todayDateLabel = computed(() =>
                 <div class="border-t border-slate-200 bg-white/75 px-5 py-2 text-xs text-slate-600">
                     {{ todayDateLabel }}
                 </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200/90 bg-white/95 p-3 shadow-md sm:rounded-3xl sm:p-4">
+                <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                    <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+                        <svg class="h-6 w-6 shrink-0 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        <h3 class="text-base font-bold text-slate-900">ملخص الأداء والتحليلات</h3>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+                        <div
+                            class="flex min-h-[2.5rem] flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/90 px-3 py-2 text-xs font-medium text-slate-600 sm:flex-none sm:justify-start sm:px-4"
+                        >
+                            <span class="tabular-nums font-bold text-slate-900">{{ props.outside_metrics?.total_conversations ?? 0 }}</span>
+                            <span class="text-slate-500">محادثة</span>
+                            <span class="hidden h-4 w-px bg-slate-200 sm:inline" aria-hidden="true" />
+                            <span class="hidden text-[11px] text-slate-500 sm:inline">أرقام عند التحميل</span>
+                        </div>
+                        <Link
+                            :href="route('outside.index')"
+                            class="inline-flex h-10 shrink-0 items-center justify-center rounded-2xl border border-brand-200 bg-brand-50/80 px-4 text-sm font-bold text-brand-800 transition hover:bg-brand-100/90"
+                        >
+                            فتح الخارج
+                        </Link>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 lg:gap-3">
+                    <div class="rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-3 sm:p-3.5">
+                        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">الإجمالي</p>
+                        <p class="mt-1 text-2xl font-bold tabular-nums text-slate-900">{{ props.outside_metrics?.total_conversations ?? 0 }}</p>
+                        <p class="mt-0.5 text-[10px] text-slate-500">كل المحادثات</p>
+                    </div>
+                    <div class="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/90 to-white p-3 sm:p-3.5">
+                        <p class="text-[10px] font-bold uppercase tracking-wide text-emerald-800/80">جديد</p>
+                        <p class="mt-1 text-2xl font-bold tabular-nums text-emerald-900">{{ props.outside_metrics?.new_conversations ?? 0 }}</p>
+                    </div>
+                    <div class="rounded-2xl border border-slate-100 bg-gradient-to-br from-slate-50 to-white p-3 sm:p-3.5">
+                        <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">مغلقة</p>
+                        <p class="mt-1 text-2xl font-bold tabular-nums text-slate-900">{{ props.outside_metrics?.closed_conversations ?? 0 }}</p>
+                    </div>
+                    <div class="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50/90 to-white p-3 sm:p-3.5">
+                        <p class="text-[10px] font-bold uppercase tracking-wide text-sky-800/80">صادر ٧ أيام</p>
+                        <p class="mt-1 text-2xl font-bold tabular-nums text-sky-950">{{ props.outside_metrics?.outbound_last_7_days ?? 0 }}</p>
+                    </div>
+                    <div class="col-span-2 rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50/90 to-white p-3 sm:col-span-1 sm:p-3.5">
+                        <p class="text-[10px] font-bold uppercase tracking-wide text-rose-800/80">فشل إرسال ٧ أيام</p>
+                        <p class="mt-1 text-2xl font-bold tabular-nums text-rose-950">{{ props.outside_metrics?.failed_last_7_days ?? 0 }}</p>
+                    </div>
+                </div>
+                <p class="mt-3 text-center text-[11px] leading-relaxed text-slate-500 sm:text-start">
+                    يشمل واتساب وإنستغرام. تُحدَّث الأرقام عند تحميل الصفحة؛ للمزامنة اللحظية أثناء العمل افتح صفحة الخارج.
+                </p>
             </div>
 
             <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

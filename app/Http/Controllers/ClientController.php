@@ -10,6 +10,7 @@ use App\Models\ClientMetaIntegration;
 use App\Models\ClientProduct;
 use App\Models\ClientStageHistory;
 use App\Models\OutsideContact;
+use App\Models\OutsideConversation;
 use App\Models\PipelineStage;
 use App\Models\Task;
 use App\Models\TaskStatusHistory;
@@ -152,6 +153,33 @@ class ClientController extends Controller
             $metaIntegration = ClientMetaIntegration::query()
                 ->where('client_id', $client->id)
                 ->first();
+        }
+
+        $outsideThreadsPayload = [
+            'whatsapp' => null,
+            'instagram' => null,
+        ];
+        if (Schema::hasTable('outside_contacts') && Schema::hasTable('outside_conversations')) {
+            $outsideContacts = OutsideContact::query()
+                ->where('client_id', $client->id)
+                ->orderByDesc('last_message_at')
+                ->get(['id', 'channel', 'last_message_at']);
+
+            foreach ($outsideContacts as $contact) {
+                $channel = ($contact->channel === 'instagram') ? 'instagram' : 'whatsapp';
+                if ($outsideThreadsPayload[$channel] !== null) {
+                    continue;
+                }
+                $conversationId = OutsideConversation::query()
+                    ->where('outside_contact_id', $contact->id)
+                    ->value('id');
+
+                $outsideThreadsPayload[$channel] = [
+                    'conversation_id' => $conversationId ? (int) $conversationId : null,
+                    'contact_id' => (int) $contact->id,
+                    'last_message_at' => $contact->last_message_at?->toIso8601String(),
+                ];
+            }
         }
 
         return Inertia::render('Clients/Show', [
@@ -304,6 +332,7 @@ class ClientController extends Controller
                         ->count()
                     : 0,
             ],
+            'outside_threads' => $outsideThreadsPayload,
             'accountManagers' => User::orderBy('name')->get(['id', 'name']),
             'campaignManagers' => $this->campaignManagers(),
             'can_manage_subscription' => $this->canManageClientSubscription($request->user()),
