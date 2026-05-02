@@ -8,7 +8,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     employees: Array,
@@ -21,6 +21,13 @@ const props = defineProps({
 });
 
 const page = usePage();
+
+/** إن تعطّلت props في بيئة الإنتاج لا يبقى select بدون خيارات فيُرسل مفتاح فارغ */
+const dialOptions = computed(() =>
+    props.arab_country_dial_options?.length
+        ? props.arab_country_dial_options
+        : [{ value: '964', label: 'العراق (+964)' }],
+);
 
 const roleLabels = {
     admin: 'مدير النظام',
@@ -161,8 +168,10 @@ function openEditModal(employee) {
     editForm.name = employee.name;
     editForm.username = employee.username || '';
     editForm.password = '';
-    editForm.phone_country_code = employee.phone_country_code || '964';
-    editForm.phone_local = employee.phone_local || '';
+    const rawCc = employee.phone_country_code;
+    editForm.phone_country_code =
+        rawCc != null && String(rawCc).trim() !== '' ? String(rawCc).replace(/\D/g, '') : '964';
+    editForm.phone_local = employee.phone_local != null ? String(employee.phone_local) : '';
     editForm.role = employee.role;
     editForm.is_bookable = Boolean(employee.is_bookable);
     editForm.availability_schedule = buildDefaultSchedule(employee.availability_schedule);
@@ -493,9 +502,10 @@ function sendLoginWhatsApp(employee) {
                                 id="c_phone_cc"
                                 v-model="createForm.phone_country_code"
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                autocomplete="off"
                             >
                                 <option
-                                    v-for="opt in arab_country_dial_options"
+                                    v-for="opt in dialOptions"
                                     :key="`cc-${opt.value}`"
                                     :value="String(opt.value)"
                                 >
@@ -668,9 +678,10 @@ function sendLoginWhatsApp(employee) {
                                 id="e_phone_cc"
                                 v-model="editForm.phone_country_code"
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                                autocomplete="off"
                             >
                                 <option
-                                    v-for="opt in arab_country_dial_options"
+                                    v-for="opt in dialOptions"
                                     :key="`ecc-${opt.value}`"
                                     :value="String(opt.value)"
                                 >

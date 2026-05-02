@@ -114,6 +114,7 @@ const maxWidthClass = computed(() => {
                     v-show="show"
                     class="modal-content-light mb-6 transform overflow-hidden rounded-lg bg-white shadow-xl transition-all sm:mx-auto sm:w-full"
                     :class="maxWidthClass"
+                    @click.stop
                 >
                     <slot v-if="showSlot" />
                 </div>

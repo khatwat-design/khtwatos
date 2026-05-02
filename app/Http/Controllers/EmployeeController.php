@@ -460,6 +460,11 @@ class EmployeeController extends Controller
         }
 
         $digits = ArabCountryDialCodes::normalizeDigits($stored);
+        /** أرقام كانت مخزّنة بصيغة 00966… فلا يطابق المفتاح — نزيل 00 المتكررة قبل المقارنة */
+        for ($i = 0; $i < 4 && str_starts_with($digits, '00') && strlen($digits) > 2; $i++) {
+            $digits = substr($digits, 2);
+        }
+
         foreach (ArabCountryDialCodes::codesLongestFirst() as $code) {
             if (str_starts_with($digits, $code)) {
                 return [
