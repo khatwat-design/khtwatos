@@ -301,7 +301,7 @@ async function openNotification(note) {
                 </div>
             </aside>
 
-            <div class="flex min-w-0 flex-1 flex-col">
+            <div class="flex min-h-0 min-w-0 flex-1 flex-col">
                 <header
                     class="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-slate-200 bg-white/85 px-4 backdrop-blur-xl md:px-6"
                 >
@@ -421,7 +421,7 @@ async function openNotification(note) {
 
                 <main
                     :class="[
-                        'relative z-10 flex-1 overflow-x-auto p-3 pb-20 transition-opacity duration-200 md:p-6 md:pb-6',
+                        'relative z-10 flex min-h-0 flex-1 flex-col overflow-auto p-3 pb-20 transition-opacity duration-200 md:p-6 md:pb-6',
                         isPageLoading ? 'opacity-85' : 'opacity-100',
                     ]"
                 >

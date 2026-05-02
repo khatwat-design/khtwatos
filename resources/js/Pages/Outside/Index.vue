@@ -219,6 +219,8 @@ function submitMessage() {
     }
     messageForm.post(route('outside.messages.store', activeConversation.value.id), {
         preserveScroll: true,
+        preserveState: true,
+        only: ['conversations', 'metrics'],
         onSuccess: () => {
             messageForm.reset();
             nextTick(() => scrollMessagesToEnd());
@@ -237,6 +239,8 @@ function submitConversationMeta() {
     }
     conversationForm.patch(route('outside.conversations.update', activeConversation.value.id), {
         preserveScroll: true,
+        preserveState: true,
+        only: ['conversations', 'metrics'],
     });
 }
 
@@ -246,6 +250,8 @@ function retryMessage(messageId) {
     }
     retryForm.post(route('outside.messages.retry', messageId), {
         preserveScroll: true,
+        preserveState: true,
+        only: ['conversations', 'metrics'],
     });
 }
 
@@ -427,7 +433,7 @@ const threadBgStyle = {
         <template #title>الخارج</template>
 
         <div
-            class="outside-inbox -mx-3 flex min-h-0 flex-col overflow-hidden sm:-mx-4 lg:-mx-6 max-md:h-[calc(100dvh-8.75rem)] max-md:max-h-[calc(100dvh-8.75rem)] md:max-h-[calc(100dvh-7rem)] md:h-[calc(100dvh-7rem)] lg:h-[min(56rem,calc(100vh-9rem))] lg:max-h-[calc(100vh-8rem)]"
+            class="outside-inbox -mx-3 flex min-h-0 w-full flex-1 flex-col overflow-hidden sm:-mx-4 lg:-mx-6 max-md:h-[calc(100dvh-10.5rem)] max-md:max-h-[calc(100dvh-10.5rem)] md:max-h-[calc(100dvh-9.5rem)] md:h-[calc(100dvh-9.5rem)] lg:h-[min(42rem,calc(100svh-13.5rem))] lg:max-h-[min(42rem,calc(100svh-13.5rem))] xl:h-[min(46rem,calc(100svh-12.5rem))] xl:max-h-[min(46rem,calc(100svh-12.5rem))]"
         >
             <!-- شريط علوي: زر التحليلات + ملخص سريع + مزامنة -->
             <div class="mb-3 shrink-0 space-y-2 px-1 sm:mb-4 sm:px-0 lg:px-1">
@@ -560,11 +566,11 @@ const threadBgStyle = {
                         >
                             <button
                                 type="button"
-                                class="rounded-xl px-3 py-1.5 text-[11px] font-bold transition sm:text-xs"
+                                class="rounded-xl border px-3 py-1.5 text-[11px] font-bold transition sm:text-xs"
                                 :class="
                                     channelFilter === 'all'
-                                        ? 'bg-slate-900 text-white shadow-sm ring-1 ring-slate-900/10'
-                                        : 'border border-slate-200/90 bg-white text-slate-700 hover:border-brand-300 hover:bg-brand-50/50'
+                                        ? 'border-black bg-black !text-white shadow-sm ring-0'
+                                        : 'border-slate-200/90 bg-white text-slate-700 hover:border-brand-300 hover:bg-brand-50/50'
                                 "
                                 @click="channelFilter = 'all'"
                             >

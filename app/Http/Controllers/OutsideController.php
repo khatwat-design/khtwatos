@@ -211,7 +211,7 @@ class OutsideController extends Controller
             'last_message_at' => $message->created_at,
         ]);
 
-        return redirect()->route('outside.index')->with('success', 'تمت معالجة الرسالة.');
+        return redirect()->route('outside.index');
     }
 
     public function updateConversation(Request $request, OutsideConversation $outsideConversation): RedirectResponse
