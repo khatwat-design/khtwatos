@@ -4,8 +4,8 @@ import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Head, useForm, usePage } from '@inertiajs/vue3';
-import { computed, ref, watch } from 'vue';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps({
     conversations: Array,
@@ -117,6 +117,40 @@ function statusClass(status) {
     if (status === 'qualified') return 'bg-blue-100 text-blue-700';
     return 'bg-slate-100 text-slate-700';
 }
+
+/** تحديث تلقائي للمحادثات الواردة من الويب هوك دون إعادة تحميل الصفحة يدوياً */
+const OUTSIDE_POLL_MS = 8000;
+
+function reloadOutsideDataQuietly() {
+    if (document.visibilityState !== 'visible') {
+        return;
+    }
+    if (
+        contactForm.processing ||
+        messageForm.processing ||
+        conversationForm.processing ||
+        retryForm.processing
+    ) {
+        return;
+    }
+    router.reload({
+        only: ['conversations', 'metrics'],
+        preserveScroll: true,
+        preserveState: true,
+    });
+}
+
+let pollTimer;
+
+onMounted(() => {
+    pollTimer = window.setInterval(reloadOutsideDataQuietly, OUTSIDE_POLL_MS);
+});
+
+onUnmounted(() => {
+    if (pollTimer) {
+        window.clearInterval(pollTimer);
+    }
+});
 </script>
 
 <template>
