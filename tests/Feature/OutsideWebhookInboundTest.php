@@ -2,8 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Client;
+use App\Models\ClientMetaIntegration;
 use App\Models\GoodsCustomer;
 use App\Models\OutsideContact;
+use App\Models\PipelineStage;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -72,8 +75,11 @@ class OutsideWebhookInboundTest extends TestCase
         $this->assertSame(1, GoodsCustomer::query()->count());
         $this->assertDatabaseHas('goods_customers', [
             'name' => 'عميل تجريبي',
-            'status' => 'lead',
+            'status' => 'new',
             'phone' => '966501234567',
+        ]);
+        $this->assertDatabaseHas('outside_conversations', [
+            'status' => 'new',
         ]);
     }
 
@@ -161,5 +167,92 @@ class OutsideWebhookInboundTest extends TestCase
         $this->postJson(route('outside.webhook.receive'), $payload)->assertOk();
 
         $this->assertSame(0, GoodsCustomer::query()->count());
+    }
+
+    public function test_instagram_inbound_creates_contact_message_and_goods_customer(): void
+    {
+        $payload = [
+            'object' => 'instagram',
+            'entry' => [
+                [
+                    'id' => '178400000000000',
+                    'time' => 1_234_567_890,
+                    'messaging' => [
+                        [
+                            'sender' => ['id' => '9876543210'],
+                            'recipient' => ['id' => '178400000000000'],
+                            'timestamp' => 1_234_567_890,
+                            'message' => [
+                                'mid' => 'mid.ig.test_1',
+                                'text' => 'مرحبا من انستغرام',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $this->postJson(route('outside.webhook.receive'), $payload)->assertOk()->assertJson(['ok' => true]);
+
+        $this->assertDatabaseHas('outside_contacts', [
+            'instagram_psid' => '9876543210',
+            'channel' => 'instagram',
+            'phone' => 'ig:9876543210',
+        ]);
+        $this->assertDatabaseHas('outside_messages', [
+            'external_message_id' => 'ig:mid.ig.test_1',
+            'channel' => 'instagram',
+        ]);
+        $this->assertSame(1, GoodsCustomer::query()->count());
+        $this->assertDatabaseHas('goods_customers', [
+            'status' => 'new',
+            'phone' => 'ig:9876543210',
+        ]);
+    }
+
+    public function test_instagram_inbound_links_client_when_meta_integration_matches(): void
+    {
+        $stage = PipelineStage::query()->create([
+            'key' => 'lead',
+            'label' => 'عميل جديد',
+            'sort_order' => 1,
+        ]);
+        $client = Client::query()->create([
+            'name' => 'عميل اختبار إنستغرام',
+            'current_pipeline_stage_id' => $stage->id,
+        ]);
+        ClientMetaIntegration::query()->create([
+            'client_id' => $client->id,
+            'ad_account_id' => 'act_test_ig_'.uniqid(),
+            'meta_instagram_account_id' => '17841400000000001',
+        ]);
+
+        $payload = [
+            'object' => 'instagram',
+            'entry' => [
+                [
+                    'id' => '17841400000000001',
+                    'time' => 1_234_567_890,
+                    'messaging' => [
+                        [
+                            'sender' => ['id' => '111222333444'],
+                            'recipient' => ['id' => '17841400000000001'],
+                            'timestamp' => 1_234_567_890,
+                            'message' => [
+                                'mid' => 'mid.ig.linked',
+                                'text' => 'رسالة',
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $this->postJson(route('outside.webhook.receive'), $payload)->assertOk();
+
+        $this->assertDatabaseHas('outside_contacts', [
+            'instagram_psid' => '111222333444',
+            'client_id' => $client->id,
+        ]);
     }
 }

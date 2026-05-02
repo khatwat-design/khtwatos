@@ -55,6 +55,18 @@ return [
         'version' => env('META_ADS_GRAPH_VERSION', 'v22.0'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Instagram (قسم الخارج — ويب هوك الرسائل)
+    |--------------------------------------------------------------------------
+    |
+    | يمكن استخدام نفس رمز التحقق الخاص بالواتساب إذا كان endpoint واحد في Meta.
+    |
+    */
+    'instagram' => [
+        'webhook_verify_token' => env('INSTAGRAM_WEBHOOK_VERIFY_TOKEN', env('WHATSAPP_WEBHOOK_VERIFY_TOKEN')),
+    ],
+
     'whatsapp' => [
         'token' => env('WHATSAPP_TOKEN'),
         'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),

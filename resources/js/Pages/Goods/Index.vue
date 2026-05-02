@@ -4,7 +4,7 @@ import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -24,7 +24,7 @@ const createForm = useForm({
     name: '',
     phone: '',
     company: '',
-    status: props.status_options?.[0]?.value || 'lead',
+    status: props.status_options?.[0]?.value || 'new',
     owner_user_id: null,
     notes: '',
 });
@@ -58,7 +58,7 @@ function submitCreate() {
         onSuccess: () => {
             showCreateModal.value = false;
             createForm.reset();
-            createForm.status = props.status_options?.[0]?.value || 'lead';
+            createForm.status = props.status_options?.[0]?.value || 'new';
         },
     });
 }
@@ -95,8 +95,10 @@ function statusLabel(status) {
 }
 
 function statusClass(status) {
-    if (status === 'lead') return 'bg-amber-100 text-amber-700';
-    if (status === 'prospect') return 'bg-blue-100 text-blue-700';
+    if (status === 'new') return 'bg-emerald-100 text-emerald-800';
+    if (status === 'potential') return 'bg-amber-100 text-amber-800';
+    if (status === 'unlikely') return 'bg-rose-100 text-rose-800';
+    if (status === 'qualified') return 'bg-sky-100 text-sky-800';
     if (status === 'active') return 'bg-emerald-100 text-emerald-700';
     if (status === 'paused') return 'bg-slate-100 text-slate-700';
     return 'bg-rose-100 text-rose-700';
@@ -162,7 +164,16 @@ function statusClass(status) {
                     </thead>
                     <tbody>
                         <tr v-for="customer in filteredCustomers" :key="customer.id" class="border-b border-slate-100">
-                            <td class="px-3 py-2 font-semibold text-gray-900">{{ customer.name }}</td>
+                            <td class="px-3 py-2 font-semibold text-gray-900">
+                                {{ customer.name }}
+                                <Link
+                                    v-if="customer.client?.id"
+                                    :href="route('clients.show', customer.client.id)"
+                                    class="mr-1 inline-block text-xs font-medium text-brand-600 underline decoration-brand-600/30 hover:text-brand-700"
+                                >
+                                    ملف العميل
+                                </Link>
+                            </td>
                             <td class="px-3 py-2" dir="ltr">{{ customer.phone || '—' }}</td>
                             <td class="px-3 py-2">{{ customer.company || '—' }}</td>
                             <td class="px-3 py-2">

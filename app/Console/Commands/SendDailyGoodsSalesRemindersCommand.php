@@ -27,9 +27,10 @@ class SendDailyGoodsSalesRemindersCommand extends Command
         $today = now()->toDateString();
 
         $customers = GoodsCustomer::query()
-            ->whereIn('status', ['lead', 'prospect', 'active'])
+            ->whereIn('status', ['new', 'potential', 'active'])
             ->whereNotNull('outside_contact_id')
-            ->with('contact:id,phone')
+            ->whereHas('contact', fn ($q) => $q->where('channel', 'whatsapp'))
+            ->with('contact:id,phone,channel')
             ->whereNotExists(function ($q) use ($today): void {
                 $q->select(DB::raw('1'))
                     ->from('outside_reminder_logs as orl')
@@ -55,6 +56,7 @@ class SendDailyGoodsSalesRemindersCommand extends Command
 
             $message = OutsideMessage::query()->create([
                 'outside_conversation_id' => $conversation->id,
+                'channel' => 'whatsapp',
                 'direction' => 'outbound',
                 'message_type' => 'text',
                 'body' => $body,

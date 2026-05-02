@@ -11,7 +11,9 @@ class OutsideContact extends Model
     protected $fillable = [
         'name',
         'phone',
+        'instagram_psid',
         'channel',
+        'client_id',
         'assigned_user_id',
         'last_message_at',
         'meta',
@@ -27,6 +29,11 @@ class OutsideContact extends Model
         return $this->belongsTo(User::class, 'assigned_user_id');
     }
 
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
+
     public function conversations(): HasMany
     {
         return $this->hasMany(OutsideConversation::class);
@@ -37,4 +44,3 @@ class OutsideContact extends Model
         return $this->hasMany(GoodsCustomer::class);
     }
 }
-

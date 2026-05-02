@@ -862,6 +862,25 @@ function localizeColumnName(name) {
                                 readonly
                             />
                         </div>
+                        <div
+                            v-if="Number(props.meta_profile?.outside_instagram_threads || 0) > 0 || props.meta_profile?.instagram_page"
+                            class="rounded-xl border border-fuchsia-100 bg-fuchsia-50/80 px-3 py-2 text-xs text-fuchsia-950"
+                        >
+                            <p class="font-semibold">قسم الخارج — إنستغرام</p>
+                            <p class="mt-1 text-fuchsia-900/90">
+                                محادثات مرتبطة بهذا العميل في «الخارج»:
+                                <strong>{{ props.meta_profile?.outside_instagram_threads ?? 0 }}</strong>
+                            </p>
+                            <p class="mt-1 text-[11px] text-fuchsia-800/80">
+                                بعد ربط ميتا من البوابة واشتراك ويب هوك إنستغرام، تظهر رسائل الـ DM هنا مع تمييزها عن واتساب.
+                            </p>
+                            <Link
+                                :href="route('outside.index')"
+                                class="mt-2 inline-flex text-[11px] font-semibold text-fuchsia-700 underline decoration-fuchsia-400/60 underline-offset-2 hover:text-fuchsia-900"
+                            >
+                                فتح قسم الخارج
+                            </Link>
+                        </div>
                         <div>
                             <InputLabel for="cm" value="مدير الحملة المسؤول" />
                             <select

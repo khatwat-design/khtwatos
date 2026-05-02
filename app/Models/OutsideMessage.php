@@ -9,6 +9,7 @@ class OutsideMessage extends Model
 {
     protected $fillable = [
         'outside_conversation_id',
+        'channel',
         'direction',
         'message_type',
         'body',
@@ -41,4 +42,3 @@ class OutsideMessage extends Model
         return $this->belongsTo(User::class, 'sent_by_user_id');
     }
 }
-

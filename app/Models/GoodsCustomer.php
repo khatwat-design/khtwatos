@@ -10,6 +10,7 @@ class GoodsCustomer extends Model
 {
     protected $fillable = [
         'outside_contact_id',
+        'client_id',
         'name',
         'phone',
         'company',
@@ -28,6 +29,11 @@ class GoodsCustomer extends Model
         return $this->belongsTo(OutsideContact::class, 'outside_contact_id');
     }
 
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
+
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_user_id');
@@ -38,4 +44,3 @@ class GoodsCustomer extends Model
         return $this->hasMany(GoodsCustomerStatusHistory::class)->orderByDesc('created_at');
     }
 }
-

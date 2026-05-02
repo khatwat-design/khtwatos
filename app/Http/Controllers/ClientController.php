@@ -9,6 +9,7 @@ use App\Models\ClientDailySale;
 use App\Models\ClientMetaIntegration;
 use App\Models\ClientProduct;
 use App\Models\ClientStageHistory;
+use App\Models\OutsideContact;
 use App\Models\PipelineStage;
 use App\Models\Task;
 use App\Models\TaskStatusHistory;
@@ -17,11 +18,12 @@ use App\Services\ClientWorkflowAutomationService;
 use App\Services\SmartNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -33,9 +35,7 @@ class ClientController extends Controller
     public function __construct(
         private readonly ClientWorkflowAutomationService $workflowAutomation,
         private readonly SmartNotificationService $smartNotifications
-    )
-    {
-    }
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -241,7 +241,7 @@ class ClientController extends Controller
             'portal' => $this->canViewPortalLink($request->user(), $client) ? [
                 'url' => route('portal.login'),
                 'username' => $client->portal_username,
-                'has_credentials' => !empty($client->portal_username) && !empty($client->portal_password),
+                'has_credentials' => ! empty($client->portal_username) && ! empty($client->portal_password),
             ] : null,
             'daily_sales' => $client->dailySales
                 ->take(15)
@@ -297,6 +297,12 @@ class ClientController extends Controller
                 'facebook_page' => $metaIntegration?->meta_page_id,
                 'instagram_page' => $metaIntegration?->meta_instagram_account_id,
                 'ad_account_id' => $metaIntegration?->ad_account_id,
+                'outside_instagram_threads' => Schema::hasTable('outside_contacts')
+                    ? OutsideContact::query()
+                        ->where('client_id', $client->id)
+                        ->where('channel', 'instagram')
+                        ->count()
+                    : 0,
             ],
             'accountManagers' => User::orderBy('name')->get(['id', 'name']),
             'campaignManagers' => $this->campaignManagers(),
@@ -345,7 +351,7 @@ class ClientController extends Controller
         $client->save();
 
         if (Schema::hasTable('client_meta_integrations')) {
-            $hasMetaData = !empty($data['facebook_page']) || !empty($data['instagram_page']);
+            $hasMetaData = ! empty($data['facebook_page']) || ! empty($data['instagram_page']);
             if ($hasMetaData) {
                 ClientMetaIntegration::query()->updateOrCreate(
                     ['client_id' => $client->id],
@@ -395,10 +401,10 @@ class ClientController extends Controller
 
     public function activateSubscription(Request $request, Client $client): RedirectResponse
     {
-        if (!$this->canManageClientSubscription($request->user())) {
+        if (! $this->canManageClientSubscription($request->user())) {
             abort(403, 'هذه العملية متاحة للمحاسب أو مدير النظام.');
         }
-        if (!$this->hasClientSubscriptionColumns()) {
+        if (! $this->hasClientSubscriptionColumns()) {
             throw ValidationException::withMessages([
                 'subscription' => 'يرجى تشغيل migrate أولاً لتفعيل الاشتراك.',
             ]);
@@ -423,10 +429,10 @@ class ClientController extends Controller
 
     public function updateSubscription(Request $request, Client $client): RedirectResponse
     {
-        if (!$this->canManageClientSubscription($request->user())) {
+        if (! $this->canManageClientSubscription($request->user())) {
             abort(403, 'هذه العملية متاحة للمحاسب أو مدير النظام.');
         }
-        if (!$this->hasClientSubscriptionColumns()) {
+        if (! $this->hasClientSubscriptionColumns()) {
             throw ValidationException::withMessages([
                 'subscription' => 'يرجى تشغيل migrate أولاً لتفعيل الاشتراك.',
             ]);
@@ -450,7 +456,7 @@ class ClientController extends Controller
 
     public function destroy(Request $request, Client $client): RedirectResponse
     {
-        if (!$request->user()?->isAdmin()) {
+        if (! $request->user()?->isAdmin()) {
             abort(403, 'هذه العملية متاحة لمدير النظام فقط.');
         }
 
@@ -541,14 +547,14 @@ class ClientController extends Controller
     public function deleteAttachment(Request $request, ClientAttachment $clientAttachment): RedirectResponse
     {
         $user = $request->user();
-        if (!$user || (!$user->isAdmin() && (int) $clientAttachment->user_id !== (int) $user->id)) {
+        if (! $user || (! $user->isAdmin() && (int) $clientAttachment->user_id !== (int) $user->id)) {
             abort(403, 'لا تملك صلاحية حذف هذا المرفق.');
         }
 
         if (
             $clientAttachment->path
-            && !$this->isReferenceLinkAttachment($clientAttachment)
-            && !str_starts_with((string) $clientAttachment->path, 'http')
+            && ! $this->isReferenceLinkAttachment($clientAttachment)
+            && ! str_starts_with((string) $clientAttachment->path, 'http')
         ) {
             Storage::disk('public')->delete($clientAttachment->path);
         }
@@ -561,7 +567,7 @@ class ClientController extends Controller
     {
         $user = $request->user();
         $isAssignedAccountManager = (int) $client->account_manager_id === (int) $user?->id;
-        if (!$user || (!$user->isAdmin() && !$isAssignedAccountManager && !Gate::forUser($user)->allows('view-client-portal-link'))) {
+        if (! $user || (! $user->isAdmin() && ! $isAssignedAccountManager && ! Gate::forUser($user)->allows('view-client-portal-link'))) {
             abort(403, 'لا تملك صلاحية إدارة منتجات هذا العميل.');
         }
 
@@ -588,7 +594,7 @@ class ClientController extends Controller
     public function updatePortalCredentials(Request $request, Client $client): RedirectResponse
     {
         $user = $request->user();
-        if (!$this->canViewPortalLink($user, $client)) {
+        if (! $this->canViewPortalLink($user, $client)) {
             abort(403, 'لا تملك صلاحية إدارة دخول بوابة العميل.');
         }
 
@@ -612,7 +618,7 @@ class ClientController extends Controller
             'portal_username' => $data['portal_username'],
         ];
 
-        if (!empty($data['portal_password'])) {
+        if (! empty($data['portal_password'])) {
             $payload['portal_password'] = Hash::make($data['portal_password']);
         }
 
@@ -624,12 +630,12 @@ class ClientController extends Controller
     public function destroyProduct(Request $request, ClientProduct $clientProduct): RedirectResponse
     {
         $user = $request->user();
-        if (!$user) {
+        if (! $user) {
             abort(403);
         }
 
         $isAssignedAccountManager = (int) $clientProduct->client?->account_manager_id === (int) $user->id;
-        if (!$user->isAdmin() && !$isAssignedAccountManager) {
+        if (! $user->isAdmin() && ! $isAssignedAccountManager) {
             abort(403, 'لا تملك صلاحية حذف المنتج.');
         }
 
@@ -666,7 +672,7 @@ class ClientController extends Controller
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, PipelineStage>
+     * @return Collection<int, PipelineStage>
      */
     private function ensurePipelineStages()
     {
@@ -700,7 +706,7 @@ class ClientController extends Controller
 
     private function canViewPortalLink(?User $user, Client $client): bool
     {
-        if (!$user) {
+        if (! $user) {
             return false;
         }
 
@@ -713,7 +719,7 @@ class ClientController extends Controller
 
     private function canManageClientSubscription(?User $user): bool
     {
-        if (!$user) {
+        if (! $user) {
             return false;
         }
 
@@ -731,7 +737,7 @@ class ClientController extends Controller
 
     private function clientSubscriptionPayload(Client $client): array
     {
-        if (!$this->hasClientSubscriptionColumns()) {
+        if (! $this->hasClientSubscriptionColumns()) {
             return [
                 'is_active' => false,
                 'started_at' => null,
@@ -754,7 +760,7 @@ class ClientController extends Controller
     private function isReferenceLinkAttachment(ClientAttachment $attachment): bool
     {
         if ($this->hasAttachmentUrlColumn()) {
-            return !empty($attachment->url) || $attachment->mime === 'link/url';
+            return ! empty($attachment->url) || $attachment->mime === 'link/url';
         }
 
         return $attachment->mime === 'link/url' || str_starts_with((string) $attachment->path, 'http');
@@ -762,7 +768,7 @@ class ClientController extends Controller
 
     private function attachmentPublicUrl(ClientAttachment $attachment): string
     {
-        if ($this->hasAttachmentUrlColumn() && !empty($attachment->url)) {
+        if ($this->hasAttachmentUrlColumn() && ! empty($attachment->url)) {
             return (string) $attachment->url;
         }
         if ($this->isReferenceLinkAttachment($attachment)) {

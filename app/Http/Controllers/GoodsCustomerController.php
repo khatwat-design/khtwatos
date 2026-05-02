@@ -7,8 +7,9 @@ use App\Models\GoodsCustomerStatusHistory;
 use App\Models\OutsideContact;
 use App\Models\OutsideConversation;
 use App\Models\OutsideMessage;
-use App\Services\WhatsAppCloudService;
 use App\Models\User;
+use App\Services\OutsideGoodsClientBridgeService;
+use App\Services\WhatsAppCloudService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,16 +20,16 @@ use Inertia\Response;
 class GoodsCustomerController extends Controller
 {
     public function __construct(
-        private readonly WhatsAppCloudService $whatsAppCloudService
-    ) {
-    }
+        private readonly WhatsAppCloudService $whatsAppCloudService,
+        private readonly OutsideGoodsClientBridgeService $outsideGoodsBridge,
+    ) {}
 
     public function index(Request $request): Response
     {
         $filterStatus = trim((string) $request->query('status', ''));
 
         $customers = GoodsCustomer::query()
-            ->with(['owner:id,name', 'contact:id,name,phone'])
+            ->with(['owner:id,name', 'contact:id,name,phone', 'client:id,name'])
             ->when($filterStatus !== '', fn ($query) => $query->where('status', $filterStatus))
             ->orderByDesc('updated_at')
             ->get();
@@ -40,9 +41,14 @@ class GoodsCustomerController extends Controller
                 'phone' => $customer->phone,
                 'company' => $customer->company,
                 'status' => $customer->status,
+                'client_id' => $customer->client_id,
                 'notes' => $customer->notes,
                 'confirmed_at' => $customer->confirmed_at?->toIso8601String(),
                 'updated_at' => $customer->updated_at?->toIso8601String(),
+                'client' => $customer->client ? [
+                    'id' => $customer->client->id,
+                    'name' => $customer->client->name,
+                ] : null,
                 'owner' => $customer->owner ? [
                     'id' => $customer->owner->id,
                     'name' => $customer->owner->name,
@@ -55,6 +61,7 @@ class GoodsCustomerController extends Controller
             ])->values(),
             'owners' => User::query()->orderBy('name')->get(['id', 'name']),
             'contacts' => OutsideContact::query()
+                ->whereIn('channel', ['whatsapp', 'instagram'])
                 ->orderByDesc('updated_at')
                 ->limit(200)
                 ->get(['id', 'name', 'phone']),
@@ -87,7 +94,7 @@ class GoodsCustomerController extends Controller
             'notes' => $data['notes'] ?? null,
             'status' => $data['status'],
             'owner_user_id' => $data['owner_user_id'] ?? null,
-            'confirmed_at' => $data['status'] !== 'lead' ? now() : null,
+            'confirmed_at' => $data['status'] !== 'new' ? now() : null,
         ]);
 
         GoodsCustomerStatusHistory::query()->create([
@@ -97,6 +104,8 @@ class GoodsCustomerController extends Controller
             'note' => 'إنشاء سجل عميل جديد في قسم البضاعة',
             'user_id' => $request->user()?->id,
         ]);
+
+        $this->outsideGoodsBridge->afterGoodsCustomerStatusSaved($customer->fresh(), $request->user()?->id);
 
         return redirect()->route('goods.index')->with('success', 'تم إنشاء عميل البضاعة بنجاح.');
     }
@@ -118,7 +127,7 @@ class GoodsCustomerController extends Controller
 
         $goodsCustomer->update([
             'status' => $toStatus,
-            'confirmed_at' => $toStatus !== 'lead' ? ($goodsCustomer->confirmed_at ?: now()) : null,
+            'confirmed_at' => $toStatus !== 'new' ? ($goodsCustomer->confirmed_at ?: now()) : null,
         ]);
 
         GoodsCustomerStatusHistory::query()->create([
@@ -129,6 +138,8 @@ class GoodsCustomerController extends Controller
             'user_id' => $request->user()?->id,
         ]);
 
+        $this->outsideGoodsBridge->afterGoodsCustomerStatusSaved($goodsCustomer->fresh(), $request->user()?->id);
+
         return redirect()->route('goods.index')->with('success', 'تم تحديث حالة العميل.');
     }
 
@@ -138,9 +149,17 @@ class GoodsCustomerController extends Controller
             'body' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        if (!$goodsCustomer->outside_contact_id) {
+        if (! $goodsCustomer->outside_contact_id) {
             return redirect()->route('goods.index')->withErrors([
                 'goods_reminder' => 'لا يمكن إرسال تذكير لأن العميل غير مربوط بقسم الخارج.',
+            ]);
+        }
+
+        $goodsCustomer->load('contact:id,phone,channel');
+
+        if ($goodsCustomer->contact && ($goodsCustomer->contact->channel ?? 'whatsapp') === 'instagram') {
+            return redirect()->route('goods.index')->withErrors([
+                'goods_reminder' => 'تذكيرات البضاعة تُرسل عبر واتساب فقط؛ جهة هذا العميل من إنستغرام.',
             ]);
         }
 
@@ -158,6 +177,7 @@ class GoodsCustomerController extends Controller
 
         $message = OutsideMessage::query()->create([
             'outside_conversation_id' => $conversation->id,
+            'channel' => 'whatsapp',
             'direction' => 'outbound',
             'message_type' => 'text',
             'body' => $body,
@@ -167,7 +187,7 @@ class GoodsCustomerController extends Controller
 
         try {
             $response = $this->whatsAppCloudService->sendText(
-                (string) $conversation->contact?->phone,
+                (string) $goodsCustomer->contact?->phone,
                 $body
             );
             $message->update([
@@ -206,9 +226,17 @@ class GoodsCustomerController extends Controller
 
     public function sendWeeklySurvey(Request $request, GoodsCustomer $goodsCustomer): RedirectResponse
     {
-        if (!$goodsCustomer->outside_contact_id) {
+        if (! $goodsCustomer->outside_contact_id) {
             return redirect()->route('goods.index')->withErrors([
                 'goods_reminder' => 'لا يمكن إرسال الاستبيان لأن العميل غير مربوط بقسم الخارج.',
+            ]);
+        }
+
+        $goodsCustomer->load('contact:id,phone,channel');
+
+        if ($goodsCustomer->contact && ($goodsCustomer->contact->channel ?? 'whatsapp') === 'instagram') {
+            return redirect()->route('goods.index')->withErrors([
+                'goods_reminder' => 'الاستبيان يُرسل عبر واتساب فقط.',
             ]);
         }
 
@@ -226,6 +254,7 @@ class GoodsCustomerController extends Controller
 
         $message = OutsideMessage::query()->create([
             'outside_conversation_id' => $conversation->id,
+            'channel' => 'whatsapp',
             'direction' => 'outbound',
             'message_type' => 'text',
             'body' => $body,
@@ -235,7 +264,7 @@ class GoodsCustomerController extends Controller
 
         try {
             $response = $this->whatsAppCloudService->sendText(
-                (string) $conversation->contact?->phone,
+                (string) $goodsCustomer->contact?->phone,
                 $body
             );
             $message->update([
@@ -275,12 +304,13 @@ class GoodsCustomerController extends Controller
     private function statusOptions(): array
     {
         return [
-            ['value' => 'lead', 'label' => 'عميل محتمل'],
-            ['value' => 'prospect', 'label' => 'قيد المتابعة'],
+            ['value' => 'new', 'label' => 'جديد'],
+            ['value' => 'potential', 'label' => 'عميل محتمل'],
+            ['value' => 'unlikely', 'label' => 'عميل غير محتمل'],
+            ['value' => 'qualified', 'label' => 'مؤهل'],
             ['value' => 'active', 'label' => 'عميل مؤكد'],
             ['value' => 'paused', 'label' => 'متوقف'],
             ['value' => 'lost', 'label' => 'مفقود'],
         ];
     }
 }
-

@@ -65,6 +65,11 @@ class OutsideWhatsappInboundService
         ?string $profileName,
         string $messageBodyPreview
     ): void {
+        $channel = (string) ($contact->channel ?? 'whatsapp');
+        if (! in_array($channel, ['whatsapp', 'instagram'], true)) {
+            return;
+        }
+
         if (data_get($contact->meta, 'employee_user_id')) {
             return;
         }
@@ -100,13 +105,15 @@ class OutsideWhatsappInboundService
 
         $ownerId = User::query()->where('role', 'admin')->orderBy('id')->value('id');
 
+        $sourceLabel = $channel === 'instagram' ? 'إنستغرام' : 'واتساب';
+
         $customer = GoodsCustomer::query()->create([
             'outside_contact_id' => $contact->id,
             'name' => $displayName,
             'phone' => $contact->phone,
             'company' => null,
-            'status' => 'lead',
-            'notes' => 'تسجيل تلقائي من أول رسالة واتساب (قسم الخارج → البضاعة).',
+            'status' => 'new',
+            'notes' => 'تسجيل تلقائي من أول رسالة '.$sourceLabel.' (قسم الخارج → البضاعة).',
             'owner_user_id' => $ownerId,
             'confirmed_at' => null,
         ]);
@@ -114,8 +121,8 @@ class OutsideWhatsappInboundService
         GoodsCustomerStatusHistory::query()->create([
             'goods_customer_id' => $customer->id,
             'from_status' => null,
-            'to_status' => 'lead',
-            'note' => 'إنشاء تلقائي عبر webhook واتساب',
+            'to_status' => 'new',
+            'note' => 'إنشاء تلقائي عبر webhook '.$sourceLabel,
             'user_id' => null,
         ]);
     }

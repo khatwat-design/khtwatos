@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ClientMetaIntegration;
+use App\Models\ClientMetaOauthToken;
 use App\Models\OutsideContact;
 use App\Models\OutsideConversation;
 use App\Models\OutsideMessage;
 use App\Models\User;
+use App\Services\InstagramGraphMessagingService;
+use App\Services\OutsideGoodsClientBridgeService;
 use App\Services\WhatsAppCloudService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,14 +20,19 @@ use Inertia\Response;
 class OutsideController extends Controller
 {
     public function __construct(
-        private readonly WhatsAppCloudService $whatsAppCloudService
+        private readonly WhatsAppCloudService $whatsAppCloudService,
+        private readonly InstagramGraphMessagingService $instagramMessaging,
+        private readonly OutsideGoodsClientBridgeService $outsideGoodsBridge,
     ) {}
+
+    /** @var list<string> */
+    private const CONVERSATION_STATUSES = ['new', 'potential', 'unlikely', 'qualified', 'closed'];
 
     public function index(): Response
     {
         $conversations = OutsideConversation::query()
             ->with([
-                'contact:id,name,phone,last_message_at,assigned_user_id',
+                'contact:id,name,phone,channel,instagram_psid,client_id,last_message_at,assigned_user_id',
                 'contact.assignedUser:id,name',
                 'messages' => fn ($query) => $query->limit(80),
             ])
@@ -54,6 +63,9 @@ class OutsideController extends Controller
                     'id' => $conversation->contact?->id,
                     'name' => $conversation->contact?->name,
                     'phone' => $conversation->contact?->phone,
+                    'channel' => $conversation->contact?->channel ?? 'whatsapp',
+                    'instagram_psid' => $conversation->contact?->instagram_psid,
+                    'client_id' => $conversation->contact?->client_id,
                     'assigned_user_id' => $conversation->contact?->assigned_user_id,
                     'assigned_user' => $conversation->contact?->assignedUser ? [
                         'id' => $conversation->contact->assignedUser->id,
@@ -62,6 +74,7 @@ class OutsideController extends Controller
                 ],
                 'messages' => $conversation->messages->reverse()->values()->map(fn (OutsideMessage $message) => [
                     'id' => $message->id,
+                    'channel' => $message->channel ?? ($conversation->contact?->channel ?? 'whatsapp'),
                     'direction' => $message->direction,
                     'body' => $message->body,
                     'provider_status' => $message->provider_status,
@@ -72,14 +85,15 @@ class OutsideController extends Controller
             ])->values(),
             'users' => User::query()->orderBy('name')->get(['id', 'name']),
             'conversation_statuses' => [
-                ['value' => 'open', 'label' => 'مفتوحة'],
-                ['value' => 'pending', 'label' => 'بانتظار الرد'],
-                ['value' => 'qualified', 'label' => 'مؤهلة'],
+                ['value' => 'new', 'label' => 'جديد'],
+                ['value' => 'potential', 'label' => 'عميل محتمل'],
+                ['value' => 'unlikely', 'label' => 'عميل غير محتمل'],
+                ['value' => 'qualified', 'label' => 'مؤهل'],
                 ['value' => 'closed', 'label' => 'مغلقة'],
             ],
             'metrics' => [
                 'total_conversations' => $conversations->count(),
-                'open_conversations' => $conversations->where('status', 'open')->count(),
+                'new_conversations' => $conversations->where('status', 'new')->count(),
                 'closed_conversations' => $conversations->where('status', 'closed')->count(),
                 'outbound_last_7_days' => $outboundLast7Days,
                 'failed_last_7_days' => $failedLast7Days,
@@ -145,7 +159,11 @@ class OutsideController extends Controller
 
         $body = trim((string) $data['body']);
 
+        $contact = $outsideConversation->contact;
+        $channel = $contact?->channel ?? 'whatsapp';
+
         $message = $outsideConversation->messages()->create([
+            'channel' => $channel,
             'direction' => 'outbound',
             'message_type' => 'text',
             'body' => $body,
@@ -154,16 +172,27 @@ class OutsideController extends Controller
         ]);
 
         try {
-            $response = $this->whatsAppCloudService->sendText(
-                (string) $outsideConversation->contact?->phone,
-                $body
-            );
-            $message->update([
-                'external_message_id' => (string) data_get($response, 'messages.0.id', ''),
-                'provider_status' => 'sent',
-                'provider_error' => null,
-                'sent_at' => now(),
-            ]);
+            if ($channel === 'instagram') {
+                [$igBiz, $token, $psid] = $this->instagramSendContext($contact);
+                $response = $this->instagramMessaging->sendText($igBiz, $token, $psid, $body);
+                $message->update([
+                    'external_message_id' => (string) data_get($response, 'message_id', ''),
+                    'provider_status' => 'sent',
+                    'provider_error' => null,
+                    'sent_at' => now(),
+                ]);
+            } else {
+                $response = $this->whatsAppCloudService->sendText(
+                    (string) $contact?->phone,
+                    $body
+                );
+                $message->update([
+                    'external_message_id' => (string) data_get($response, 'messages.0.id', ''),
+                    'provider_status' => 'sent',
+                    'provider_error' => null,
+                    'sent_at' => now(),
+                ]);
+            }
         } catch (\Throwable $exception) {
             $message->update([
                 'provider_status' => 'failed',
@@ -188,7 +217,7 @@ class OutsideController extends Controller
     public function updateConversation(Request $request, OutsideConversation $outsideConversation): RedirectResponse
     {
         $data = $request->validate([
-            'status' => ['nullable', Rule::in(['open', 'pending', 'qualified', 'closed'])],
+            'status' => ['nullable', Rule::in(self::CONVERSATION_STATUSES)],
             'assigned_user_id' => ['nullable', 'exists:users,id'],
         ]);
 
@@ -202,7 +231,12 @@ class OutsideController extends Controller
             ]);
         }
 
+        $statusDirty = $outsideConversation->isDirty('status');
         $outsideConversation->save();
+
+        if ($statusDirty && array_key_exists('status', $data) && $data['status']) {
+            $this->outsideGoodsBridge->afterOutsideConversationSaved($outsideConversation->fresh(), $request->user()?->id);
+        }
 
         return redirect()->route('outside.index')->with('success', 'تم تحديث بيانات المحادثة.');
     }
@@ -213,18 +247,38 @@ class OutsideController extends Controller
             return redirect()->route('outside.index');
         }
 
+        $contact = $outsideMessage->conversation?->contact;
+        $channel = $outsideMessage->channel ?? $contact?->channel ?? 'whatsapp';
+
         try {
-            $response = $this->whatsAppCloudService->sendText(
-                (string) $outsideMessage->conversation?->contact?->phone,
-                (string) $outsideMessage->body
-            );
-            $outsideMessage->update([
-                'external_message_id' => (string) data_get($response, 'messages.0.id', $outsideMessage->external_message_id),
-                'provider_status' => 'sent',
-                'provider_error' => null,
-                'retry_count' => (int) $outsideMessage->retry_count + 1,
-                'sent_at' => now(),
-            ]);
+            if ($channel === 'instagram') {
+                [$igBiz, $token, $psid] = $this->instagramSendContext($contact);
+                $response = $this->instagramMessaging->sendText(
+                    $igBiz,
+                    $token,
+                    $psid,
+                    (string) $outsideMessage->body
+                );
+                $outsideMessage->update([
+                    'external_message_id' => (string) data_get($response, 'message_id', $outsideMessage->external_message_id),
+                    'provider_status' => 'sent',
+                    'provider_error' => null,
+                    'retry_count' => (int) $outsideMessage->retry_count + 1,
+                    'sent_at' => now(),
+                ]);
+            } else {
+                $response = $this->whatsAppCloudService->sendText(
+                    (string) $contact?->phone,
+                    (string) $outsideMessage->body
+                );
+                $outsideMessage->update([
+                    'external_message_id' => (string) data_get($response, 'messages.0.id', $outsideMessage->external_message_id),
+                    'provider_status' => 'sent',
+                    'provider_error' => null,
+                    'retry_count' => (int) $outsideMessage->retry_count + 1,
+                    'sent_at' => now(),
+                ]);
+            }
         } catch (\Throwable $exception) {
             $outsideMessage->update([
                 'provider_status' => 'failed',
@@ -239,5 +293,39 @@ class OutsideController extends Controller
         ]);
 
         return redirect()->route('outside.index')->with('success', 'تم تنفيذ إعادة المحاولة.');
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: string}
+     */
+    private function instagramSendContext(?OutsideContact $contact): array
+    {
+        if (! $contact) {
+            throw new \RuntimeException('لا توجد جهة مرتبطة بالمحادثة.');
+        }
+
+        $psid = (string) ($contact->instagram_psid ?? '');
+        if ($psid === '') {
+            throw new \RuntimeException('جهة إنستغرام بدون معرف مراسلة (PSID).');
+        }
+
+        $clientId = (int) ($contact->client_id ?? 0);
+        if ($clientId === 0) {
+            throw new \RuntimeException('الجهة غير مربوطة بعميل؛ يجب أن يمر الرسائل عبر حساب إنستغرام أعمال مربوط بعميل في النظام.');
+        }
+
+        $integration = ClientMetaIntegration::query()->where('client_id', $clientId)->first();
+        $igBiz = (string) ($integration?->meta_instagram_account_id ?? '');
+        if ($igBiz === '') {
+            throw new \RuntimeException('لا يوجد حساب إنستغرام أعمال في تكامل ميتا لهذا العميل.');
+        }
+
+        $tokenRow = ClientMetaOauthToken::query()->where('client_id', $clientId)->first();
+        $token = $tokenRow && $tokenRow->access_token !== null ? (string) $tokenRow->access_token : '';
+        if ($token === '') {
+            throw new \RuntimeException('لا يوجد رمز وصول ميتا صالح للعميل؛ أعد الربط من بوابة العميل.');
+        }
+
+        return [$igBiz, $token, $psid];
     }
 }

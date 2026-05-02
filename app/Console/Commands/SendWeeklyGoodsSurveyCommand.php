@@ -25,9 +25,10 @@ class SendWeeklyGoodsSurveyCommand extends Command
     {
         $limit = max(1, (int) $this->option('limit'));
         $customers = GoodsCustomer::query()
-            ->whereIn('status', ['prospect', 'active'])
+            ->whereIn('status', ['potential', 'active'])
             ->whereNotNull('outside_contact_id')
-            ->with('contact:id,phone')
+            ->whereHas('contact', fn ($q) => $q->where('channel', 'whatsapp'))
+            ->with('contact:id,phone,channel')
             ->limit($limit)
             ->get();
 
@@ -46,6 +47,7 @@ class SendWeeklyGoodsSurveyCommand extends Command
 
             $message = OutsideMessage::query()->create([
                 'outside_conversation_id' => $conversation->id,
+                'channel' => 'whatsapp',
                 'direction' => 'outbound',
                 'message_type' => 'text',
                 'body' => $body,
@@ -98,4 +100,3 @@ class SendWeeklyGoodsSurveyCommand extends Command
         return self::SUCCESS;
     }
 }
-

@@ -8,6 +8,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class OutsideConversation extends Model
 {
+    /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'status' => 'new',
+    ];
+
     protected $fillable = [
         'outside_contact_id',
         'status',
@@ -32,4 +39,3 @@ class OutsideConversation extends Model
         return $this->hasMany(OutsideMessage::class)->orderByDesc('created_at');
     }
 }
-
