@@ -99,6 +99,21 @@ const editForm = useForm({
 const sendingLoginId = ref(null);
 
 /** يُرسل مع الطلب: أرقام فقط لمفتاح الدولة، و allocation_percent الفارغ → null (لا يفشل تحقق integer على السيرفر). */
+function normalizeAllocationPercent(val) {
+    if (val === '' || val === undefined || val === null) {
+        return null;
+    }
+    if (typeof val === 'number' && !Number.isNaN(val)) {
+        return val;
+    }
+    const s = String(val).trim();
+    if (s === '') {
+        return null;
+    }
+    const n = parseInt(s, 10);
+    return Number.isNaN(n) ? null : n;
+}
+
 function employeePayloadTransform(data) {
     let phone_country_code = data.phone_country_code;
     if (phone_country_code != null && String(phone_country_code).trim() !== '') {
@@ -110,8 +125,7 @@ function employeePayloadTransform(data) {
     const teams = Array.isArray(data.teams)
         ? data.teams.map((t) => ({
             ...t,
-            allocation_percent:
-                t.allocation_percent === '' || t.allocation_percent === undefined ? null : t.allocation_percent,
+            allocation_percent: normalizeAllocationPercent(t.allocation_percent),
         }))
         : data.teams;
 

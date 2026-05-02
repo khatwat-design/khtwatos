@@ -1,9 +1,12 @@
 <script setup>
 import { onMounted, ref } from 'vue';
 
+/**
+ * لا نفرض String فقط: حقول مثل نسبة التوزيع % تمرّر أعدادًا من الـ API أو من input[type=number]،
+ * وفرض String كان يسبب أخطاء Vue في وحدة التحكم وقد يمنع إرسال النموذج.
+ */
 const model = defineModel({
-    type: String,
-    required: true,
+    required: false,
 });
 
 const input = ref(null);
