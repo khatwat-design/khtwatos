@@ -41,6 +41,7 @@ class OutsideController extends Controller
             ->count();
 
         return Inertia::render('Outside/Index', [
+            'can_delete_outside_contacts' => (bool) auth()->user()?->isAdmin(),
             'conversations' => $conversations->map(fn (OutsideConversation $conversation) => [
                 'id' => $conversation->id,
                 'status' => $conversation->status,
@@ -84,6 +85,22 @@ class OutsideController extends Controller
                 'failed_last_7_days' => $failedLast7Days,
             ],
         ]);
+    }
+
+    public function destroyContact(Request $request, OutsideContact $outsideContact): RedirectResponse
+    {
+        abort_unless($request->user()?->isAdmin(), 403);
+
+        $outsideContact->delete();
+
+        return redirect()->route('outside.index')->with('success', 'تم حذف جهة الاتصال والمحادثة المرتبطة.');
+    }
+
+    public function markConversationRead(Request $request, OutsideConversation $outsideConversation): RedirectResponse
+    {
+        $outsideConversation->forceFill(['unread_count' => 0])->save();
+
+        return redirect()->route('outside.index');
     }
 
     public function storeContact(Request $request): RedirectResponse

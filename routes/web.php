@@ -91,6 +91,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/chat/typing', [TeamChatController::class, 'typingUsers'])->name('chat.typing.index');
     Route::get('/outside', [OutsideController::class, 'index'])->name('outside.index');
     Route::post('/outside/contacts', [OutsideController::class, 'storeContact'])->name('outside.contacts.store');
+    Route::delete('/outside/contacts/{outsideContact}', [OutsideController::class, 'destroyContact'])->name('outside.contacts.destroy');
+    Route::post('/outside/conversations/{outsideConversation}/read', [OutsideController::class, 'markConversationRead'])->name('outside.conversations.read');
     Route::post('/outside/conversations/{outsideConversation}/messages', [OutsideController::class, 'storeMessage'])->name('outside.messages.store');
     Route::patch('/outside/conversations/{outsideConversation}', [OutsideController::class, 'updateConversation'])->name('outside.conversations.update');
     Route::post('/outside/messages/{outsideMessage}/retry', [OutsideController::class, 'retryMessage'])->name('outside.messages.retry');
@@ -155,6 +157,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/employees', [EmployeeController::class, 'store'])->name('employees.store');
         Route::patch('/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
         Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
+        Route::post('/employees/{employee}/login-whatsapp', [EmployeeController::class, 'sendLoginWhatsApp'])->name('employees.login-whatsapp');
     });
 });
 

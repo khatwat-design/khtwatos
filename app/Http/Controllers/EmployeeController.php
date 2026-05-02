@@ -5,18 +5,28 @@ namespace App\Http\Controllers;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\SmartNotificationService;
+use App\Services\WhatsAppCloudService;
+use App\Support\ArabCountryDialCodes;
+use App\Support\EmployeeOutsideContactSync;
+use App\Support\EmployeeWhatsAppLoginBody;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class EmployeeController extends Controller
 {
-    public function __construct(private readonly SmartNotificationService $smartNotifications) {}
+    public function __construct(
+        private readonly SmartNotificationService $smartNotifications,
+        private readonly WhatsAppCloudService $whatsAppCloudService,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -27,30 +37,38 @@ class EmployeeController extends Controller
             ->get();
 
         return Inertia::render('Employees/Index', [
-            'employees' => $employees->map(fn (User $user) => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'username' => $user->username,
-                'avatar_url' => $user->avatar_path ? Storage::disk('public')->url($user->avatar_path) : null,
-                'role' => $user->role,
-                'is_bookable' => (bool) $user->is_bookable,
-                'availability_days' => $user->availability_days ?: [0, 1, 2, 3, 4],
-                'availability_start_time' => $user->availability_start_time ? substr((string) $user->availability_start_time, 0, 5) : '09:00',
-                'availability_end_time' => $user->availability_end_time ? substr((string) $user->availability_end_time, 0, 5) : '17:00',
-                'availability_schedule' => $this->normalizeAvailabilitySchedule(
-                    is_array($user->availability_schedule) ? $user->availability_schedule : null,
-                    $user->availability_days ?: [0, 1, 2, 3, 4],
-                    $user->availability_start_time ? substr((string) $user->availability_start_time, 0, 5) : '09:00',
-                    $user->availability_end_time ? substr((string) $user->availability_end_time, 0, 5) : '17:00',
-                ),
-                'teams' => $user->teams->map(fn ($team) => [
-                    'id' => $team->id,
-                    'name' => $team->name,
-                    'slug' => $team->slug,
-                    'is_lead' => (bool) ($team->pivot?->is_lead),
-                    'allocation_percent' => $team->pivot?->allocation_percent,
-                ])->values(),
-            ])->values(),
+            'arab_country_dial_options' => ArabCountryDialCodes::optionsForFront(),
+            'employees' => $employees->map(function (User $user) {
+                $split = $this->splitPhoneForDisplay($user->phone);
+
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'username' => $user->username,
+                    'phone' => $user->phone,
+                    'phone_country_code' => $split['phone_country_code'],
+                    'phone_local' => $split['phone_local'],
+                    'avatar_url' => $user->avatar_path ? Storage::disk('public')->url($user->avatar_path) : null,
+                    'role' => $user->role,
+                    'is_bookable' => (bool) $user->is_bookable,
+                    'availability_days' => $user->availability_days ?: [0, 1, 2, 3, 4],
+                    'availability_start_time' => $user->availability_start_time ? substr((string) $user->availability_start_time, 0, 5) : '09:00',
+                    'availability_end_time' => $user->availability_end_time ? substr((string) $user->availability_end_time, 0, 5) : '17:00',
+                    'availability_schedule' => $this->normalizeAvailabilitySchedule(
+                        is_array($user->availability_schedule) ? $user->availability_schedule : null,
+                        $user->availability_days ?: [0, 1, 2, 3, 4],
+                        $user->availability_start_time ? substr((string) $user->availability_start_time, 0, 5) : '09:00',
+                        $user->availability_end_time ? substr((string) $user->availability_end_time, 0, 5) : '17:00',
+                    ),
+                    'teams' => $user->teams->map(fn ($team) => [
+                        'id' => $team->id,
+                        'name' => $team->name,
+                        'slug' => $team->slug,
+                        'is_lead' => (bool) ($team->pivot?->is_lead),
+                        'allocation_percent' => $team->pivot?->allocation_percent,
+                    ])->values(),
+                ];
+            })->values(),
             'teams' => $teams->map(fn (Team $team) => Arr::only($team->toArray(), ['id', 'name', 'slug']))->values(),
             'canAssignAdmin' => $request->user()?->isAdmin() ?? false,
         ]);
@@ -63,6 +81,7 @@ class EmployeeController extends Controller
         $user = User::query()->create([
             'name' => $data['name'],
             'username' => $data['username'],
+            'phone' => $data['phone'] ?? null,
             'email' => null,
             'password' => $data['password'],
             'role' => $data['role'],
@@ -75,6 +94,9 @@ class EmployeeController extends Controller
         ]);
 
         $user->teams()->sync($this->teamPivotSyncPayload($data['teams'] ?? []));
+        if (! empty($user->phone)) {
+            EmployeeOutsideContactSync::sync((int) $user->id, (string) $user->phone, (string) $user->name);
+        }
         $adminIds = User::query()->where('role', 'admin')->pluck('id')->map(fn ($id) => (int) $id)->all();
         $this->smartNotifications->notifyUsers($adminIds, [
             'title' => 'إضافة موظف جديد',
@@ -95,6 +117,7 @@ class EmployeeController extends Controller
         $employee->fill([
             'name' => $data['name'],
             'username' => $data['username'],
+            'phone' => $data['phone'] ?? null,
             'email' => null,
             'role' => $data['role'],
             'is_bookable' => (bool) ($data['is_bookable'] ?? false),
@@ -110,8 +133,54 @@ class EmployeeController extends Controller
 
         $employee->save();
         $employee->teams()->sync($this->teamPivotSyncPayload($data['teams'] ?? []));
+        if (! empty($employee->phone)) {
+            EmployeeOutsideContactSync::sync((int) $employee->id, (string) $employee->phone, (string) $employee->name);
+        }
 
         return redirect()->route('employees.index');
+    }
+
+    public function sendLoginWhatsApp(Request $request, User $employee): RedirectResponse
+    {
+        $phone = $employee->phone;
+        if ($phone === null || trim((string) $phone) === '') {
+            return redirect()->route('employees.index')->with('error', 'لا يوجد رقم هاتف محفوظ لهذا الموظف.');
+        }
+
+        $plain = Str::password(12, symbols: true);
+        $employee->password = $plain;
+        $employee->save();
+
+        $loginUrl = route('login', [], absolute: true);
+        $roleLabel = EmployeeWhatsAppLoginBody::roleLabel((string) $employee->role);
+        $body = EmployeeWhatsAppLoginBody::build(
+            userName: (string) $employee->name,
+            username: (string) $employee->username,
+            arabicDisplayName: (string) $employee->name,
+            title: '',
+            loginUrl: $loginUrl,
+            plainPassword: $plain,
+            role: (string) $employee->role,
+        );
+
+        try {
+            $this->whatsAppCloudService->sendEmployeeCredentials(
+                (string) $phone,
+                $body,
+                (string) $employee->name,
+                (string) $employee->username,
+                $plain,
+                $loginUrl,
+                $roleLabel,
+            );
+        } catch (Throwable $e) {
+            return redirect()->route('employees.index')->with('error', 'فشل إرسال واتساب: '.$e->getMessage());
+        }
+
+        return redirect()->route('employees.index')->with(
+            'success',
+            'تم إرسال بيانات الدخول عبر واتساب وتعيين كلمة مرور جديدة للموظف.'
+        );
     }
 
     public function destroy(Request $request, User $employee): RedirectResponse
@@ -132,11 +201,10 @@ class EmployeeController extends Controller
     private function validatedEmployee(Request $request, bool $isCreate, ?int $userId = null): array
     {
         $this->ensureTeams();
-        $emailRule = ['required', 'string', 'max:255', 'unique:users,email'];
-        $nameRule = ['required', 'string', 'max:255', 'unique:users,name'];
+        $allowedDialCodes = array_keys(ArabCountryDialCodes::options());
+        $usernameRule = ['required', 'string', 'regex:/^[a-z0-9]{2,32}$/', 'max:32', Rule::unique('users', 'username')];
         if ($userId) {
-            $emailRule = ['required', 'string', 'max:255', 'unique:users,email,'.$userId];
-            $nameRule = ['required', 'string', 'max:255', 'unique:users,name,'.$userId];
+            $usernameRule = ['required', 'string', 'regex:/^[a-z0-9]{2,32}$/', 'max:32', Rule::unique('users', 'username')->ignore($userId)];
         }
 
         $passwordRule = $isCreate
@@ -149,6 +217,8 @@ class EmployeeController extends Controller
             'password' => $passwordRule,
             'role' => ['required', 'in:admin,lead,member'],
             'is_bookable' => ['nullable', 'boolean'],
+            'phone_country_code' => ['nullable', 'string', Rule::in($allowedDialCodes)],
+            'phone_local' => ['nullable', 'string', 'max:40'],
             'availability_schedule' => ['required', 'array', 'size:7'],
             'availability_schedule.*.day' => ['required', 'integer', 'between:0,6'],
             'availability_schedule.*.enabled' => ['required', 'boolean'],
@@ -159,6 +229,35 @@ class EmployeeController extends Controller
             'teams.*.allocation_percent' => ['nullable', 'integer', 'min:0', 'max:100'],
             'teams.*.is_lead' => ['nullable', 'boolean'],
         ]);
+
+        $cc = isset($data['phone_country_code']) ? trim((string) $data['phone_country_code']) : '';
+        $localDigits = ArabCountryDialCodes::normalizeDigits((string) ($data['phone_local'] ?? ''));
+        $localDigits = ltrim($localDigits, '0');
+
+        if ($cc === '' && $localDigits === '') {
+            $data['phone'] = null;
+        } elseif ($cc === '' || $localDigits === '') {
+            throw ValidationException::withMessages([
+                'phone_local' => 'أكمل رقم الهاتف مع مفتاح الدولة أو اترك الحقلين فارغين.',
+            ]);
+        } else {
+            if (strlen($localDigits) < 6 || strlen($localDigits) > 14) {
+                throw ValidationException::withMessages([
+                    'phone_local' => 'رقم الهاتف المحلي غير صالح.',
+                ]);
+            }
+
+            $full = $cc.$localDigits;
+            if (strlen($full) > 15) {
+                throw ValidationException::withMessages([
+                    'phone_local' => 'الرقم الكامل أطول من المسموح.',
+                ]);
+            }
+
+            $data['phone'] = $full;
+        }
+
+        unset($data['phone_country_code'], $data['phone_local']);
 
         if (($data['role'] ?? null) === 'admin' && ! $request->user()?->isAdmin()) {
             throw ValidationException::withMessages([
@@ -296,5 +395,27 @@ class EmployeeController extends Controller
         }
 
         return $normalized;
+    }
+
+    /**
+     * @return array{phone_country_code: string, phone_local: string}
+     */
+    private function splitPhoneForDisplay(?string $stored): array
+    {
+        if ($stored === null || trim($stored) === '') {
+            return ['phone_country_code' => '964', 'phone_local' => ''];
+        }
+
+        $digits = ArabCountryDialCodes::normalizeDigits($stored);
+        foreach (ArabCountryDialCodes::codesLongestFirst() as $code) {
+            if (str_starts_with($digits, $code)) {
+                return [
+                    'phone_country_code' => $code,
+                    'phone_local' => substr($digits, strlen($code)),
+                ];
+            }
+        }
+
+        return ['phone_country_code' => '964', 'phone_local' => $digits];
     }
 }

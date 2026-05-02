@@ -12,6 +12,10 @@ const props = defineProps({
     users: Array,
     conversation_statuses: Array,
     metrics: Object,
+    can_delete_outside_contacts: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 /** على الهاتف: قائمة | محادثة — على lg يظهر العمودان معاً */
@@ -80,6 +84,64 @@ watch(activeConversationId, async () => {
     await nextTick();
     scrollMessagesToEnd();
 });
+
+watch(
+    () => props.conversations,
+    (list) => {
+        if (!list?.length) {
+            activeConversationId.value = null;
+            return;
+        }
+        const exists = list.some((c) => c.id === activeConversationId.value);
+        if (!exists) {
+            activeConversationId.value = list[0]?.id ?? null;
+        }
+    },
+    { deep: true },
+);
+
+watch(
+    () => {
+        const c = activeConversation.value;
+        if (!c || !Number(c.unread_count || 0)) {
+            return null;
+        }
+        return c.id;
+    },
+    (conversationId) => {
+        if (!conversationId) {
+            return;
+        }
+        router.post(route('outside.conversations.read', conversationId), {}, {
+            preserveScroll: true,
+            only: ['conversations', 'metrics'],
+        });
+    },
+    { immediate: true },
+);
+
+const deleteContactProcessing = ref(false);
+
+function deleteActiveContact() {
+    const contactId = activeConversation.value?.contact?.id;
+    if (!contactId || !props.can_delete_outside_contacts || deleteContactProcessing.value) {
+        return;
+    }
+    const label =
+        activeConversation.value?.contact?.name ||
+        activeConversation.value?.contact?.phone ||
+        'هذه الجهة';
+    if (!confirm(`حذف ${label} وجميع رسائل المحادثة؟ لا يمكن التراجع.`)) {
+        return;
+    }
+    deleteContactProcessing.value = true;
+    router.delete(route('outside.contacts.destroy', contactId), {
+        preserveScroll: true,
+        onFinish: () => {
+            deleteContactProcessing.value = false;
+        },
+    });
+}
 
 function scrollMessagesToEnd() {
     const el = messagesEl.value;
@@ -303,7 +365,7 @@ onUnmounted(() => {
                 مزامنة سريعة مع واتساب (تحديث كل ثانية تقريباً، وفوري عند العودة للصفحة)
             </p>
 
-            <div class="flex min-h-[min(720px,calc(100dvh-14rem))] flex-1 flex-col gap-3 lg:grid lg:min-h-[calc(100dvh-12rem)] lg:grid-cols-[minmax(300px,380px)_1fr] lg:gap-4">
+            <div class="flex min-h-[min(736px,calc(100dvh-13rem))] flex-1 flex-col gap-3 lg:grid lg:min-h-[calc(100dvh-11.5rem)] lg:grid-cols-[minmax(300px,400px)_1fr] lg:gap-4">
                 <!-- القائمة -->
                 <aside
                     :class="[
@@ -325,7 +387,7 @@ onUnmounted(() => {
                             v-for="conversation in filteredConversations"
                             :key="conversation.id"
                             type="button"
-                            class="flex w-full gap-3 rounded-2xl border px-3 py-3 text-start transition-all duration-150"
+                            class="flex min-h-[44px] w-full gap-3 rounded-2xl border px-3 py-3.5 text-start transition-all duration-150"
                             :class="
                                 activeConversationId === conversation.id
                                     ? 'border-brand-400 bg-brand-50/90 shadow-md shadow-brand-900/10 ring-2 ring-brand-500/20'
@@ -402,7 +464,7 @@ onUnmounted(() => {
                 >
                     <template v-if="activeConversation">
                         <!-- رأس المحادثة -->
-                        <header class="flex shrink-0 items-center gap-3 border-b border-slate-200/90 bg-gradient-to-l from-slate-50 to-white px-3 py-3 sm:px-4">
+                        <header class="flex shrink-0 items-center gap-2 border-b border-slate-200/90 bg-gradient-to-l from-slate-50 to-white px-3 py-3 sm:gap-3 sm:px-4">
                             <button
                                 type="button"
                                 class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm lg:hidden"
@@ -424,6 +486,15 @@ onUnmounted(() => {
                                 </h2>
                                 <p dir="ltr" class="truncate text-xs text-slate-500 sm:text-sm">{{ activeConversation.contact?.phone }}</p>
                             </div>
+                            <button
+                                v-if="can_delete_outside_contacts && activeConversation.contact?.id"
+                                type="button"
+                                class="shrink-0 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-semibold text-rose-800 transition hover:bg-rose-100 disabled:opacity-50 sm:text-xs"
+                                :disabled="deleteContactProcessing"
+                                @click="deleteActiveContact"
+                            >
+                                حذف الجهة
+                            </button>
                             <span
                                 class="hidden shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold sm:inline-flex"
                                 :class="statusClass(activeConversation.status)"
@@ -523,7 +594,7 @@ onUnmounted(() => {
                                     v-model="messageForm.body"
                                     rows="2"
                                     required
-                                    class="block w-full resize-none rounded-2xl border-slate-200 px-4 py-3 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 sm:rows-3"
+                                    class="block min-h-[44px] w-full resize-none rounded-2xl border-slate-200 px-4 py-3 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500 sm:min-h-[72px] sm:rows-3"
                                     placeholder="اكتب رسالة للعميل…"
                                     @keydown.ctrl.enter.prevent="submitMessage"
                                     @keydown.meta.enter.prevent="submitMessage"

@@ -5,15 +5,22 @@ import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
 const props = defineProps({
     employees: Array,
     teams: Array,
     canAssignAdmin: Boolean,
+    arab_country_dial_options: {
+        type: Array,
+        default: () => [],
+    },
 });
+
+const page = usePage();
 
 const roleLabels = {
     admin: 'مدير النظام',
@@ -69,6 +76,8 @@ const createForm = useForm({
     name: '',
     username: '',
     password: '',
+    phone_country_code: '964',
+    phone_local: '',
     role: 'member',
     is_bookable: true,
     availability_schedule: buildDefaultSchedule(),
@@ -79,17 +88,23 @@ const editForm = useForm({
     name: '',
     username: '',
     password: '',
+    phone_country_code: '964',
+    phone_local: '',
     role: 'member',
     is_bookable: true,
     availability_schedule: buildDefaultSchedule(),
     teams: [],
 });
 
+const sendingLoginId = ref(null);
+
 function openCreateModal() {
     createForm.reset();
     createForm.clearErrors();
     createForm.role = 'member';
     createForm.is_bookable = true;
+    createForm.phone_country_code = '964';
+    createForm.phone_local = '';
     createForm.availability_schedule = buildDefaultSchedule();
     createForm.teams = [];
     createModalOpen.value = true;
@@ -105,6 +120,8 @@ function openEditModal(employee) {
     editForm.name = employee.name;
     editForm.username = employee.username || '';
     editForm.password = '';
+    editForm.phone_country_code = employee.phone_country_code || '964';
+    editForm.phone_local = employee.phone_local || '';
     editForm.role = employee.role;
     editForm.is_bookable = Boolean(employee.is_bookable);
     editForm.availability_schedule = buildDefaultSchedule(employee.availability_schedule);
@@ -172,6 +189,26 @@ function deleteEmployee(employee) {
         preserveScroll: true,
     });
 }
+
+function sendLoginWhatsApp(employee) {
+    if (!employee.phone) {
+        return;
+    }
+    if (
+        !confirm(
+            'سيتم إنشاء كلمة مرور جديدة للموظف وإرسال رابط الدخول واسم المستخدم وكلمة المرور عبر واتساب. هل تريد المتابعة؟',
+        )
+    ) {
+        return;
+    }
+    sendingLoginId.value = employee.id;
+    router.post(route('employees.login-whatsapp', employee.id), {}, {
+        preserveScroll: true,
+        onFinish: () => {
+            sendingLoginId.value = null;
+        },
+    });
+}
 </script>
 
 <template>
@@ -186,6 +223,19 @@ function deleteEmployee(employee) {
                     إدارة كاملة لبيانات الموظفين، فرقهم، الصلاحيات، وتوفرهم للحجز.
                 </p>
                 <PrimaryButton type="button" @click="openCreateModal">إضافة موظف</PrimaryButton>
+            </div>
+
+            <div
+                v-if="page.props.flash?.success"
+                class="ui-card border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+            >
+                {{ page.props.flash.success }}
+            </div>
+            <div
+                v-if="page.props.flash?.error"
+                class="ui-card border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900"
+            >
+                {{ page.props.flash.error }}
             </div>
 
             <div class="space-y-3 md:hidden">
@@ -204,6 +254,10 @@ function deleteEmployee(employee) {
                             <div>
                                 <div class="text-sm font-semibold text-gray-900">{{ emp.name }}</div>
                                 <div class="text-xs text-gray-500" dir="ltr">{{ emp.username }}</div>
+                                <div v-if="emp.phone" class="mt-0.5 text-xs text-gray-600" dir="ltr">
+                                    +{{ emp.phone }}
+                                </div>
+                                <div v-else class="mt-0.5 text-xs text-gray-400">لا يوجد هاتف</div>
                             </div>
                         </div>
                         <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
@@ -236,17 +290,25 @@ function deleteEmployee(employee) {
                         <div class="mt-1">{{ scheduleSummary(emp.availability_schedule) }}</div>
                     </div>
 
-                    <div class="mt-3 flex gap-2">
+                    <div class="mt-3 flex flex-wrap gap-2">
                         <button
                             type="button"
-                            class="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50"
+                            class="min-h-[44px] rounded border border-gray-300 px-3 py-2 text-xs hover:bg-gray-50"
                             @click="openEditModal(emp)"
                         >
                             تعديل
                         </button>
+                        <SecondaryButton
+                            type="button"
+                            class="!min-h-[44px] !border-emerald-300 !bg-emerald-50 !px-3 !py-2 !text-xs !text-emerald-900 hover:!bg-emerald-100"
+                            :disabled="!emp.phone || sendingLoginId === emp.id"
+                            @click="sendLoginWhatsApp(emp)"
+                        >
+                            واتساب · الدخول
+                        </SecondaryButton>
                         <DangerButton
                             type="button"
-                            class="!px-2 !py-1 !text-xs"
+                            class="!min-h-[44px] !px-3 !py-2 !text-xs"
                             @click="deleteEmployee(emp)"
                         >
                             حذف
@@ -264,6 +326,7 @@ function deleteEmployee(employee) {
                         <tr>
                             <th class="px-4 py-2 text-start font-medium text-gray-600">الاسم</th>
                             <th class="px-4 py-2 text-start font-medium text-gray-600">اسم المستخدم</th>
+                            <th class="px-4 py-2 text-start font-medium text-gray-600">الهاتف</th>
                             <th class="px-4 py-2 text-start font-medium text-gray-600">الدور</th>
                             <th class="px-4 py-2 text-start font-medium text-gray-600">الفرق</th>
                             <th class="px-4 py-2 text-start font-medium text-gray-600">التوفر</th>
@@ -286,6 +349,10 @@ function deleteEmployee(employee) {
                                 </div>
                             </td>
                             <td class="px-4 py-2 text-gray-700" dir="ltr">{{ emp.username }}</td>
+                            <td class="px-4 py-2 text-gray-700" dir="ltr">
+                                <span v-if="emp.phone">+{{ emp.phone }}</span>
+                                <span v-else class="text-gray-400">—</span>
+                            </td>
                             <td class="px-4 py-2 text-gray-700">
                                 {{ roleLabels[emp.role] || emp.role }}
                             </td>
@@ -315,7 +382,7 @@ function deleteEmployee(employee) {
                                 </div>
                             </td>
                             <td class="px-4 py-2">
-                                <div class="flex gap-2">
+                                <div class="flex flex-wrap gap-2">
                                     <button
                                         type="button"
                                         class="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50"
@@ -323,6 +390,14 @@ function deleteEmployee(employee) {
                                     >
                                         تعديل
                                     </button>
+                                    <SecondaryButton
+                                        type="button"
+                                        class="!border-emerald-300 !bg-emerald-50 !px-2 !py-1 !text-xs !text-emerald-900 hover:!bg-emerald-100"
+                                        :disabled="!emp.phone || sendingLoginId === emp.id"
+                                        @click="sendLoginWhatsApp(emp)"
+                                    >
+                                        واتساب
+                                    </SecondaryButton>
                                     <DangerButton
                                         type="button"
                                         class="!px-2 !py-1 !text-xs"
@@ -334,7 +409,7 @@ function deleteEmployee(employee) {
                             </td>
                         </tr>
                         <tr v-if="!employees.length">
-                            <td colspan="6" class="px-4 py-6 text-center text-gray-500">
+                            <td colspan="7" class="px-4 py-6 text-center text-gray-500">
                                 لا يوجد موظفون.
                             </td>
                         </tr>
@@ -358,6 +433,36 @@ function deleteEmployee(employee) {
                             <TextInput id="c_username" v-model="createForm.username" type="text" class="mt-1 block w-full font-mono text-sm" dir="ltr" placeholder="مثال: aj2642" autocomplete="username" required />
                             <p class="mt-0.5 text-[11px] text-gray-500">أحرف لاتينية صغيرة وأرقام فقط (بدون بريد إلكتروني).</p>
                             <InputError class="mt-1" :message="createForm.errors.username" />
+                        </div>
+                    </div>
+
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <div>
+                            <InputLabel for="c_phone_cc" value="مفتاح الدولة" />
+                            <select
+                                id="c_phone_cc"
+                                v-model="createForm.phone_country_code"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                            >
+                                <option v-for="opt in arab_country_dial_options" :key="`cc-${opt.value}`" :value="opt.value">
+                                    {{ opt.label }}
+                                </option>
+                            </select>
+                            <InputError class="mt-1" :message="createForm.errors.phone_country_code" />
+                        </div>
+                        <div>
+                            <InputLabel for="c_phone_local" value="رقم الهاتف (بدون المفتاح)" />
+                            <TextInput
+                                id="c_phone_local"
+                                v-model="createForm.phone_local"
+                                type="text"
+                                class="mt-1 block w-full font-mono text-sm"
+                                dir="ltr"
+                                placeholder="مثال: 7812345678"
+                                autocomplete="tel-national"
+                            />
+                            <p class="mt-0.5 text-[11px] text-gray-500">اترك فارغًا إن لم يكن للموظف رقم واتساب.</p>
+                            <InputError class="mt-1" :message="createForm.errors.phone_local" />
                         </div>
                     </div>
 
@@ -490,6 +595,36 @@ function deleteEmployee(employee) {
                             <InputLabel for="e_username" value="اسم المستخدم" />
                             <TextInput id="e_username" v-model="editForm.username" type="text" class="mt-1 block w-full font-mono text-sm" dir="ltr" autocomplete="username" required />
                             <InputError class="mt-1" :message="editForm.errors.username" />
+                        </div>
+                    </div>
+
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        <div>
+                            <InputLabel for="e_phone_cc" value="مفتاح الدولة" />
+                            <select
+                                id="e_phone_cc"
+                                v-model="editForm.phone_country_code"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                            >
+                                <option v-for="opt in arab_country_dial_options" :key="`ecc-${opt.value}`" :value="opt.value">
+                                    {{ opt.label }}
+                                </option>
+                            </select>
+                            <InputError class="mt-1" :message="editForm.errors.phone_country_code" />
+                        </div>
+                        <div>
+                            <InputLabel for="e_phone_local" value="رقم الهاتف (بدون المفتاح)" />
+                            <TextInput
+                                id="e_phone_local"
+                                v-model="editForm.phone_local"
+                                type="text"
+                                class="mt-1 block w-full font-mono text-sm"
+                                dir="ltr"
+                                placeholder="مثال: 7812345678"
+                                autocomplete="tel-national"
+                            />
+                            <p class="mt-0.5 text-[11px] text-gray-500">اترك الحقلين فارغين لإزالة رقم الهاتف.</p>
+                            <InputError class="mt-1" :message="editForm.errors.phone_local" />
                         </div>
                     </div>
 

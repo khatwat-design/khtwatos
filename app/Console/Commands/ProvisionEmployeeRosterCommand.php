@@ -8,6 +8,7 @@ use App\Services\SmartNotificationService;
 use App\Services\WhatsAppCloudService;
 use App\Support\EmployeeOutsideContactSync;
 use App\Support\EmployeeUsername;
+use App\Support\EmployeeWhatsAppLoginBody;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -250,7 +251,7 @@ class ProvisionEmployeeRosterCommand extends Command
             }
         }
 
-        $message = $this->buildWhatsAppBody(
+        $message = EmployeeWhatsAppLoginBody::build(
             userName: $user->name,
             username: $resolvedUsername,
             arabicDisplayName: $arabicName,
@@ -260,11 +261,7 @@ class ProvisionEmployeeRosterCommand extends Command
             role: $role,
         );
 
-        $roleLabel = match ($role) {
-            'admin' => 'مدير نظام',
-            'lead' => 'قائد فريق',
-            default => 'موظف',
-        };
+        $roleLabel = EmployeeWhatsAppLoginBody::roleLabel($role);
 
         $waSent = false;
         if (! $dryRun) {
@@ -345,51 +342,6 @@ class ProvisionEmployeeRosterCommand extends Command
             })
             ->orderByDesc('id')
             ->first();
-    }
-
-    private function buildWhatsAppBody(
-        string $userName,
-        string $username,
-        string $arabicDisplayName,
-        string $title,
-        string $loginUrl,
-        string $plainPassword,
-        string $role,
-    ): string {
-        $roleLabel = match ($role) {
-            'admin' => 'مدير نظام',
-            'lead' => 'قائد فريق',
-            default => 'موظف',
-        };
-
-        $lines = [
-            "مرحبًا {$arabicDisplayName}،",
-            '',
-            'تم تجهيز بيانات الدخول لنظام خارج المخزون.',
-        ];
-
-        if ($title !== '') {
-            $lines[] = "المنصب: {$title}";
-            $lines[] = '';
-        }
-
-        $lines[] = 'رابط الدخول:';
-        $lines[] = $loginUrl;
-        $lines[] = '';
-        $lines[] = 'اسم المستخدم:';
-        $lines[] = $username;
-        $lines[] = '';
-        $lines[] = 'يمكنك أيضًا تسجيل الدخول بالاسم الكامل إن وُجد مطابقًا:';
-        $lines[] = $userName;
-        $lines[] = '';
-        $lines[] = 'كلمة المرور الموحدة حاليًا:';
-        $lines[] = $plainPassword;
-        $lines[] = '';
-        $lines[] = 'الدور في النظام: '.$roleLabel;
-        $lines[] = '';
-        $lines[] = 'يُفضّل تغيير كلمة المرور لاحقًا من الإعدادات.';
-
-        return implode("\n", $lines);
     }
 
     private function ensureTeams(): void
