@@ -200,8 +200,10 @@ class EmployeeController extends Controller
      */
     private function validatedEmployee(Request $request, bool $isCreate, ?int $userId = null): array
     {
+        $this->normalizeEmployeeRequestInput($request);
         $this->ensureTeams();
-        $allowedDialCodes = array_keys(ArabCountryDialCodes::options());
+        $allowedDialCodes = ArabCountryDialCodes::dialCodesForValidation();
+
         $usernameRule = ['required', 'string', 'regex:/^[a-z0-9]{2,32}$/', 'max:32', Rule::unique('users', 'username')];
         if ($userId) {
             $usernameRule = ['required', 'string', 'regex:/^[a-z0-9]{2,32}$/', 'max:32', Rule::unique('users', 'username')->ignore($userId)];
@@ -217,7 +219,18 @@ class EmployeeController extends Controller
             'password' => $passwordRule,
             'role' => ['required', 'in:admin,lead,member'],
             'is_bookable' => ['nullable', 'boolean'],
-            'phone_country_code' => ['nullable', 'string', Rule::in($allowedDialCodes)],
+            'phone_country_code' => [
+                'nullable',
+                function (string $attribute, mixed $value, \Closure $fail) use ($allowedDialCodes): void {
+                    if ($value === null || $value === '') {
+                        return;
+                    }
+                    $code = is_string($value) ? $value : (string) $value;
+                    if (! in_array($code, $allowedDialCodes, true)) {
+                        $fail('مفتاح الدولة غير مدعوم أو غير صالح.');
+                    }
+                },
+            ],
             'phone_local' => ['nullable', 'string', 'max:40'],
             'availability_schedule' => ['required', 'array', 'size:7'],
             'availability_schedule.*.day' => ['required', 'integer', 'between:0,6'],
@@ -395,6 +408,46 @@ class EmployeeController extends Controller
         }
 
         return $normalized;
+    }
+
+    /**
+     * تطبيع الإدخال قبل التحقق: أرقام فقط لمفتاح الدولة، وفراغ allocation_percent يصبح null حتى لا يفشل قاعدة integer.
+     */
+    private function normalizeEmployeeRequestInput(Request $request): void
+    {
+        if ($request->exists('phone_country_code')) {
+            $raw = $request->input('phone_country_code');
+            $digits = preg_replace('/\D/', '', (string) ($raw ?? '')) ?? '';
+            $request->merge(['phone_country_code' => $digits]);
+        }
+
+        $teams = $request->input('teams');
+        if (! is_array($teams)) {
+            return;
+        }
+
+        foreach ($teams as $i => $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            if (! array_key_exists('allocation_percent', $row)) {
+                continue;
+            }
+
+            $ap = $row['allocation_percent'];
+            if ($ap === '' || $ap === null) {
+                $teams[$i]['allocation_percent'] = null;
+
+                continue;
+            }
+
+            if (is_string($ap) && ctype_digit($ap)) {
+                $teams[$i]['allocation_percent'] = (int) $ap;
+            }
+        }
+
+        $request->merge(['teams' => $teams]);
     }
 
     /**

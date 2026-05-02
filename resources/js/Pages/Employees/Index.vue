@@ -98,6 +98,33 @@ const editForm = useForm({
 
 const sendingLoginId = ref(null);
 
+/** يُرسل مع الطلب: أرقام فقط لمفتاح الدولة، و allocation_percent الفارغ → null (لا يفشل تحقق integer على السيرفر). */
+function employeePayloadTransform(data) {
+    let phone_country_code = data.phone_country_code;
+    if (phone_country_code != null && String(phone_country_code).trim() !== '') {
+        phone_country_code = String(phone_country_code).replace(/\D/g, '');
+    } else {
+        phone_country_code = '';
+    }
+
+    const teams = Array.isArray(data.teams)
+        ? data.teams.map((t) => ({
+            ...t,
+            allocation_percent:
+                t.allocation_percent === '' || t.allocation_percent === undefined ? null : t.allocation_percent,
+        }))
+        : data.teams;
+
+    return {
+        ...data,
+        phone_country_code,
+        teams,
+    };
+}
+
+createForm.transform((data) => employeePayloadTransform(data));
+editForm.transform((data) => employeePayloadTransform(data));
+
 function openCreateModal() {
     createForm.reset();
     createForm.clearErrors();
@@ -421,6 +448,15 @@ function sendLoginWhatsApp(employee) {
         <Modal :show="createModalOpen" @close="closeCreateModal">
             <div class="glass-modal employee-light-modal p-4 sm:p-6">
                 <h2 class="text-lg font-semibold text-gray-900">إضافة موظف جديد</h2>
+                <div
+                    v-if="Object.keys(createForm.errors).length"
+                    class="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900"
+                >
+                    <p class="font-semibold">تعذّر الحفظ — راجع الحقول أو الرسائل أدناه:</p>
+                    <ul class="mt-2 list-disc space-y-0.5 ps-5">
+                        <li v-for="(msg, key) in createForm.errors" :key="key">{{ msg }}</li>
+                    </ul>
+                </div>
                 <form class="mt-4 space-y-4" @submit.prevent="submitCreate">
                     <div class="grid gap-3 sm:grid-cols-2">
                         <div>
@@ -444,7 +480,11 @@ function sendLoginWhatsApp(employee) {
                                 v-model="createForm.phone_country_code"
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
                             >
-                                <option v-for="opt in arab_country_dial_options" :key="`cc-${opt.value}`" :value="opt.value">
+                                <option
+                                    v-for="opt in arab_country_dial_options"
+                                    :key="`cc-${opt.value}`"
+                                    :value="String(opt.value)"
+                                >
                                     {{ opt.label }}
                                 </option>
                             </select>
@@ -584,6 +624,15 @@ function sendLoginWhatsApp(employee) {
         <Modal :show="editModalOpen" @close="closeEditModal">
             <div class="glass-modal employee-light-modal p-4 sm:p-6">
                 <h2 class="text-lg font-semibold text-gray-900">تعديل الموظف</h2>
+                <div
+                    v-if="Object.keys(editForm.errors).length"
+                    class="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900"
+                >
+                    <p class="font-semibold">تعذّر الحفظ — راجع الحقول أو الرسائل أدناه:</p>
+                    <ul class="mt-2 list-disc space-y-0.5 ps-5">
+                        <li v-for="(msg, key) in editForm.errors" :key="key">{{ msg }}</li>
+                    </ul>
+                </div>
                 <form class="mt-4 space-y-4" @submit.prevent="submitEdit">
                     <div class="grid gap-3 sm:grid-cols-2">
                         <div>
@@ -606,7 +655,11 @@ function sendLoginWhatsApp(employee) {
                                 v-model="editForm.phone_country_code"
                                 class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"
                             >
-                                <option v-for="opt in arab_country_dial_options" :key="`ecc-${opt.value}`" :value="opt.value">
+                                <option
+                                    v-for="opt in arab_country_dial_options"
+                                    :key="`ecc-${opt.value}`"
+                                    :value="String(opt.value)"
+                                >
                                     {{ opt.label }}
                                 </option>
                             </select>
