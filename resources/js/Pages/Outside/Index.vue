@@ -43,15 +43,24 @@ const activeConversation = computed(() =>
     (props.conversations || []).find((item) => item.id === activeConversationId.value) || null,
 );
 
+function normalizedOutsideChannel(channel) {
+    const c = String(channel || 'whatsapp').trim().toLowerCase();
+    return c === 'instagram' ? 'instagram' : 'whatsapp';
+}
+
+function isInstagramChannel(channel) {
+    return normalizedOutsideChannel(channel) === 'instagram';
+}
+
 const channelFilteredConversations = computed(() => {
     const list = props.conversations || [];
     if (channelFilter.value === 'all') {
         return list;
     }
     if (channelFilter.value === 'instagram') {
-        return list.filter((c) => c.contact?.channel === 'instagram');
+        return list.filter((c) => normalizedOutsideChannel(c.contact?.channel) === 'instagram');
     }
-    return list.filter((c) => (c.contact?.channel || 'whatsapp') !== 'instagram');
+    return list.filter((c) => normalizedOutsideChannel(c.contact?.channel) === 'whatsapp');
 });
 
 const filteredConversations = computed(() => {
@@ -325,7 +334,7 @@ function contactSubtitle(contact) {
     if (!contact) {
         return '';
     }
-    if (contact.channel === 'instagram') {
+    if (isInstagramChannel(contact.channel)) {
         return contact.instagram_psid ? `IG · ${contact.instagram_psid}` : 'إنستغرام';
     }
     return contact.phone || '';
@@ -356,7 +365,7 @@ function statusClass(status) {
 }
 
 function channelMeta(ch) {
-    if (ch === 'instagram') {
+    if (normalizedOutsideChannel(ch) === 'instagram') {
         return {
             label: 'Instagram',
             avatarClass: 'from-[#f09433] via-[#e6683c] to-[#bc1888]',
@@ -456,9 +465,9 @@ const threadBgStyle = {
         <template #title>الخارج</template>
 
         <div
-            class="outside-inbox -mx-3 flex min-h-0 w-full flex-1 flex-col overflow-hidden sm:-mx-4 lg:-mx-6 max-md:h-[calc(100dvh-10.5rem)] max-md:max-h-[calc(100dvh-10.5rem)] md:max-h-[calc(100dvh-9.5rem)] md:h-[calc(100dvh-9.5rem)] lg:h-[min(42rem,calc(100svh-13.5rem))] lg:max-h-[min(42rem,calc(100svh-13.5rem))] xl:h-[min(46rem,calc(100svh-12.5rem))] xl:max-h-[min(46rem,calc(100svh-12.5rem))]"
+            class="outside-inbox flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col self-stretch overflow-x-hidden overflow-y-hidden max-md:h-[calc(100dvh-10.5rem)] max-md:max-h-[calc(100dvh-10.5rem)] md:max-h-[calc(100dvh-9.5rem)] md:h-[calc(100dvh-9.5rem)] lg:mx-auto lg:h-[min(42rem,calc(100svh-13.5rem))] lg:max-h-[min(42rem,calc(100svh-13.5rem))] lg:w-full lg:max-w-7xl xl:h-[min(46rem,calc(100svh-12.5rem))] xl:max-h-[min(46rem,calc(100svh-12.5rem))]"
         >
-            <div class="mb-3 shrink-0 space-y-2 px-1 sm:mb-4 sm:px-0 lg:px-1">
+            <div class="mb-3 w-full min-w-0 shrink-0 space-y-2 sm:mb-4">
                 <div
                     v-if="page.props.flash?.success"
                     class="rounded-xl border border-emerald-200/80 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
@@ -474,11 +483,11 @@ const threadBgStyle = {
             </div>
 
             <div
-                class="grid h-full min-h-0 flex-1 grid-cols-1 grid-rows-1 overflow-hidden rounded-2xl border border-app-surface-border/90 bg-app-surface/90 shadow-xl shadow-slate-900/[0.06] ring-1 ring-black/[0.03] backdrop-blur-md auto-rows-[minmax(0,1fr)] sm:rounded-3xl lg:grid-cols-[minmax(260px,1fr)_minmax(0,2.2fr)] xl:grid-cols-[380px_minmax(0,1fr)] 2xl:grid-cols-[420px_minmax(0,1fr)]"
+                class="grid h-full min-h-0 min-w-0 w-full max-w-full flex-1 grid-cols-1 grid-rows-1 overflow-hidden rounded-2xl border border-app-surface-border/90 bg-app-surface/90 shadow-xl shadow-slate-900/[0.06] ring-1 ring-black/[0.03] backdrop-blur-md auto-rows-[minmax(0,1fr)] sm:rounded-3xl lg:grid-cols-[minmax(260px,1fr)_minmax(0,2.2fr)] xl:grid-cols-[380px_minmax(0,1fr)] 2xl:grid-cols-[420px_minmax(0,1fr)]"
             >
                 <aside
                     :class="[
-                        'flex h-full min-h-0 flex-col overflow-hidden border-app-surface-border/80 bg-gradient-to-b from-white/98 to-slate-50/90 lg:border-e',
+                        'flex h-full min-h-0 min-w-0 w-full max-w-full flex-col overflow-hidden border-app-surface-border/80 bg-gradient-to-b from-white/98 to-slate-50/90 lg:border-e',
                         mobilePanel === 'chat' ? 'hidden lg:flex' : 'flex',
                     ]"
                 >
@@ -559,7 +568,7 @@ const threadBgStyle = {
                     </div>
 
                     <div
-                        class="outside-scroll min-h-0 flex-1 touch-pan-y space-y-1 overflow-y-auto overscroll-y-contain px-2 py-2 [-webkit-overflow-scrolling:touch] sm:px-2.5 sm:py-2.5"
+                        class="outside-scroll min-h-0 min-w-0 w-full flex-1 touch-pan-y space-y-1 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2 py-2 [-webkit-overflow-scrolling:touch] sm:px-2.5 sm:py-2.5"
                     >
                         <button
                             v-for="conversation in filteredConversations"
@@ -586,7 +595,7 @@ const threadBgStyle = {
                                 >
                                     <!-- WhatsApp -->
                                     <svg
-                                        v-if="conversation.contact?.channel !== 'instagram'"
+                                        v-if="!isInstagramChannel(conversation.contact?.channel)"
                                         class="h-4 w-4"
                                         viewBox="0 0 24 24"
                                         aria-hidden="true"
@@ -661,7 +670,7 @@ const threadBgStyle = {
 
                 <section
                     :class="[
-                        'flex h-full min-h-0 flex-col overflow-hidden bg-[#e5ddd5]',
+                        'flex h-full min-h-0 min-w-0 w-full max-w-full flex-col overflow-hidden bg-[#e5ddd5]',
                         mobilePanel === 'list' ? 'hidden lg:flex' : 'flex',
                     ]"
                 >
@@ -692,7 +701,7 @@ const threadBgStyle = {
                                         class="inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700 shadow-sm ring-1 ring-slate-200/80 sm:text-[11px]"
                                     >
                                         <svg
-                                            v-if="activeConversation.contact?.channel !== 'instagram'"
+                                            v-if="!isInstagramChannel(activeConversation.contact?.channel)"
                                             class="h-3.5 w-3.5"
                                             viewBox="0 0 24 24"
                                             aria-hidden="true"
@@ -833,7 +842,7 @@ const threadBgStyle = {
                                                     :title="channelMeta(item.message.channel).label"
                                                 >
                                                     <svg
-                                                        v-if="item.message.channel !== 'instagram'"
+                                                        v-if="!isInstagramChannel(item.message.channel)"
                                                         class="h-4 w-4"
                                                         viewBox="0 0 24 24"
                                                         aria-hidden="true"
@@ -883,10 +892,10 @@ const threadBgStyle = {
                                                 <span class="text-[10px] font-semibold text-slate-600">{{ selfName }}</span>
                                                 <span
                                                     class="inline-flex h-6 w-6 items-center justify-center rounded-md bg-white shadow-sm ring-1 ring-black/5"
-                                                    :title="activeConversation.contact?.channel === 'instagram' ? 'Instagram' : 'WhatsApp'"
+                                                    :title="isInstagramChannel(activeConversation.contact?.channel) ? 'Instagram' : 'WhatsApp'"
                                                 >
                                                     <svg
-                                                        v-if="activeConversation.contact?.channel !== 'instagram'"
+                                                        v-if="!isInstagramChannel(activeConversation.contact?.channel)"
                                                         class="h-4 w-4"
                                                         viewBox="0 0 24 24"
                                                         aria-hidden="true"

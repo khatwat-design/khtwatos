@@ -53,7 +53,7 @@ class OutsideController extends Controller
                     'id' => $conversation->contact?->id,
                     'name' => $conversation->contact?->name,
                     'phone' => $conversation->contact?->phone,
-                    'channel' => $conversation->contact?->channel ?? 'whatsapp',
+                    'channel' => $this->normalizedOutsideChannel($conversation->contact?->channel),
                     'instagram_psid' => $conversation->contact?->instagram_psid,
                     'client_id' => $conversation->contact?->client_id,
                     'assigned_user_id' => $conversation->contact?->assigned_user_id,
@@ -64,7 +64,7 @@ class OutsideController extends Controller
                 ],
                 'messages' => $conversation->messages->reverse()->values()->map(fn (OutsideMessage $message) => [
                     'id' => $message->id,
-                    'channel' => $message->channel ?? ($conversation->contact?->channel ?? 'whatsapp'),
+                    'channel' => $this->normalizedOutsideChannel($message->channel ?? $conversation->contact?->channel),
                     'direction' => $message->direction,
                     'body' => $message->body,
                     'provider_status' => $message->provider_status,
@@ -276,6 +276,11 @@ class OutsideController extends Controller
         ]);
 
         return redirect()->route('outside.index')->with('success', 'تم تنفيذ إعادة المحاولة.');
+    }
+
+    private function normalizedOutsideChannel(?string $channel): string
+    {
+        return strtolower(trim((string) ($channel ?? 'whatsapp'))) === 'instagram' ? 'instagram' : 'whatsapp';
     }
 
     /**
