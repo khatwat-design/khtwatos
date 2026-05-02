@@ -93,8 +93,16 @@ class OutsideController extends Controller
             'phone' => ['required', 'string', 'max:64'],
         ]);
 
+        /** رقم موحّد (أرقام فقط) مثل الويب هوك حتى لا تُنشأ جهة مكررة لنفس الرقم */
+        $phoneDigits = preg_replace('/\D+/', '', trim((string) $data['phone'])) ?: '';
+        if ($phoneDigits === '') {
+            return redirect()->route('outside.index')->withErrors([
+                'phone' => 'رقم واتساب غير صالح.',
+            ]);
+        }
+
         $contact = OutsideContact::query()->firstOrCreate(
-            ['phone' => trim((string) $data['phone'])],
+            ['phone' => $phoneDigits],
             [
                 'name' => $data['name'] ?: null,
                 'channel' => 'whatsapp',
