@@ -297,26 +297,32 @@ class OutsideController extends Controller
             throw new \RuntimeException('جهة إنستغرام بدون معرف مراسلة (PSID).');
         }
 
-        $clientId = (int) ($contact->client_id ?? 0);
-        if ($clientId === 0) {
-            throw new \RuntimeException('الجهة غير مربوطة بعميل؛ يجب أن يمر الرسائل عبر حساب إنستغرام أعمال مربوط بعميل في النظام.');
-        }
-
-        $integration = ClientMetaIntegration::query()->where('client_id', $clientId)->first();
-        $igFromIntegration = (string) ($integration?->meta_instagram_account_id ?? '');
-
         $systemToken = trim((string) config('services.instagram.access_token', ''));
+        $igBizFromEnv = trim((string) config('services.instagram.business_account_id', ''));
+
         if ($systemToken !== '') {
-            $igBiz = trim((string) config('services.instagram.business_account_id', ''));
+            $igBiz = $igBizFromEnv;
             if ($igBiz === '') {
-                $igBiz = $igFromIntegration;
+                $clientId = (int) ($contact->client_id ?? 0);
+                if ($clientId !== 0) {
+                    $integration = ClientMetaIntegration::query()->where('client_id', $clientId)->first();
+                    $igBiz = (string) ($integration?->meta_instagram_account_id ?? '');
+                }
             }
             if ($igBiz === '') {
-                throw new \RuntimeException('ضبط INSTAGRAM_BUSINESS_ACCOUNT_ID في .env أو أضف meta_instagram_account_id لتكامل العميل.');
+                throw new \RuntimeException('ضبط INSTAGRAM_BUSINESS_ACCOUNT_ID في .env أو اربط الجهة بعميل وحدّد meta_instagram_account_id في تكامل ميتا.');
             }
 
             return [$igBiz, $systemToken, $psid];
         }
+
+        $clientId = (int) ($contact->client_id ?? 0);
+        if ($clientId === 0) {
+            throw new \RuntimeException('الجهة غير مربوطة بعميل؛ يجب أن تمر الرسائل عبر حساب إنستغرام أعمال مربوط بعميل في النظام، أو ضبط INSTAGRAM_ACCESS_TOKEN وINSTAGRAM_BUSINESS_ACCOUNT_ID في .env.');
+        }
+
+        $integration = ClientMetaIntegration::query()->where('client_id', $clientId)->first();
+        $igFromIntegration = (string) ($integration?->meta_instagram_account_id ?? '');
 
         $igBiz = $igFromIntegration;
         if ($igBiz === '') {
