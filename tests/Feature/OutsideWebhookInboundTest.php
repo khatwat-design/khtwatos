@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\ClientMetaIntegration;
 use App\Models\GoodsCustomer;
 use App\Models\OutsideContact;
+use App\Models\OutsideConversation;
 use App\Models\PipelineStage;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -254,5 +255,22 @@ class OutsideWebhookInboundTest extends TestCase
             'instagram_psid' => '111222333444',
             'client_id' => $client->id,
         ]);
+    }
+
+    public function test_whatsapp_inbound_populates_messaging_intelligence_for_support_keyword(): void
+    {
+        User::factory()->create(['role' => 'admin']);
+
+        $this->postJson(
+            route('outside.webhook.receive'),
+            $this->samplePayload('wamid.HBG.INTEL_SUPPORT', true, 'لدي مشكلة في الحساب')
+        )->assertOk();
+
+        $conversation = OutsideConversation::query()->first();
+        $this->assertNotNull($conversation);
+        $this->assertSame('support', $conversation->intelligence_classification);
+        $this->assertNotNull($conversation->intelligence_summary);
+        $this->assertIsArray($conversation->intelligence_suggested_replies);
+        $this->assertGreaterThanOrEqual(1, count($conversation->intelligence_suggested_replies));
     }
 }

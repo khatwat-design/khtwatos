@@ -17,3 +17,18 @@ Schedule::command('goods:send-weekly-survey --limit=200')
 Schedule::command('goods:send-daily-sales-reminders --limit=200')
     ->dailyAt((string) config('services.goods.daily_sales_reminder_at', '09:00'))
     ->withoutOverlapping();
+
+Schedule::command('portal:send-daily-sales-reminders --limit=400')
+    ->dailyAt((string) config('services.portal.daily_sales_reminder_at', '18:00'))
+    ->withoutOverlapping();
+
+Schedule::command('portal:send-daily-client-reports --limit=400')
+    ->dailyAt((string) config('services.client_reports.daily_at', '19:30'))
+    ->withoutOverlapping();
+
+Schedule::command('portal:send-weekly-client-reports --limit=400')
+    ->weeklyOn(
+        (int) config('services.client_reports.weekly_on', 0),
+        (string) config('services.client_reports.weekly_at', '10:00')
+    )
+    ->withoutOverlapping();

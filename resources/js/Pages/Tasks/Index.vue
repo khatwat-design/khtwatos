@@ -764,7 +764,12 @@ async function toggleChecklistItem(item) {
     <AuthenticatedLayout>
         <template #title>المهام</template>
 
-        <div :class="['mx-auto', isMobileWorkspaceExpanded ? 'max-w-none px-0 sm:px-0' : 'max-w-[1600px]']">
+        <div
+            :class="[
+                'mx-auto w-full min-w-0',
+                isMobileWorkspaceExpanded ? 'max-w-none px-0 sm:px-0' : 'max-w-[1760px] px-3 sm:px-4 lg:px-6',
+            ]"
+        >
             <div
                 class="ui-card mb-4 flex flex-col gap-2 p-3 sm:flex-row sm:flex-wrap sm:items-center"
             >
@@ -789,17 +794,23 @@ async function toggleChecklistItem(item) {
                 </span>
             </div>
 
-            <div class="mb-4 flex flex-col gap-3 border-b border-white/15 pb-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                <div class="flex gap-2 overflow-x-auto whitespace-nowrap pb-1">
+            <div
+                class="mb-3 flex flex-col gap-2 border-b border-slate-200/80 pb-2 sm:mb-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:pb-3 lg:mb-5 lg:gap-4 lg:pb-4"
+            >
+                <div
+                    class="-mx-0.5 flex min-w-0 snap-x snap-mandatory gap-1.5 overflow-x-auto overscroll-x-contain px-0.5 pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:mx-0 sm:max-w-none sm:flex-1 sm:gap-2 sm:px-0 lg:gap-2.5 [&::-webkit-scrollbar]:hidden"
+                    dir="rtl"
+                >
                     <Link
                         v-for="t in teams"
                         :key="t.id"
                         :href="teamHref(t.slug)"
                         :class="[
-                            'rounded-full px-3 py-1 text-sm font-medium transition-all duration-200 ease-out hover:scale-[1.02]',
+                            'snap-start shrink-0 rounded-lg px-2.5 py-1.5 text-center text-[11px] font-medium leading-snug transition-all duration-200 ease-out sm:rounded-xl sm:px-3 sm:py-2 sm:text-sm sm:font-semibold lg:px-4 lg:py-2.5 lg:text-[15px]',
+                            'max-w-[10.5rem] sm:max-w-none',
                             team && team.slug === t.slug
-                                ? 'bg-brand-600 text-white shadow-lg shadow-brand-900/30'
-                                : 'bg-white/75 text-slate-700 ring-1 ring-white/40 backdrop-blur hover:bg-white',
+                                ? 'bg-brand-600 text-white shadow-sm ring-1 ring-brand-500/25'
+                                : 'bg-white text-slate-600 ring-1 ring-slate-200/80 hover:bg-slate-50 active:scale-[0.98]',
                         ]"
                     >
                         {{ localizeTeamName(t.name, t.slug) }}
@@ -809,10 +820,10 @@ async function toggleChecklistItem(item) {
                 <PrimaryButton
                     type="button"
                     :disabled="!board"
-                    class="w-full justify-center sm:w-auto"
+                    class="hidden shrink-0 items-center justify-center gap-2 sm:inline-flex sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm sm:font-semibold lg:px-5 lg:py-2.5 lg:text-[15px]"
                     @click="openCreateModal"
                 >
-                    إضافة مهمة
+                    <span>إضافة مهمة</span>
                 </PrimaryButton>
             </div>
 
@@ -830,8 +841,8 @@ async function toggleChecklistItem(item) {
                         جار حفظ ترتيب المهام...
                     </div>
                 </div>
-                <div v-if="isBoardLoading" class="flex gap-3 overflow-x-auto pb-2">
-                    <div v-for="n in 3" :key="`task-skeleton-${n}`" class="ui-card w-[85vw] max-w-sm shrink-0 p-3 sm:w-72">
+                <div v-if="isBoardLoading" class="flex gap-3 overflow-x-auto pb-2 lg:gap-4">
+                    <div v-for="n in 3" :key="`task-skeleton-${n}`" class="ui-card w-[85vw] max-w-sm shrink-0 p-3 sm:w-72 lg:w-80 xl:w-[22rem]">
                         <div class="skeleton mb-3 h-4 w-32 rounded" />
                         <div class="space-y-2">
                             <div class="skeleton h-16 rounded-xl" />
@@ -842,18 +853,22 @@ async function toggleChecklistItem(item) {
                 </div>
                 <div
                     v-else
-                    class="task-workspace flex snap-x snap-mandatory overflow-x-auto pb-2"
+                    class="task-workspace flex snap-x snap-mandatory overflow-x-auto pb-2 lg:min-h-[28rem] lg:gap-4 lg:pb-3"
                     :class="isMobileWorkspaceExpanded ? 'task-workspace-expanded gap-2 px-1' : 'gap-3'"
                     style="min-height: 320px"
                 >
                     <div
                         v-for="col in boardState.columns"
                         :key="col.id"
-                        class="ui-card task-column-dropzone shrink-0 snap-start p-3 transition-all duration-200 ease-out"
-                        :class="isMobileWorkspaceExpanded ? 'task-column-compact w-[66vw] max-w-[260px] sm:w-72' : 'w-[85vw] max-w-sm sm:w-72'"
+                        class="ui-card task-column-dropzone shrink-0 snap-start p-3 transition-all duration-200 ease-out lg:p-4"
+                        :class="
+                            isMobileWorkspaceExpanded
+                                ? 'task-column-compact w-[66vw] max-w-[260px] sm:w-72 lg:w-80'
+                                : 'w-[85vw] max-w-sm sm:w-72 lg:w-80 xl:w-[22rem]'
+                        "
                     >
                         <h3
-                            class="mb-2 border-b border-slate-200/70 pb-2 text-sm font-semibold text-slate-800"
+                            class="mb-2 border-b border-slate-200/70 pb-2 text-sm font-semibold text-slate-800 lg:mb-3 lg:pb-2.5 lg:text-base"
                         >
                             {{ localizeColumnName(col.name) }}
                         </h3>
@@ -861,7 +876,7 @@ async function toggleChecklistItem(item) {
                             v-model="col.tasks"
                             group="tasks"
                             item-key="id"
-                            class="task-drop-area min-h-44 space-y-2 rounded-xl px-1 py-2"
+                            class="task-drop-area min-h-44 space-y-2 rounded-xl px-1 py-2 lg:min-h-[18rem] lg:space-y-2.5 lg:px-1.5 lg:py-2.5"
                             ghost-class="task-ghost"
                             chosen-class="task-chosen"
                             drag-class="task-drag"
@@ -878,112 +893,10 @@ async function toggleChecklistItem(item) {
                         >
                             <template #item="{ element }">
                                 <div
-                                    class="relative cursor-grab rounded-xl border border-white/40 bg-white/80 p-2 pe-16 text-sm shadow-sm ring-1 ring-slate-200/60 transition-all duration-200 ease-out hover:scale-[1.02] hover:shadow-md active:cursor-grabbing"
+                                    class="relative flex cursor-grab flex-col gap-0 rounded-xl border border-white/40 bg-white/80 p-3 text-sm shadow-sm ring-1 ring-slate-200/60 transition-all duration-200 ease-out hover:shadow-md active:cursor-grabbing sm:p-2 sm:pe-24 sm:hover:scale-[1.01] lg:flex-row lg:items-start lg:gap-3 lg:p-3.5 lg:pe-3.5 lg:hover:scale-[1.005]"
                                 >
-                                    <button
-                                        v-if="canDeleteRecords"
-                                        type="button"
-                                        class="absolute end-14 top-1 rounded-lg p-1 text-red-500 transition-all duration-200 ease-out hover:bg-red-50 hover:text-red-700"
-                                        title="حذف المهمة"
-                                        @click.stop="deleteTask(element.id)"
-                                    >
-                                        <span class="sr-only">حذف</span>
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2h.293l.91 10.11A2 2 0 007.196 18h5.608a2 2 0 001.993-1.89L15.707 6H16a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zm-1 5a1 1 0 012 0v7a1 1 0 11-2 0V7zm4-1a1 1 0 00-1 1v7a1 1 0 102 0V7a1 1 0 00-1-1z" clip-rule="evenodd" />
-                                        </svg>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="absolute end-6 top-1 rounded-lg p-1 text-slate-500 transition-all duration-200 ease-out hover:bg-slate-200 hover:text-slate-700"
-                                        title="إعادة تعيين / قائمة تحقق"
-                                        @click.stop="openQuickAction(element)"
-                                    >
-                                        <span class="sr-only">إضافة متابعة</span>
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            class="h-4 w-4"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                        >
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-                                        </svg>
-                                    </button>
-                                    <button
-                                        v-if="getNextColumnById(col.id)"
-                                        type="button"
-                                        class="absolute end-10 top-0.5 inline-flex h-7 w-7 items-center justify-center rounded-lg p-1 text-brand-600 transition-all duration-200 ease-out hover:bg-brand-100 hover:text-brand-700"
-                                        :title="getAdvanceActionLabel(col.name)"
-                                        @click.stop="moveTaskToNextColumn(element.id, col.id)"
-                                    >
-                                        <span class="sr-only">{{ getAdvanceActionLabel(col.name) }}</span>
-                                        <svg
-                                            v-if="getAdvanceIconType(col.name) === 'play'"
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            class="h-5 w-5"
-                                            viewBox="0 0 20 20"
-                                            fill="currentColor"
-                                        >
-                                            <path d="M7 5v10l8-5-8-5z" />
-                                        </svg>
-                                        <svg
-                                            v-else-if="getAdvanceIconType(col.name) === 'review'"
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            class="h-5 w-5"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                        >
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z" />
-                                        </svg>
-                                        <svg
-                                            v-else-if="getAdvanceIconType(col.name) === 'done'"
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            class="h-5 w-5"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                        >
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                                        </svg>
-                                        <svg
-                                            v-else
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            class="h-5 w-5"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                        >
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-                                        </svg>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="absolute end-1 top-1 rounded-lg p-1 text-slate-400 transition-all duration-200 ease-out hover:bg-slate-200 hover:text-slate-700"
-                                        title="تعديل"
-                                        @click.stop="openEdit(element)"
-                                    >
-                                        <span class="sr-only">تعديل</span>
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            class="h-4 w-4"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                        >
-                                            <path
-                                                stroke-linecap="round"
-                                                stroke-linejoin="round"
-                                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                                            />
-                                        </svg>
-                                    </button>
-                                    <p class="font-medium text-slate-900">
+                                    <div class="min-w-0 flex-1 lg:min-w-0">
+                                    <p class="font-medium leading-snug text-slate-900 lg:text-[15px] lg:leading-snug">
                                         {{ element.title }}
                                     </p>
                                     <p v-if="element.archived_at" class="mt-1 text-[10px] font-semibold text-slate-500">
@@ -1021,6 +934,117 @@ async function toggleChecklistItem(item) {
                                     <p v-if="element.attachments_count" class="mt-1 text-[11px] text-blue-700">
                                         مرفقات: {{ element.attachments_count }}
                                     </p>
+                                    </div>
+
+                                    <div
+                                        class="relative z-[4] mt-3 flex w-full flex-wrap items-stretch justify-center gap-2 border-t border-slate-200/80 pt-3 sm:absolute sm:mt-0 sm:w-auto sm:flex-nowrap sm:justify-end sm:border-0 sm:bg-transparent sm:pt-0 sm:end-1 sm:top-1.5 sm:gap-0.5 lg:static lg:z-10 lg:mt-0 lg:w-auto lg:shrink-0 lg:flex-col lg:items-center lg:justify-start lg:gap-1.5 lg:self-stretch lg:border lg:border-slate-200/70 lg:bg-slate-50/95 lg:px-1.5 lg:py-2.5 lg:shadow-sm"
+                                        @pointerdown.stop
+                                        @touchstart.stop
+                                    >
+                                        <button
+                                            type="button"
+                                            class="inline-flex min-h-11 w-[30%] max-w-[5.5rem] flex-none items-center justify-center rounded-xl bg-slate-50 text-slate-600 ring-1 ring-slate-200/80 transition-colors hover:bg-slate-100 active:bg-slate-200 sm:min-h-0 sm:h-8 sm:w-8 sm:max-w-none sm:rounded-lg sm:bg-transparent sm:p-1 sm:ring-0 lg:h-9 lg:w-9 lg:rounded-lg lg:bg-white/90 lg:ring-1 lg:ring-slate-200/80 lg:hover:bg-slate-50"
+                                            title="تعديل"
+                                            @click.stop="openEdit(element)"
+                                        >
+                                            <span class="sr-only">تعديل</span>
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-5 w-5 sm:h-4 sm:w-4 lg:h-[1.15rem] lg:w-[1.15rem]"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                                />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            v-if="getNextColumnById(col.id)"
+                                            type="button"
+                                            class="inline-flex min-h-11 w-[30%] max-w-[5.5rem] flex-none items-center justify-center rounded-xl bg-brand-50 text-brand-700 ring-1 ring-brand-200/70 transition-colors hover:bg-brand-100 active:bg-brand-100 sm:min-h-0 sm:h-8 sm:w-8 sm:max-w-none sm:rounded-lg sm:bg-transparent sm:p-1 sm:ring-0 lg:h-9 lg:w-9 lg:rounded-lg lg:bg-brand-50/95 lg:ring-1 lg:ring-brand-200/80 lg:hover:bg-brand-100"
+                                            :title="getAdvanceActionLabel(col.name)"
+                                            @click.stop="moveTaskToNextColumn(element.id, col.id)"
+                                        >
+                                            <span class="sr-only">{{ getAdvanceActionLabel(col.name) }}</span>
+                                            <svg
+                                                v-if="getAdvanceIconType(col.name) === 'play'"
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-5 w-5 sm:h-4 sm:w-4 lg:h-[1.15rem] lg:w-[1.15rem]"
+                                                viewBox="0 0 20 20"
+                                                fill="currentColor"
+                                            >
+                                                <path d="M7 5v10l8-5-8-5z" />
+                                            </svg>
+                                            <svg
+                                                v-else-if="getAdvanceIconType(col.name) === 'review'"
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-5 w-5 sm:h-4 sm:w-4 lg:h-[1.15rem] lg:w-[1.15rem]"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z" />
+                                            </svg>
+                                            <svg
+                                                v-else-if="getAdvanceIconType(col.name) === 'done'"
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-5 w-5 sm:h-4 sm:w-4 lg:h-[1.15rem] lg:w-[1.15rem]"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            <svg
+                                                v-else
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-5 w-5 sm:h-4 sm:w-4 lg:h-[1.15rem] lg:w-[1.15rem]"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="inline-flex min-h-11 w-[30%] max-w-[5.5rem] flex-none items-center justify-center rounded-xl bg-slate-50 text-slate-700 ring-1 ring-slate-200/80 transition-colors hover:bg-slate-100 active:bg-slate-200 sm:min-h-0 sm:h-8 sm:w-8 sm:max-w-none sm:rounded-lg sm:bg-transparent sm:p-1 sm:ring-0 lg:h-9 lg:w-9 lg:rounded-lg lg:bg-white/90 lg:ring-1 lg:ring-slate-200/80 lg:hover:bg-slate-50"
+                                            title="إعادة تعيين / قائمة تحقق"
+                                            @click.stop="openQuickAction(element)"
+                                        >
+                                            <span class="sr-only">إضافة متابعة</span>
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-5 w-5 sm:h-4 sm:w-4 lg:h-[1.15rem] lg:w-[1.15rem]"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            v-if="canDeleteRecords"
+                                            type="button"
+                                            class="hidden min-h-11 w-[30%] max-w-[5.5rem] flex-none items-center justify-center rounded-xl bg-red-50 text-red-600 ring-1 ring-red-200/70 transition-colors hover:bg-red-100 active:bg-red-100 sm:inline-flex sm:min-h-0 sm:h-8 sm:w-8 sm:max-w-none sm:rounded-lg sm:bg-transparent sm:p-1 sm:ring-0 lg:h-9 lg:w-9 lg:rounded-lg lg:bg-red-50/90 lg:ring-1 lg:ring-red-200/80 lg:hover:bg-red-100"
+                                            title="حذف المهمة"
+                                            @click.stop="deleteTask(element.id)"
+                                        >
+                                            <span class="sr-only">حذف</span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-4 sm:w-4 lg:h-[1.15rem] lg:w-[1.15rem]" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2h.293l.91 10.11A2 2 0 007.196 18h5.608a2 2 0 001.993-1.89L15.707 6H16a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zm-1 5a1 1 0 012 0v7a1 1 0 11-2 0V7zm4-1a1 1 0 00-1 1v7a1 1 0 102 0V7a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                            </svg>
+                                        </button>
+                                    </div>
                                 </div>
                             </template>
                         </draggable>
@@ -1031,7 +1055,7 @@ async function toggleChecklistItem(item) {
         <button
             v-if="board"
             type="button"
-            class="fixed bottom-20 left-3 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-300 bg-white/95 text-slate-700 shadow-lg backdrop-blur transition-all duration-200 ease-out hover:scale-[1.03] hover:bg-white active:scale-[0.98] sm:hidden"
+            class="fixed bottom-20 left-3 z-40 inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white/95 text-slate-700 shadow-md backdrop-blur transition-all duration-200 ease-out hover:bg-white active:scale-[0.97] sm:hidden"
             :title="isMobileWorkspaceExpanded ? 'عرض عادي' : 'عرض موسّع للوركسبيس'"
             @click="toggleMobileWorkspace"
         >
@@ -1039,7 +1063,7 @@ async function toggleChecklistItem(item) {
             <svg
                 v-if="!isMobileWorkspaceExpanded"
                 xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
+                class="h-4 w-4"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -1050,13 +1074,30 @@ async function toggleChecklistItem(item) {
             <svg
                 v-else
                 xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
+                class="h-4 w-4"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 stroke-width="2"
             >
                 <path stroke-linecap="round" stroke-linejoin="round" d="M15 3h6v6m0-6l-7 7M9 21H3v-6m0 6l7-7M21 15v6h-6m6 0l-7-7M3 9V3h6M3 3l7 7" />
+            </svg>
+        </button>
+
+        <button
+            v-if="board"
+            type="button"
+            class="fixed bottom-20 right-3 z-40 inline-flex h-10 w-10 items-center justify-center rounded-full border border-brand-200 bg-brand-600 text-white shadow-md transition-all duration-200 ease-out hover:bg-brand-700 active:scale-[0.97] sm:hidden"
+            aria-label="إضافة مهمة"
+            title="إضافة مهمة"
+            @click="openCreateModal"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path
+                    fill-rule="evenodd"
+                    d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                    clip-rule="evenodd"
+                />
             </svg>
         </button>
 

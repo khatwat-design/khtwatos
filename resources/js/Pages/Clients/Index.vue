@@ -73,30 +73,104 @@ function deleteClient(clientId) {
     <AuthenticatedLayout>
         <template #title>العملاء</template>
 
-        <div class="mx-auto max-w-6xl space-y-4">
-            <div class="flex items-center justify-between gap-2">
-                <div class="flex items-center gap-2">
+        <div class="mx-auto w-full min-w-0 max-w-6xl space-y-4 px-3 pb-8 sm:px-4">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex w-full items-stretch justify-between gap-2 sm:w-auto sm:items-center">
                     <button
                         type="button"
-                        class="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                        class="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                         @click="showFilterModal = true"
                     >
                         فلترة
                     </button>
+                    <button
+                        type="button"
+                        class="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-brand-700 sm:flex-none sm:px-3"
+                        aria-label="إضافة عميل"
+                        title="إضافة عميل"
+                        @click="showCreateModal = true"
+                    >
+                        <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 5v14M5 12h14" />
+                        </svg>
+                        <span class="sm:hidden">إضافة عميل</span>
+                    </button>
                 </div>
-                <button
-                    type="button"
-                    class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white hover:bg-brand-700"
-                    title="إضافة عميل"
-                    @click="showCreateModal = true"
-                >
-                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 5v14M5 12h14" />
-                    </svg>
-                </button>
             </div>
 
-            <div class="ui-card overflow-hidden">
+            <!-- موبايل: بطاقات بدون تمرير أفقي -->
+            <div class="space-y-3 md:hidden">
+                <Link
+                    v-for="c in clients"
+                    :key="`client-card-${c.id}`"
+                    :href="route('clients.show', c.id)"
+                    class="group block overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ring-1 ring-gray-100/80 transition-all duration-200 active:scale-[0.99] hover:border-brand-100 hover:shadow-md hover:ring-brand-100/50"
+                >
+                    <div class="flex gap-3 p-4">
+                        <div class="relative shrink-0">
+                            <img
+                                :src="c.logo_url || '/images/mobile-logo.png'"
+                                alt=""
+                                class="h-14 w-14 rounded-2xl border border-gray-100 object-cover shadow-inner ring-2 ring-white"
+                            />
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <h3 class="text-base font-bold leading-snug text-gray-900 group-hover:text-brand-700">
+                                        {{ c.name }}
+                                    </h3>
+                                    <p v-if="c.company" class="mt-0.5 truncate text-xs text-gray-500">
+                                        {{ c.company }}
+                                    </p>
+                                </div>
+                                <span class="shrink-0 text-gray-300 transition group-hover:text-brand-400" aria-hidden="true">
+                                    <svg class="h-5 w-5 rtl:rotate-180" viewBox="0 0 20 20" fill="currentColor">
+                                        <path
+                                            fill-rule="evenodd"
+                                            d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                                            clip-rule="evenodd"
+                                        />
+                                    </svg>
+                                </span>
+                            </div>
+                            <p
+                                v-if="c.current_stage?.label"
+                                class="mt-2 inline-flex max-w-full items-center rounded-lg bg-gradient-to-l from-brand-50 to-white px-2.5 py-1 text-[11px] font-semibold leading-tight text-brand-800 ring-1 ring-brand-100/80"
+                            >
+                                {{ c.current_stage.label }}
+                            </p>
+                            <p v-else class="mt-2 text-[11px] font-medium text-gray-400">—</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 border-t border-gray-50 bg-gradient-to-b from-gray-50/40 to-white px-3 pb-3 pt-2">
+                        <div class="rounded-xl bg-white/90 px-2.5 py-2 shadow-sm ring-1 ring-gray-100/80">
+                            <p class="text-[10px] font-semibold text-gray-400">مدير الحساب</p>
+                            <p class="mt-0.5 truncate text-xs font-semibold text-gray-800">{{ c.account_manager?.name || '—' }}</p>
+                        </div>
+                        <div class="rounded-xl bg-white/90 px-2.5 py-2 shadow-sm ring-1 ring-gray-100/80">
+                            <p class="text-[10px] font-semibold text-gray-400">مدير الحملة</p>
+                            <p class="mt-0.5 truncate text-xs font-semibold text-gray-800">{{ c.campaign_manager?.name || '—' }}</p>
+                        </div>
+                        <div class="rounded-xl bg-white/90 px-2.5 py-2 shadow-sm ring-1 ring-gray-100/80">
+                            <p class="text-[10px] font-semibold text-gray-400">مهام مفتوحة</p>
+                            <p class="mt-0.5 text-xs font-bold tabular-nums text-gray-900">{{ c.open_tasks_count }}</p>
+                        </div>
+                        <div class="rounded-xl bg-white/90 px-2.5 py-2 shadow-sm ring-1 ring-gray-100/80">
+                            <p class="text-[10px] font-semibold text-gray-400">آخر تحديث</p>
+                            <p class="mt-0.5 text-xs font-medium tabular-nums text-gray-600">
+                                {{ new Date(c.updated_at).toLocaleDateString('ar-SA') }}
+                            </p>
+                        </div>
+                    </div>
+                </Link>
+                <p v-if="!clients.length" class="rounded-2xl border border-dashed border-gray-200 bg-white/80 px-4 py-10 text-center text-sm text-gray-500">
+                    لا يوجد عملاء بعد.
+                </p>
+            </div>
+
+            <!-- شاشات أكبر: جدول كامل -->
+            <div class="ui-card hidden overflow-x-auto md:block">
                 <table class="min-w-full divide-y divide-gray-200 text-sm">
                     <thead class="bg-white/90">
                         <tr>
@@ -182,10 +256,12 @@ function deleteClient(clientId) {
 
         <div
             v-if="showFilterModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            class="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-4"
             @click.self="showFilterModal = false"
         >
-            <div class="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-5 shadow-xl">
+            <div
+                class="max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl border border-gray-200 bg-white p-4 shadow-xl sm:mx-auto sm:max-h-[90vh] sm:max-w-md sm:rounded-2xl sm:p-5"
+            >
                 <div class="mb-3 flex items-center justify-between">
                     <h3 class="text-lg font-semibold text-gray-900">فلترة العملاء</h3>
                     <button type="button" class="rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-gray-100" @click="showFilterModal = false">
@@ -215,17 +291,23 @@ function deleteClient(clientId) {
 
         <div
             v-if="showCreateModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            class="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-4"
             @click.self="showCreateModal = false"
         >
-            <div class="w-full max-w-2xl rounded-2xl border border-gray-200 bg-white p-5 shadow-xl">
-                <div class="mb-3 flex items-center justify-between">
-                    <h3 class="text-lg font-semibold text-gray-900">إضافة عميل</h3>
-                    <button type="button" class="rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-gray-100" @click="showCreateModal = false">
+            <div
+                class="max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-2xl border border-gray-200 bg-white shadow-xl sm:mx-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-2xl"
+            >
+                <div class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3 sm:px-5 sm:pt-5">
+                    <h3 class="text-base font-bold text-gray-900 sm:text-lg">إضافة عميل</h3>
+                    <button
+                        type="button"
+                        class="min-h-10 min-w-10 rounded-xl px-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+                        @click="showCreateModal = false"
+                    >
                         إغلاق
                     </button>
                 </div>
-                <form class="grid grid-cols-1 gap-3 md:grid-cols-2" @submit.prevent="submitCreateClient">
+                <form class="grid grid-cols-1 gap-3 px-4 pb-6 pt-3 sm:gap-4 sm:px-5 sm:pb-5 md:grid-cols-2" @submit.prevent="submitCreateClient">
                     <div class="md:col-span-2">
                         <InputLabel for="new_client_name" value="الاسم" />
                         <TextInput id="new_client_name" v-model="createForm.name" class="mt-1 block w-full" required />
@@ -286,8 +368,14 @@ function deleteClient(clientId) {
                             class="mt-1 block w-full rounded-md border-gray-300 text-black shadow-sm"
                         />
                     </div>
-                    <div class="md:col-span-2 flex justify-end">
-                        <PrimaryButton :disabled="createForm.processing" type="submit">حفظ العميل</PrimaryButton>
+                    <div class="md:col-span-2 flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
+                        <PrimaryButton
+                            :disabled="createForm.processing"
+                            type="submit"
+                            class="w-full justify-center sm:w-auto"
+                        >
+                            حفظ العميل
+                        </PrimaryButton>
                     </div>
                 </form>
             </div>

@@ -33,6 +33,10 @@ const props = defineProps({
         type: Object,
         default: () => ({}),
     },
+    campaign_decision_engine: {
+        type: Object,
+        default: () => ({}),
+    },
 });
 
 const history = computed(() =>
@@ -247,6 +251,29 @@ function formatMoney(value) {
         maximumFractionDigits: 2,
         minimumFractionDigits: 0,
     }).format(Number(value || 0));
+}
+
+function campaignDecisionHealthPillClass(health) {
+    if (health === 'bad') {
+        return 'bg-rose-100 text-rose-900 ring-rose-200/90';
+    }
+    if (health === 'warning') {
+        return 'bg-amber-100 text-amber-950 ring-amber-200/90';
+    }
+    return 'bg-emerald-100 text-emerald-900 ring-emerald-200/90';
+}
+
+function campaignDecisionPriorityLabel(priority) {
+    const map = { high: 'عاجل', medium: 'متوسط', low: 'متابعة' };
+    return map[priority] || priority || '';
+}
+
+function formatDeltaPct(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return '—';
+    }
+    const n = Number(value);
+    return `${n >= 0 ? '+' : ''}${n}%`;
 }
 
 function onAttachmentChange(event) {
@@ -650,6 +677,130 @@ function outsideMessengerUrl(channel) {
                 </div>
             </div>
 
+            <div
+                v-if="campaign_decision_engine"
+                class="rounded-2xl border border-indigo-200/55 bg-gradient-to-br from-indigo-50/95 via-white/85 to-white/90 p-5 shadow-lg shadow-indigo-900/5 ring-1 ring-indigo-100/80 backdrop-blur-xl"
+            >
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-900">القرارات المقترحة</h2>
+                        <p class="mt-0.5 text-xs text-gray-500">
+                            تحليل قرائي بسيط فوق بيانات الحملات المسجّلة — لا يُنفَّذ تلقائيًا على ميتا.
+                        </p>
+                    </div>
+                    <span
+                        v-if="campaign_decision_engine.enabled"
+                        class="shrink-0 rounded-full bg-indigo-100 px-2.5 py-1 text-[11px] font-semibold text-indigo-900"
+                    >
+                        {{ (campaign_decision_engine.campaigns || []).length }} يوم أداء
+                    </span>
+                </div>
+
+                <div v-if="campaign_decision_engine.daily_insight" class="mt-4 rounded-xl border border-gray-200/80 bg-white/80 p-3 text-sm text-gray-800">
+                    <p class="font-medium text-gray-900">{{ campaign_decision_engine.daily_insight.headline }}</p>
+                    <div
+                        v-if="campaign_decision_engine.daily_insight.vs_yesterday"
+                        class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600"
+                    >
+                        <span
+                            >ROAS عن أمس:
+                            <strong class="tabular-nums text-gray-900">{{
+                                formatDeltaPct(campaign_decision_engine.daily_insight.vs_yesterday.roas_delta_pct)
+                            }}</strong></span
+                        >
+                        <span
+                            >الإنفاق:
+                            <strong class="tabular-nums text-gray-900">{{
+                                formatDeltaPct(campaign_decision_engine.daily_insight.vs_yesterday.spend_delta_pct)
+                            }}</strong></span
+                        >
+                        <span
+                            >إيراد الحملة:
+                            <strong class="tabular-nums text-gray-900">{{
+                                formatDeltaPct(campaign_decision_engine.daily_insight.vs_yesterday.revenue_delta_pct)
+                            }}</strong></span
+                        >
+                    </div>
+                    <p v-if="campaign_decision_engine.daily_insight.key_issue" class="mt-2 text-xs font-medium text-rose-800">
+                        تنبيه: {{ campaign_decision_engine.daily_insight.key_issue }}
+                    </p>
+                    <p v-if="campaign_decision_engine.daily_insight.key_opportunity" class="mt-1 text-xs font-medium text-emerald-800">
+                        فرصة: {{ campaign_decision_engine.daily_insight.key_opportunity }}
+                    </p>
+                </div>
+
+                <div
+                    v-if="campaign_decision_engine.profit && (campaign_decision_engine.profit.ad_spend != null || campaign_decision_engine.profit.revenue != null)"
+                    class="mt-3 flex flex-wrap gap-3 rounded-xl border border-slate-200/90 bg-slate-50/80 px-3 py-2 text-xs text-gray-700"
+                >
+                    <span
+                        >إيراد (آخر يوم مسجل):
+                        <strong class="tabular-nums text-gray-900">{{
+                            campaign_decision_engine.profit.revenue != null
+                                ? formatMoney(campaign_decision_engine.profit.revenue)
+                                : '—'
+                        }}</strong></span
+                    >
+                    <span
+                        >إنفاق إعلان:
+                        <strong class="tabular-nums text-gray-900">{{ formatMoney(campaign_decision_engine.profit.ad_spend || 0) }}</strong></span
+                    >
+                    <span v-if="campaign_decision_engine.profit.estimated_profit != null"
+                        >ربح تقديري:
+                        <strong
+                            class="tabular-nums"
+                            :class="
+                                Number(campaign_decision_engine.profit.estimated_profit) >= 0
+                                    ? 'text-emerald-800'
+                                    : 'text-rose-800'
+                            "
+                            >{{ formatMoney(campaign_decision_engine.profit.estimated_profit) }}</strong
+                        ></span
+                    >
+                    <span v-if="campaign_decision_engine.profit.note" class="w-full text-[11px] text-gray-500">{{
+                        campaign_decision_engine.profit.note
+                    }}</span>
+                </div>
+
+                <div v-if="(campaign_decision_engine.recommended_actions || []).length" class="mt-4">
+                    <p class="text-xs font-semibold text-gray-600">أهم الإجراءات المقترحة</p>
+                    <ul class="mt-2 list-disc space-y-1.5 pe-4 text-sm text-gray-800">
+                        <li v-for="(line, idx) in campaign_decision_engine.recommended_actions" :key="`cda-${idx}`" class="leading-snug">
+                            {{ line }}
+                        </li>
+                    </ul>
+                </div>
+
+                <div v-if="campaign_decision_engine.enabled && (campaign_decision_engine.campaigns || []).length" class="mt-4 border-t border-gray-200/80 pt-3">
+                    <p class="text-xs font-semibold text-gray-600">تفاصيل حسب يوم الأداء (مرتبة حسب الأولوية)</p>
+                    <ul class="mt-2 divide-y divide-gray-100 rounded-xl border border-gray-100 bg-white/70">
+                        <li
+                            v-for="row in (campaign_decision_engine.campaigns || []).slice(0, 6)"
+                            :key="`cde-${row.id}`"
+                            class="px-3 py-2.5 text-sm"
+                        >
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="font-medium text-gray-900">{{ row.label }}</span>
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                    <span
+                                        class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ring-1"
+                                        :class="campaignDecisionHealthPillClass(row.health)"
+                                    >
+                                        {{ row.health === 'good' ? 'جيد' : row.health === 'warning' ? 'تحذير' : 'ضعيف' }}
+                                    </span>
+                                    <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-800">
+                                        {{ campaignDecisionPriorityLabel(row.priority) }}
+                                    </span>
+                                </div>
+                            </div>
+                            <ul class="mt-1.5 list-disc space-y-0.5 pe-4 text-xs text-gray-700">
+                                <li v-for="(act, j) in row.actions" :key="`cde-act-${row.id}-${j}`">{{ act }}</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
             <div class="grid gap-6 lg:grid-cols-2">
                 <div class="rounded-2xl border border-white/20 bg-white/70 p-6 shadow-xl shadow-slate-900/10 ring-1 ring-white/35 backdrop-blur-xl">
                     <h2 class="text-lg font-semibold text-gray-900">مبيعات العميل اليومية</h2>
@@ -882,6 +1033,21 @@ function outsideMessengerUrl(channel) {
                                 class="mt-1 block w-full bg-gray-50"
                                 readonly
                             />
+                            <div
+                                v-if="props.meta_profile?.connection_status"
+                                class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-800"
+                            >
+                                <p class="font-semibold text-slate-900">
+                                    حالة ربط Meta (OAuth):
+                                    <span class="font-mono text-[10px] text-slate-700">{{ props.meta_profile.connection_status }}</span>
+                                </p>
+                                <p v-if="props.meta_profile.user_message" class="mt-1 leading-relaxed">
+                                    {{ props.meta_profile.user_message }}
+                                </p>
+                                <p v-if="props.meta_profile.last_error_at" class="mt-1 text-[10px] text-rose-700">
+                                    آخر خطأ: {{ props.meta_profile.last_error_message || '—' }}
+                                </p>
+                            </div>
                         </div>
                         <div
                             v-if="hasOutsideMessenger"

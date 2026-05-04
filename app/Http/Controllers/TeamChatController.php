@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\TeamChatMessageCreated;
+use App\Events\TeamChatMessageDeleted;
+use App\Events\TeamChatMessageUpdated;
 use App\Models\Team;
 use App\Models\TeamChatMessage;
 use App\Models\TeamChatRead;
@@ -16,9 +19,7 @@ use Inertia\Response;
 
 class TeamChatController extends Controller
 {
-    public function __construct(private readonly SmartNotificationService $smartNotifications)
-    {
-    }
+    public function __construct(private readonly SmartNotificationService $smartNotifications) {}
 
     public function index(Request $request): Response
     {
@@ -81,6 +82,8 @@ class TeamChatController extends Controller
             'attachment_mime' => $attachmentMime,
             'attachment_size' => $attachmentSize,
         ]);
+        $message->load('user:id,name');
+        broadcast(new TeamChatMessageCreated($message));
         $this->smartNotifications->notifyTeamChatMessage($message, $request->user()?->id);
         $this->markTeamAsRead($request, (int) $data['team_id']);
 
@@ -99,7 +102,7 @@ class TeamChatController extends Controller
             ->where('team_id', (int) $data['team_id'])
             ->orderBy('id');
 
-        if (!empty($data['after_id'])) {
+        if (! empty($data['after_id'])) {
             $query->where('id', '>', (int) $data['after_id']);
         } else {
             $query->latest()->limit(150);
@@ -130,6 +133,9 @@ class TeamChatController extends Controller
             'edited_at' => now(),
         ]);
 
+        $teamChatMessage->load('user:id,name');
+        broadcast(new TeamChatMessageUpdated($teamChatMessage));
+
         return redirect()->back();
     }
 
@@ -139,7 +145,10 @@ class TeamChatController extends Controller
         if ($teamChatMessage->attachment_path) {
             Storage::disk('public')->delete($teamChatMessage->attachment_path);
         }
+        $teamId = (int) $teamChatMessage->team_id;
+        $messageId = (int) $teamChatMessage->id;
         $teamChatMessage->delete();
+        broadcast(new TeamChatMessageDeleted($teamId, $messageId));
 
         return redirect()->back();
     }
@@ -180,7 +189,7 @@ class TeamChatController extends Controller
                 'id' => $state->user?->id,
                 'name' => $state->user?->name,
             ])
-            ->filter(fn (array $row) => !empty($row['id']))
+            ->filter(fn (array $row) => ! empty($row['id']))
             ->values();
 
         return response()->json([
@@ -216,7 +225,7 @@ class TeamChatController extends Controller
     private function ensureCanModify(Request $request, TeamChatMessage $message): void
     {
         $user = $request->user();
-        if (!$user) {
+        if (! $user) {
             abort(403);
         }
 
@@ -230,7 +239,7 @@ class TeamChatController extends Controller
     private function markTeamAsRead(Request $request, int $teamId): void
     {
         $userId = $request->user()?->id;
-        if (!$userId) {
+        if (! $userId) {
             return;
         }
 
@@ -256,7 +265,7 @@ class TeamChatController extends Controller
     private function buildUnreadCounts(Request $request): array
     {
         $userId = $request->user()?->id;
-        if (!$userId) {
+        if (! $userId) {
             return [];
         }
 
@@ -284,23 +293,6 @@ class TeamChatController extends Controller
      */
     private function mapMessage(TeamChatMessage $msg): array
     {
-        return [
-            'id' => $msg->id,
-            'body' => $msg->body,
-            'created_at' => $msg->created_at->toIso8601String(),
-            'edited_at' => $msg->edited_at?->toIso8601String(),
-            'attachment' => $msg->attachment_path ? [
-                'url' => Storage::disk('public')->url($msg->attachment_path),
-                'name' => $msg->attachment_name,
-                'mime' => $msg->attachment_mime,
-                'size' => $msg->attachment_size,
-                'is_image' => is_string($msg->attachment_mime) && str_starts_with($msg->attachment_mime, 'image/'),
-            ] : null,
-            'user' => $msg->user ? [
-                'id' => $msg->user->id,
-                'name' => $msg->user->name,
-            ] : null,
-        ];
+        return $msg->toChatArray();
     }
 }
-

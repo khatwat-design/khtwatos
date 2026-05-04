@@ -93,6 +93,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/outside/contacts', [OutsideController::class, 'storeContact'])->name('outside.contacts.store');
     Route::delete('/outside/contacts/{outsideContact}', [OutsideController::class, 'destroyContact'])->name('outside.contacts.destroy');
     Route::post('/outside/conversations/{outsideConversation}/read', [OutsideController::class, 'markConversationRead'])->name('outside.conversations.read');
+    Route::post('/outside/conversations/{outsideConversation}/intelligence/dismiss-routing', [OutsideController::class, 'dismissIntelligenceRouting'])->name('outside.conversations.intelligence.dismiss-routing');
     Route::post('/outside/conversations/{outsideConversation}/messages', [OutsideController::class, 'storeMessage'])->name('outside.messages.store');
     Route::patch('/outside/conversations/{outsideConversation}', [OutsideController::class, 'updateConversation'])->name('outside.conversations.update');
     Route::post('/outside/messages/{outsideMessage}/retry', [OutsideController::class, 'retryMessage'])->name('outside.messages.retry');

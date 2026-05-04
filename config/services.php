@@ -95,11 +95,42 @@ return [
          */
         'employee_credentials_template' => env('WHATSAPP_EMPLOYEE_CREDENTIALS_TEMPLATE'),
         'employee_credentials_template_lang' => env('WHATSAPP_EMPLOYEE_CREDENTIALS_LANG', 'ar'),
+        /** إشعارات مراحل العميل (لا تُعدّل منطق سير العمل — تُفعّل من مراقب ClientStageHistory) */
+        'milestone_notifications_enabled' => env('WHATSAPP_MILESTONE_NOTIFICATIONS', true),
+        /** أقل فاصل بالساعات بين أي رسالتين أوتوماتيكيتين لنفس العميل لتقليل الإزعاج */
+        'milestone_min_hours_between' => (float) env('WHATSAPP_MILESTONE_MIN_HOURS', 6),
     ],
 
     'goods' => [
         /** وقت إرسال تذكير المبيعات اليومي (توقيت التطبيق APP_TIMEZONE) */
         'daily_sales_reminder_at' => env('GOODS_DAILY_SALES_REMINDER_AT', '09:00'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | بوابة العميل — تذكير المبيعات اليومية (واتساب)
+    |--------------------------------------------------------------------------
+    */
+    'portal' => [
+        'daily_sales_reminder_enabled' => env('CLIENT_PORTAL_DAILY_SALES_REMINDER', true),
+        /** وقت التذكير إن لم تُسجَّل مبيعات اليوم (APP_TIMEZONE) */
+        'daily_sales_reminder_at' => env('CLIENT_PORTAL_DAILY_SALES_REMINDER_AT', '18:00'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | تقارير العميل الأوتوماتيكية (قراءة فقط من مبيعات/حملات — لا تغيّر منطق التحليلات)
+    |--------------------------------------------------------------------------
+    */
+    'client_reports' => [
+        'enabled_daily' => env('CLIENT_DAILY_REPORTS', true),
+        'enabled_weekly' => env('CLIENT_WEEKLY_REPORTS', true),
+        /** both | whatsapp | portal */
+        'delivery' => env('CLIENT_REPORTS_DELIVERY', 'both'),
+        'daily_at' => env('CLIENT_DAILY_REPORT_AT', '19:30'),
+        'weekly_at' => env('CLIENT_WEEKLY_REPORT_AT', '10:00'),
+        /** 0 = الأحد … 6 = السبت (Carbon weeklyOn) */
+        'weekly_on' => (int) env('CLIENT_WEEKLY_REPORT_DAY', 0),
     ],
 
 ];

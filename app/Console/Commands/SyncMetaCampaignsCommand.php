@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\ClientMetaIntegration;
-use App\Models\ClientMetaOauthToken;
+use App\Services\ClientMetaConnectionService;
 use App\Services\MetaCampaignSyncService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -15,7 +15,7 @@ class SyncMetaCampaignsCommand extends Command
 
     protected $description = 'Sync campaign metrics from Meta Ads API per client account mapping.';
 
-    public function handle(MetaCampaignSyncService $metaSync): int
+    public function handle(MetaCampaignSyncService $metaSync, ClientMetaConnectionService $metaConnection): int
     {
         $days = max(1, min(14, (int) $this->option('days')));
         $toDate = Carbon::today();
@@ -37,23 +37,19 @@ class SyncMetaCampaignsCommand extends Command
         }
 
         foreach ($integrations as $integration) {
-            $clientToken = null;
-            if (Schema::hasTable('client_meta_oauth_tokens')) {
-                $tokenRow = ClientMetaOauthToken::query()
-                    ->where('client_id', $integration->client_id)
-                    ->first();
-                if ($tokenRow && (!$tokenRow->expires_at || $tokenRow->expires_at->isFuture())) {
-                    $clientToken = (string) $tokenRow->access_token;
-                }
-            }
-            if (!$clientToken) {
+            $clientToken = Schema::hasTable('client_meta_oauth_tokens')
+                ? $metaConnection->getAccessTokenForClient((int) $integration->client_id)
+                : null;
+            if (! $clientToken) {
                 $this->error("Client #{$integration->client_id}: missing valid client OAuth token.");
+
                 continue;
             }
 
             $result = $metaSync->syncIntegration($integration, $fromDate, $toDate, null, $clientToken);
             if ($result['error']) {
                 $this->error("Client #{$integration->client_id}: {$result['error']}");
+
                 continue;
             }
 

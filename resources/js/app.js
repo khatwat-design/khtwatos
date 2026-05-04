@@ -1,6 +1,7 @@
 import '../css/app.css';
 import './bootstrap';
 
+import InertiaRoot from '@/InertiaRoot.vue';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, h } from 'vue';
@@ -16,12 +17,19 @@ createInertiaApp({
             import.meta.glob('./Pages/**/*.vue'),
         ),
     setup({ el, App, props, plugin }) {
-        return createApp({ render: () => h(App, props) })
+        return createApp({
+            render: () =>
+                h(
+                    InertiaRoot,
+                    null,
+                    {
+                        default: () => h(App, props),
+                    },
+                ),
+        })
             .use(plugin)
             .use(ZiggyVue)
             .mount(el);
     },
-    progress: {
-        color: '#B2342E',
-    },
+    progress: false,
 });

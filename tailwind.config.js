@@ -6,6 +6,14 @@ const withOpacity = (cssVar) => ({ opacityValue }) =>
         ? `rgb(var(${cssVar}) / 1)`
         : `rgb(var(${cssVar}) / ${opacityValue})`;
 
+/**
+ * Responsive breakpoints (Tailwind defaults — use consistently):
+ * - sm: 640px   (large phones / small tablets)
+ * - md: 768px   (tablets)
+ * - lg: 1024px  (laptops)
+ * - xl: 1280px+ (desktops)
+ * Mobile-first: unprefixed utilities = 320px+; add sm:/md:/lg: for larger.
+ */
 /** @type {import('tailwindcss').Config} */
 export default {
     content: [

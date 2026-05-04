@@ -55,6 +55,14 @@
 }
 
 @layer components {
+    /**
+     * Page content width + horizontal padding (prevents edge-to-edge on 320px
+     * and avoids full-width stretch on very large monitors when used with max-w-*).
+     */
+    .page-content {
+        @apply mx-auto w-full max-w-6xl px-3 sm:px-4 md:px-6;
+    }
+
     .ui-card {
         border: 1px solid var(--surface-border);
         background: var(--surface);

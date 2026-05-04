@@ -6,8 +6,6 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 const page = usePage();
 const sidebarCollapsed = ref(false);
-const isPageLoading = ref(false);
-let removeStartListener = null;
 let removeFinishListener = null;
 let notificationsTimer = null;
 const isNotificationsOpen = ref(false);
@@ -65,11 +63,7 @@ function navIcon(item) {
 }
 
 onMounted(() => {
-    removeStartListener = router.on('start', () => {
-        isPageLoading.value = true;
-    });
     removeFinishListener = router.on('finish', () => {
-        isPageLoading.value = false;
         unreadCount.value = Number(page.props.notifications?.unread_count || unreadCount.value || 0);
     });
     notificationsTimer = window.setInterval(() => {
@@ -88,7 +82,6 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-    removeStartListener?.();
     removeFinishListener?.();
     if (notificationsTimer) {
         window.clearInterval(notificationsTimer);
@@ -248,7 +241,6 @@ async function openNotification(note) {
             <div class="absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl" />
         </div>
         <div class="relative flex min-h-screen">
-            <div v-if="isPageLoading" class="loading-bar" />
             <aside
                 :class="[
                     'hidden shrink-0 flex-col border-s border-slate-200 bg-white/80 text-black backdrop-blur-xl transition-all duration-300 ease-out md:flex',
@@ -419,12 +411,7 @@ async function openNotification(note) {
                     </div>
                 </header>
 
-                <main
-                    :class="[
-                        'relative z-10 flex min-h-0 flex-1 flex-col overflow-auto p-3 pb-20 transition-opacity duration-200 md:p-6 md:pb-6',
-                        isPageLoading ? 'opacity-85' : 'opacity-100',
-                    ]"
-                >
+                <main class="relative z-10 flex min-h-0 flex-1 flex-col overflow-auto p-3 pb-20 md:p-6 md:pb-6">
                     <slot />
                 </main>
                 <nav class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 py-1.5 backdrop-blur-xl md:hidden">
@@ -493,32 +480,6 @@ async function openNotification(note) {
 </template>
 
 <style scoped>
-.loading-bar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 80;
-    height: 3px;
-    overflow: hidden;
-    background: rgba(255, 255, 255, 0.2);
-}
-
-.loading-bar::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    transform: translateX(-100%);
-    background: linear-gradient(90deg, rgba(59, 130, 246, 0), rgba(56, 189, 248, 0.9), rgba(59, 130, 246, 0));
-    animation: slide 1s linear infinite;
-}
-
-@keyframes slide {
-    to {
-        transform: translateX(100%);
-    }
-}
-
 @supports (padding: max(0px)) {
     nav[class*='fixed'][class*='bottom-0'] {
         padding-bottom: max(0.375rem, env(safe-area-inset-bottom));

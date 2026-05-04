@@ -5,13 +5,16 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\ClientDailySale;
 use App\Models\ClientDailySaleItem;
-use App\Models\ClientMetaIntegration;
-use App\Models\ClientMetaOauthToken;
 use App\Models\ClientPortalNote;
 use App\Models\ClientProduct;
+use App\Models\ClientStageHistory;
 use App\Models\Meeting;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\ClientMetaConnectionService;
+use App\Services\ClientMetaOnboardingService;
+use App\Services\MetaCampaignSyncService;
+use App\Services\PortalProgressTimelineService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,20 +23,21 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
-use App\Services\ClientMetaOnboardingService;
-use App\Services\MetaCampaignSyncService;
 
 class ClientPortalController extends Controller
 {
     public function __construct(
         private readonly ClientMetaOnboardingService $metaOnboarding,
         private readonly MetaCampaignSyncService $metaSync,
+        private readonly ClientMetaConnectionService $metaConnection,
+        private readonly PortalProgressTimelineService $portalProgressTimeline,
     ) {}
 
     public function login(): Response
@@ -59,7 +63,7 @@ class ClientPortalController extends Controller
             ->where('portal_username', $data['username'])
             ->first(['id', 'portal_password']);
 
-        if (!$client || empty($client->portal_password) || !Hash::check($data['password'], (string) $client->portal_password)) {
+        if (! $client || empty($client->portal_password) || ! Hash::check($data['password'], (string) $client->portal_password)) {
             throw ValidationException::withMessages([
                 'username' => 'بيانات الدخول غير صحيحة.',
             ]);
@@ -81,7 +85,7 @@ class ClientPortalController extends Controller
     public function dashboard(Request $request): Response|RedirectResponse
     {
         $client = $this->authenticatedClient($request);
-        if (!$client) {
+        if (! $client) {
             return redirect()->route('portal.login');
         }
 
@@ -98,6 +102,15 @@ class ClientPortalController extends Controller
         $salesByDate = $client->dailySales->keyBy(fn (ClientDailySale $row) => $row->sales_date?->toDateString());
         $analytics = $this->buildPortalAnalytics($client);
         $bookingTeams = $this->buildPortalBookingTeams();
+
+        $stageHistory = ClientStageHistory::query()
+            ->where('client_id', $client->id)
+            ->with('stage:id,key,label')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+
+        $progressTimeline = $this->portalProgressTimeline->build($client, $stageHistory);
 
         return Inertia::render('Portal/Dashboard', [
             ...$this->basePortalProps($client),
@@ -165,13 +178,14 @@ class ClientPortalController extends Controller
             ])->values(),
             'booked' => $request->boolean('booked'),
             'booking_teams' => $bookingTeams,
+            'progress_timeline' => $progressTimeline,
         ]);
     }
 
     public function storeMeeting(Request $request): RedirectResponse
     {
         $client = $this->authenticatedClient($request);
-        if (!$client) {
+        if (! $client) {
             return redirect()->route('portal.login');
         }
 
@@ -229,7 +243,7 @@ class ClientPortalController extends Controller
         $busyByUser = $this->buildBusyByUser($selectedUserIds, $start->copy()->subDays(1), $end->copy()->addDays(1));
 
         foreach ($selectedUsers as $user) {
-            if (!$this->isWithinAvailability($user, $start, $end)) {
+            if (! $this->isWithinAvailability($user, $start, $end)) {
                 throw ValidationException::withMessages([
                     'start_at' => 'الموعد خارج أوقات توفر بعض الموظفين المحددين.',
                 ]);
@@ -238,6 +252,7 @@ class ClientPortalController extends Controller
             $busy = $busyByUser[$user->id] ?? collect();
             $conflict = $busy->first(function (Meeting $meeting) use ($start, $end) {
                 $meetingEnd = $meeting->end_at ? $meeting->end_at->copy() : $meeting->start_at->copy()->addHour();
+
                 return $meeting->start_at->lt($end) && $meetingEnd->gt($start);
             });
 
@@ -275,7 +290,7 @@ class ClientPortalController extends Controller
     public function products(Request $request): Response|RedirectResponse
     {
         $client = $this->authenticatedClient($request);
-        if (!$client) {
+        if (! $client) {
             return redirect()->route('portal.login');
         }
 
@@ -299,7 +314,7 @@ class ClientPortalController extends Controller
     public function profile(Request $request): Response|RedirectResponse
     {
         $client = $this->authenticatedClient($request);
-        if (!$client) {
+        if (! $client) {
             return redirect()->route('portal.login');
         }
 
@@ -320,9 +335,11 @@ class ClientPortalController extends Controller
     public function redirectMetaOAuth(Request $request): RedirectResponse
     {
         $client = $this->authenticatedClient($request);
-        if (!$client) {
+        if (! $client) {
             return redirect()->route('portal.login');
         }
+
+        $this->metaConnection->markOAuthRedirectStarted($client, $request->boolean('reconnect'));
 
         $appId = (string) config('services.meta_ads.app_id');
         $redirectUri = (string) (config('services.meta_ads.portal_redirect_uri') ?: config('services.meta_ads.redirect_uri'));
@@ -353,22 +370,29 @@ class ClientPortalController extends Controller
         $expectedState = (string) $request->session()->pull('portal_meta_oauth_state', '');
         $clientId = (int) $request->session()->pull('portal_meta_oauth_client_id', 0);
 
-        if ($state === '' || $expectedState === '' || !hash_equals($expectedState, $state) || $clientId <= 0) {
+        if ($state === '' || $expectedState === '' || ! hash_equals($expectedState, $state) || $clientId <= 0) {
             return redirect()->route('portal.profile')->withErrors(['meta_oauth' => 'فشل التحقق الأمني (state mismatch).']);
         }
 
         $client = Client::query()->find($clientId);
-        if (!$client) {
+        if (! $client) {
             return redirect()->route('portal.profile')->withErrors(['meta_oauth' => 'تعذر تحديد العميل.']);
         }
 
-        if (!Schema::hasTable('client_meta_oauth_tokens')) {
+        $this->metaConnection->clearOAuthConnectingFlags($client);
+
+        if (! Schema::hasTable('client_meta_oauth_tokens')) {
             return redirect()->route('portal.profile')->withErrors(['meta_oauth' => 'يرجى تشغيل migrate أولاً لتفعيل OAuth.']);
         }
 
         $code = (string) $request->query('code', '');
         if ($code === '') {
-            return redirect()->route('portal.profile')->withErrors(['meta_oauth' => 'لم يتم استلام code من Meta.']);
+            $errorDescription = (string) $request->query('error_description', $request->query('error', ''));
+            $msg = $errorDescription !== ''
+                ? 'ألغيت المصادقة أو رُفض الطلب: '.$errorDescription
+                : 'لم يتم استلام code من Meta.';
+
+            return redirect()->route('portal.profile')->withErrors(['meta_oauth' => $msg]);
         }
 
         $appId = (string) config('services.meta_ads.app_id');
@@ -386,11 +410,27 @@ class ClientPortalController extends Controller
             'code' => $code,
         ]);
         if ($tokenResponse->failed()) {
-            return redirect()->route('portal.profile')->withErrors(['meta_oauth' => 'فشل الحصول على access token.']);
+            $this->metaConnection->recordMetaApiFailure(
+                $client->id,
+                'oauth_access_token_exchange',
+                $tokenResponse->status(),
+                $tokenResponse->json(),
+                (string) $tokenResponse->body(),
+            );
+
+            return redirect()->route('portal.profile')->withErrors(['meta_oauth' => 'فشل الحصول على access token من Meta.']);
         }
 
         $shortToken = (string) $tokenResponse->json('access_token', '');
         if ($shortToken === '') {
+            $this->metaConnection->recordMetaApiFailure(
+                $client->id,
+                'oauth_access_token_missing',
+                $tokenResponse->status(),
+                $tokenResponse->json(),
+                (string) $tokenResponse->body(),
+            );
+
             return redirect()->route('portal.profile')->withErrors(['meta_oauth' => 'Meta لم تُرجع access token صالح.']);
         }
 
@@ -406,6 +446,12 @@ class ClientPortalController extends Controller
         if ($longTokenResponse->ok() && $longTokenResponse->json('access_token')) {
             $finalToken = (string) $longTokenResponse->json('access_token');
             $expiresIn = (int) $longTokenResponse->json('expires_in', $expiresIn);
+        } elseif (! $longTokenResponse->ok()) {
+            Log::warning('meta_long_lived_exchange_skipped', [
+                'client_id' => $client->id,
+                'status' => $longTokenResponse->status(),
+                'body_excerpt' => mb_substr((string) $longTokenResponse->body(), 0, 400),
+            ]);
         }
 
         $meResponse = Http::timeout(20)->get("https://graph.facebook.com/{$version}/me", [
@@ -416,38 +462,49 @@ class ClientPortalController extends Controller
             'access_token' => $finalToken,
         ]);
 
-        ClientMetaOauthToken::query()->updateOrCreate(
-            ['client_id' => $client->id],
-            [
-                'access_token' => $finalToken,
-                'token_type' => 'bearer',
-                'expires_at' => $expiresIn > 0 ? now()->addSeconds($expiresIn) : null,
-                'meta_user_id' => (string) $meResponse->json('id', ''),
-                'meta_user_name' => (string) $meResponse->json('name', ''),
-                'scopes' => json_encode($permsResponse->json('data', []), JSON_UNESCAPED_UNICODE),
-            ]
+        if (! $meResponse->ok()) {
+            $this->metaConnection->recordMetaApiFailure(
+                $client->id,
+                'oauth_me',
+                $meResponse->status(),
+                $meResponse->json(),
+                (string) $meResponse->body(),
+            );
+
+            return redirect()->route('portal.profile')->withErrors(['meta_oauth' => 'تعذر قراءة بيانات مستخدم Meta بعد الربط.']);
+        }
+
+        $permRows = (array) $permsResponse->json('data', []);
+        if (! $permsResponse->ok()) {
+            Log::warning('meta_me_permissions_failed', [
+                'client_id' => $client->id,
+                'status' => $permsResponse->status(),
+            ]);
+            $permRows = [];
+        }
+
+        $result = $this->metaConnection->completePortalOAuth(
+            $client,
+            $finalToken,
+            $expiresIn,
+            $permRows,
+            (string) $meResponse->json('id', ''),
+            (string) $meResponse->json('name', ''),
+            $this->metaOnboarding,
+            $this->metaSync,
         );
 
-        $setup = $this->metaOnboarding->scanAndSetup($client, $finalToken);
-        if (!empty($setup['integration_id']) && Schema::hasTable('client_meta_integrations')) {
-            $integration = ClientMetaIntegration::query()->find($setup['integration_id']);
-            if ($integration && $integration->is_active) {
-                $to = now();
-                $from = now()->subDays(6);
-                $this->metaSync->syncIntegration($integration, $from, $to, null, $finalToken);
-            }
+        if (! $result['success']) {
+            return redirect()->route('portal.profile')->withErrors(['meta_oauth' => $result['message']]);
         }
-        $msg = $setup['completed']
-            ? 'تم الربط والإعداد التلقائي بنجاح.'
-            : 'تم الربط لكن توجد خطوات بسيطة متبقية.';
 
-        return redirect()->route('portal.profile')->with('success', $msg);
+        return redirect()->route('portal.profile')->with('success', $result['message']);
     }
 
     public function storeDailySales(Request $request): RedirectResponse
     {
         $client = $this->authenticatedClient($request);
-        if (!$client) {
+        if (! $client) {
             return redirect()->route('portal.login');
         }
 
@@ -479,7 +536,7 @@ class ClientPortalController extends Controller
             ->get()
             ->keyBy('id');
 
-        $invalidProduct = $items->first(fn (array $item) => !$products->has($item['product_id']));
+        $invalidProduct = $items->first(fn (array $item) => ! $products->has($item['product_id']));
         if ($invalidProduct) {
             throw ValidationException::withMessages([
                 'items' => 'أحد المنتجات المحددة غير متاح لهذا العميل.',
@@ -487,7 +544,7 @@ class ClientPortalController extends Controller
         }
 
         $hasPositive = $items->contains(fn (array $item) => $item['quantity'] > 0);
-        if (!$hasPositive) {
+        if (! $hasPositive) {
             throw ValidationException::withMessages([
                 'items' => 'أدخل كمية مبيعات على الأقل لمنتج واحد.',
             ]);
@@ -500,7 +557,7 @@ class ClientPortalController extends Controller
                 ->with('items')
                 ->first();
 
-            if (!$sale) {
+            if (! $sale) {
                 $sale = ClientDailySale::query()->create([
                     'client_id' => $client->id,
                     'sales_date' => $data['sales_date'],
@@ -521,7 +578,7 @@ class ClientPortalController extends Controller
 
             foreach ($newQtyByProduct as $productId => $newQty) {
                 $product = $products->get((int) $productId);
-                if (!$product || $product->stock_quantity === null) {
+                if (! $product || $product->stock_quantity === null) {
                     continue;
                 }
 
@@ -582,7 +639,7 @@ class ClientPortalController extends Controller
     public function storeProduct(Request $request): RedirectResponse
     {
         $client = $this->authenticatedClient($request);
-        if (!$client) {
+        if (! $client) {
             return redirect()->route('portal.login');
         }
         $data = $request->validate([
@@ -607,7 +664,7 @@ class ClientPortalController extends Controller
     public function storeNote(Request $request): RedirectResponse
     {
         $client = $this->authenticatedClient($request);
-        if (!$client) {
+        if (! $client) {
             return redirect()->route('portal.login');
         }
 
@@ -627,7 +684,7 @@ class ClientPortalController extends Controller
     public function updateProduct(Request $request, ClientProduct $clientProduct): RedirectResponse
     {
         $client = $this->authenticatedClient($request);
-        if (!$client) {
+        if (! $client) {
             return redirect()->route('portal.login');
         }
 
@@ -651,7 +708,7 @@ class ClientPortalController extends Controller
     public function destroyProduct(Request $request, ClientProduct $clientProduct): RedirectResponse
     {
         $client = $this->authenticatedClient($request);
-        if (!$client) {
+        if (! $client) {
             return redirect()->route('portal.login');
         }
 
@@ -667,7 +724,7 @@ class ClientPortalController extends Controller
     public function updateProfile(Request $request): RedirectResponse
     {
         $client = $this->authenticatedClient($request);
-        if (!$client) {
+        if (! $client) {
             return redirect()->route('portal.login');
         }
 
@@ -687,7 +744,7 @@ class ClientPortalController extends Controller
             $payload = [
                 'portal_username' => $data['portal_username'],
             ];
-            if (!empty($data['portal_password'])) {
+            if (! empty($data['portal_password'])) {
                 $payload['portal_password'] = Hash::make($data['portal_password']);
             }
 
@@ -709,7 +766,7 @@ class ClientPortalController extends Controller
     private function authenticatedClient(Request $request): ?Client
     {
         $id = $request->session()->get('portal_client_id');
-        if (!$id) {
+        if (! $id) {
             return null;
         }
 
@@ -734,7 +791,7 @@ class ClientPortalController extends Controller
 
     private function portalSubscriptionPayload(Client $client): array
     {
-        if (!Schema::hasColumns('clients', [
+        if (! Schema::hasColumns('clients', [
             'subscription_started_at',
             'subscription_ends_at',
             'subscription_activated_by',
@@ -757,28 +814,7 @@ class ClientPortalController extends Controller
 
     private function portalMetaSetupPayload(Client $client): array
     {
-        if (!Schema::hasTable('client_meta_integrations')) {
-            return ['enabled' => false];
-        }
-
-        $integration = ClientMetaIntegration::query()
-            ->where('client_id', $client->id)
-            ->first();
-        $token = Schema::hasTable('client_meta_oauth_tokens')
-            ? ClientMetaOauthToken::query()->where('client_id', $client->id)->first()
-            : null;
-
-        return [
-            'enabled' => true,
-            'connected' => (bool) $token,
-            'meta_user_name' => $token?->meta_user_name,
-            'ad_account_id' => $integration?->ad_account_id,
-            'meta_business_id' => $integration?->meta_business_id,
-            'meta_page_id' => $integration?->meta_page_id,
-            'meta_instagram_account_id' => $integration?->meta_instagram_account_id,
-            'setup_status' => $integration?->setup_status,
-            'issues' => (array) ($integration?->last_scan_payload['issues'] ?? []),
-        ];
+        return $this->metaConnection->portalMetaSetupPayload($client);
     }
 
     private function buildPortalBookingTeams(): array
@@ -940,22 +976,22 @@ class ClientPortalController extends Controller
     }
 
     /**
-     * @param \Illuminate\Support\Collection<int, Meeting> $busyMeetings
+     * @param  Collection<int, Meeting>  $busyMeetings
      * @return array<int, array<string, string>>
      */
-    private function buildAvailableSlots(User $user, \Illuminate\Support\Collection $busyMeetings): array
+    private function buildAvailableSlots(User $user, Collection $busyMeetings): array
     {
         $slots = [];
 
         for ($offset = 0; $offset <= 21; $offset++) {
             $date = now()->addDays($offset);
             $window = $this->dayWindow($user, (int) $date->dayOfWeek);
-            if (!$window) {
+            if (! $window) {
                 continue;
             }
 
-            $cursor = Carbon::parse($date->format('Y-m-d') . ' ' . $window['start']);
-            $endOfDay = Carbon::parse($date->format('Y-m-d') . ' ' . $window['end']);
+            $cursor = Carbon::parse($date->format('Y-m-d').' '.$window['start']);
+            $endOfDay = Carbon::parse($date->format('Y-m-d').' '.$window['end']);
 
             while ($cursor->copy()->addHour()->lte($endOfDay)) {
                 $slotStart = $cursor->copy();
@@ -968,6 +1004,7 @@ class ClientPortalController extends Controller
 
                 $conflict = $busyMeetings->first(function (Meeting $meeting) use ($slotStart, $slotEnd) {
                     $meetingEnd = $meeting->end_at ? $meeting->end_at->copy() : $meeting->start_at->copy()->addHour();
+
                     return $meeting->start_at->lt($slotEnd) && $meetingEnd->gt($slotStart);
                 });
 
@@ -992,12 +1029,12 @@ class ClientPortalController extends Controller
     private function isWithinAvailability(User $user, Carbon $start, Carbon $end): bool
     {
         $window = $this->dayWindow($user, (int) $start->dayOfWeek);
-        if (!$window) {
+        if (! $window) {
             return false;
         }
 
-        $windowStart = Carbon::parse($start->format('Y-m-d') . ' ' . $window['start']);
-        $windowEnd = Carbon::parse($start->format('Y-m-d') . ' ' . $window['end']);
+        $windowStart = Carbon::parse($start->format('Y-m-d').' '.$window['start']);
+        $windowEnd = Carbon::parse($start->format('Y-m-d').' '.$window['end']);
 
         return $start->gte($windowStart) && $end->lte($windowEnd);
     }
@@ -1037,13 +1074,13 @@ class ClientPortalController extends Controller
     {
         $schedule = collect($this->normalizedSchedule($user));
         $entry = $schedule->first(fn (array $row) => (int) $row['day'] === $day && (bool) $row['enabled']);
-        if (!$entry) {
+        if (! $entry) {
             return null;
         }
 
         $start = $entry['start'] ?? null;
         $end = $entry['end'] ?? null;
-        if (!$start || !$end || $start >= $end) {
+        if (! $start || ! $end || $start >= $end) {
             return null;
         }
 
@@ -1051,7 +1088,7 @@ class ClientPortalController extends Controller
     }
 
     /**
-     * @param array<int, int> $userIds
+     * @param  array<int, int>  $userIds
      * @return array<int, Collection<int, Meeting>>
      */
     private function buildBusyByUser(array $userIds, Carbon $from, Carbon $to): array

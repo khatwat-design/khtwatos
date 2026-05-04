@@ -3,16 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Models\ClientMetaIntegration;
-use App\Models\ClientMetaOauthToken;
 use App\Models\OutsideContact;
 use App\Models\OutsideConversation;
 use App\Models\OutsideMessage;
 use App\Models\User;
+use App\Services\ClientMetaConnectionService;
 use App\Services\InstagramGraphMessagingService;
+use App\Services\MessagingIntelligenceService;
 use App\Services\OutsideGoodsClientBridgeService;
 use App\Services\WhatsAppCloudService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -23,6 +25,8 @@ class OutsideController extends Controller
         private readonly WhatsAppCloudService $whatsAppCloudService,
         private readonly InstagramGraphMessagingService $instagramMessaging,
         private readonly OutsideGoodsClientBridgeService $outsideGoodsBridge,
+        private readonly ClientMetaConnectionService $clientMetaConnection,
+        private readonly MessagingIntelligenceService $messagingIntelligence,
     ) {}
 
     /** @var list<string> */
@@ -72,6 +76,7 @@ class OutsideController extends Controller
                     'retry_count' => $message->retry_count,
                     'created_at' => $message->created_at?->toIso8601String(),
                 ]),
+                'intelligence' => $this->conversationIntelligencePayload($conversation),
             ])->values(),
             'users' => User::query()->orderBy('name')->get(['id', 'name']),
             'conversation_statuses' => [
@@ -98,6 +103,15 @@ class OutsideController extends Controller
         $outsideConversation->forceFill(['unread_count' => 0])->save();
 
         return redirect()->route('outside.index');
+    }
+
+    public function dismissIntelligenceRouting(OutsideConversation $outsideConversation): RedirectResponse
+    {
+        if (Schema::hasColumn('outside_conversations', 'intelligence_routing')) {
+            $outsideConversation->update(['intelligence_routing' => null]);
+        }
+
+        return redirect()->route('outside.index')->with('success', 'تم إخفاء اقتراح التوجيه.');
     }
 
     public function storeContact(Request $request): RedirectResponse
@@ -329,12 +343,50 @@ class OutsideController extends Controller
             throw new \RuntimeException('لا يوجد حساب إنستغرام أعمال في تكامل ميتا لهذا العميل.');
         }
 
-        $tokenRow = ClientMetaOauthToken::query()->where('client_id', $clientId)->first();
-        $token = $tokenRow && $tokenRow->access_token !== null ? (string) $tokenRow->access_token : '';
+        $token = (string) ($this->clientMetaConnection->getAccessTokenForClient($clientId) ?? '');
         if ($token === '') {
             throw new \RuntimeException('لا يوجد رمز وصول ميتا صالح للعميل؛ أعد الربط من بوابة العميل أو ضبط INSTAGRAM_ACCESS_TOKEN من مدير الأعمال.');
         }
 
         return [$igBiz, $token, $psid];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function conversationIntelligencePayload(OutsideConversation $conversation): array
+    {
+        if (! Schema::hasColumn('outside_conversations', 'intelligence_classification')) {
+            return [
+                'enabled' => false,
+            ];
+        }
+
+        $suggested = $conversation->intelligence_suggested_replies;
+        if (! is_array($suggested)) {
+            $suggested = [];
+        }
+
+        $routing = $conversation->intelligence_routing;
+        if (! is_array($routing)) {
+            $routing = null;
+        }
+
+        $clientContext = $conversation->intelligence_client_context;
+        if (! is_array($clientContext)) {
+            $clientContext = null;
+        }
+
+        return [
+            'enabled' => true,
+            'classification' => $conversation->intelligence_classification,
+            'classification_label' => $this->messagingIntelligence->classificationLabelAr($conversation->intelligence_classification),
+            'summary' => $conversation->intelligence_summary,
+            'summary_at' => $conversation->intelligence_summary_at?->toIso8601String(),
+            'suggested_replies' => array_values(array_filter($suggested, fn ($r) => is_string($r) && trim($r) !== '')),
+            'suggested_at' => $conversation->intelligence_suggested_at?->toIso8601String(),
+            'routing' => $routing,
+            'client_context' => $clientContext,
+        ];
     }
 }

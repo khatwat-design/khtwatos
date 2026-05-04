@@ -38,6 +38,7 @@ const conversationForm = useForm({
     assigned_user_id: null,
 });
 const retryForm = useForm({});
+const intelligenceDismissProcessing = ref(false);
 
 const activeConversation = computed(() =>
     (props.conversations || []).find((item) => item.id === activeConversationId.value) || null,
@@ -260,6 +261,38 @@ function retryMessage(messageId) {
         preserveState: true,
         only: ['conversations'],
     });
+}
+
+function routingUserLabel(userId) {
+    const u = (props.users || []).find((x) => Number(x.id) === Number(userId));
+    return u?.name || `مستخدم #${userId}`;
+}
+
+function dismissIntelligenceRouting() {
+    const id = activeConversation.value?.id;
+    if (!id || intelligenceDismissProcessing.value) {
+        return;
+    }
+    intelligenceDismissProcessing.value = true;
+    router.post(
+        route('outside.conversations.intelligence.dismiss-routing', id),
+        {},
+        {
+            preserveScroll: true,
+            only: ['conversations'],
+            onFinish: () => {
+                intelligenceDismissProcessing.value = false;
+            },
+        },
+    );
+}
+
+function applyPreferredRouting(userId) {
+    if (!userId || !activeConversation.value?.id) {
+        return;
+    }
+    conversationForm.assigned_user_id = userId;
+    submitConversationMeta();
 }
 
 function formatDayDivider(iso) {
@@ -648,6 +681,12 @@ const threadBgStyle = {
                                     >
                                         {{ statusLabel(conversation.status) }}
                                     </span>
+                                    <span
+                                        v-if="conversation.intelligence?.enabled && conversation.intelligence?.classification"
+                                        class="inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-900 ring-1 ring-violet-200/80"
+                                    >
+                                        {{ conversation.intelligence.classification_label }}
+                                    </span>
                                 </div>
                             </div>
                         </button>
@@ -800,6 +839,84 @@ const threadBgStyle = {
                                 >
                                     حذف جهة الاتصال
                                 </SecondaryButton>
+                            </div>
+                        </div>
+
+                        <div
+                            v-if="activeConversation?.intelligence?.enabled"
+                            dir="rtl"
+                            class="shrink-0 border-b border-violet-200/70 bg-gradient-to-b from-violet-50/95 to-white/92 px-3 py-3 text-sm text-slate-800 shadow-inner sm:px-4"
+                        >
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-xs font-bold text-violet-950">مساعد المحادثة</span>
+                                <span
+                                    v-if="activeConversation.intelligence.classification"
+                                    class="rounded-full bg-violet-100 px-2.5 py-0.5 text-[10px] font-bold text-violet-900 ring-1 ring-violet-200/80"
+                                >
+                                    {{ activeConversation.intelligence.classification_label }}
+                                </span>
+                            </div>
+                            <p
+                                v-if="activeConversation.intelligence.summary"
+                                class="mt-2 text-[12px] leading-relaxed text-slate-700"
+                            >
+                                {{ activeConversation.intelligence.summary }}
+                            </p>
+                            <div
+                                v-if="activeConversation.intelligence.client_context?.lines?.length"
+                                class="mt-2 space-y-1 rounded-lg border border-slate-200/90 bg-white/90 px-2.5 py-2 text-[11px] text-slate-700"
+                            >
+                                <p class="text-[10px] font-bold text-slate-500">سياق العميل (CRM / أداء)</p>
+                                <p
+                                    v-for="(line, cidx) in activeConversation.intelligence.client_context.lines"
+                                    :key="`ctx-line-${cidx}`"
+                                    class="leading-snug"
+                                >
+                                    {{ line }}
+                                </p>
+                            </div>
+                            <div
+                                v-if="activeConversation.intelligence.routing"
+                                class="mt-2 flex flex-col gap-2 rounded-lg border border-amber-200/90 bg-amber-50/95 px-2.5 py-2"
+                            >
+                                <p class="text-[11px] font-semibold leading-snug text-amber-950">
+                                    {{ activeConversation.intelligence.routing.hint_ar }}
+                                </p>
+                                <p v-if="activeConversation.intelligence.routing.team_name" class="text-[10px] text-amber-900/90">
+                                    فريق مقترح: {{ activeConversation.intelligence.routing.team_name }}
+                                </p>
+                                <div class="flex flex-wrap gap-2">
+                                    <SecondaryButton
+                                        v-if="activeConversation.intelligence.routing.preferred_user_id"
+                                        type="button"
+                                        class="min-h-9 rounded-lg px-2 py-1 text-[11px]"
+                                        @click="applyPreferredRouting(activeConversation.intelligence.routing.preferred_user_id)"
+                                    >
+                                        تعيين: {{ routingUserLabel(activeConversation.intelligence.routing.preferred_user_id) }}
+                                    </SecondaryButton>
+                                    <SecondaryButton
+                                        type="button"
+                                        class="min-h-9 rounded-lg px-2 py-1 text-[11px]"
+                                        :disabled="intelligenceDismissProcessing"
+                                        @click="dismissIntelligenceRouting"
+                                    >
+                                        إخفاء اقتراح التوجيه
+                                    </SecondaryButton>
+                                </div>
+                            </div>
+                            <div v-if="activeConversation.intelligence.suggested_replies?.length" class="mt-3 space-y-1.5">
+                                <span class="text-[10px] font-bold text-slate-500">ردود مقترحة (تُنسخ إلى المحرر — لا تُرسل تلقائيًا):</span>
+                                <div class="flex flex-wrap gap-2">
+                                    <button
+                                        v-for="(txt, sidx) in activeConversation.intelligence.suggested_replies"
+                                        :key="`sugg-${sidx}`"
+                                        type="button"
+                                        class="max-w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-start text-[11px] font-medium leading-snug text-slate-800 shadow-sm transition hover:border-brand-300 hover:bg-brand-50/50"
+                                        @click="useTemplate(txt)"
+                                    >
+                                        {{ txt }}
+                                    </button>
+                                </div>
                             </div>
                         </div>
 

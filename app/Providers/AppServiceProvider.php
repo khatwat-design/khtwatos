@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\ClientStageHistory;
 use App\Models\User;
+use App\Observers\ClientStageHistoryObserver;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Vite;
@@ -24,6 +26,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Carbon::setLocale(config('app.locale'));
+
+        ClientStageHistory::observe(ClientStageHistoryObserver::class);
 
         Vite::prefetch(concurrency: 3);
 

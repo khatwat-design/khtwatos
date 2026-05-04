@@ -121,14 +121,15 @@ const hasRoasData = computed(() =>
     <AuthenticatedLayout>
         <template #title>المخزن</template>
 
-        <div class="mx-auto max-w-7xl space-y-6">
-            <div class="ui-card p-3">
-                <div class="flex items-center justify-between">
-                    <h2 class="text-base font-semibold text-gray-900">المخزن والتحليل</h2>
-                    <div class="flex items-center gap-2">
+        <div class="mx-auto w-full min-w-0 max-w-7xl space-y-4 px-3 pb-8 sm:space-y-6 sm:px-4">
+            <div class="ui-card p-3 sm:p-4">
+                <div class="flex items-center justify-between gap-2">
+                    <h2 class="min-w-0 text-base font-semibold text-gray-900">المخزن والتحليل</h2>
+                    <div class="flex shrink-0 items-center gap-2">
                         <button
                             type="button"
-                            class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                            class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                            aria-label="الفلاتر"
                             title="الفلاتر"
                             @click="showFilters = true"
                         >
@@ -138,7 +139,8 @@ const hasRoasData = computed(() =>
                         </button>
                         <button
                             type="button"
-                            class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                            class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                            :aria-label="showAlerts ? 'إخفاء التنبيهات' : 'إظهار التنبيهات'"
                             :title="showAlerts ? 'إخفاء التنبيهات' : 'إظهار التنبيهات'"
                             @click="showAlerts = !showAlerts"
                         >
@@ -152,31 +154,31 @@ const hasRoasData = computed(() =>
             </div>
 
             <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
-                <div class="ui-card ui-card-hover p-3">
-                    <p class="text-xs text-gray-500">مبيعات اليوم</p>
-                    <p class="mt-1 text-xl font-black text-gray-900">{{ formatMoney(analytics?.today?.revenue) }}</p>
-                    <p class="mt-1 text-xs" :class="deltaClass(analytics?.delta?.revenue)">
+                <div class="ui-card ui-card-hover min-w-0 p-2.5 sm:p-3">
+                    <p class="text-[11px] leading-tight text-gray-500 sm:text-xs">مبيعات اليوم</p>
+                    <p class="mt-1 truncate text-lg font-black tabular-nums text-gray-900 sm:text-xl">{{ formatMoney(analytics?.today?.revenue) }}</p>
+                    <p class="mt-1 text-[10px] leading-tight sm:text-xs" :class="deltaClass(analytics?.delta?.revenue)">
                         الفرق عن أمس: {{ Number(analytics?.delta?.revenue || 0) >= 0 ? '+' : '' }}{{ formatMoney(analytics?.delta?.revenue || 0) }}
                     </p>
                 </div>
-                <div class="ui-card ui-card-hover p-3">
-                    <p class="text-xs text-gray-500">الإنفاق اليوم</p>
-                    <p class="mt-1 text-xl font-black text-gray-900">{{ formatMoney(analytics?.today?.ad_spend) }}</p>
-                    <p class="mt-1 text-xs" :class="deltaClass(analytics?.delta?.ad_spend)">
+                <div class="ui-card ui-card-hover min-w-0 p-2.5 sm:p-3">
+                    <p class="text-[11px] leading-tight text-gray-500 sm:text-xs">الإنفاق اليوم</p>
+                    <p class="mt-1 truncate text-lg font-black tabular-nums text-gray-900 sm:text-xl">{{ formatMoney(analytics?.today?.ad_spend) }}</p>
+                    <p class="mt-1 text-[10px] leading-tight sm:text-xs" :class="deltaClass(analytics?.delta?.ad_spend)">
                         الفرق عن أمس: {{ Number(analytics?.delta?.ad_spend || 0) >= 0 ? '+' : '' }}{{ formatMoney(analytics?.delta?.ad_spend || 0) }}
                     </p>
                 </div>
-                <div class="ui-card ui-card-hover p-3">
-                    <p class="text-xs text-gray-500">ROAS اليوم (مبيعات/إنفاق)</p>
-                    <p class="mt-1 text-xl font-black text-gray-900">{{ analytics?.today?.roas ?? '—' }}</p>
-                    <p class="mt-1 text-xs" :class="deltaClass(analytics?.delta?.roas)">
+                <div class="ui-card ui-card-hover min-w-0 p-2.5 sm:p-3">
+                    <p class="text-[11px] leading-tight text-gray-500 sm:text-xs">ROAS اليوم (مبيعات/إنفاق)</p>
+                    <p class="mt-1 truncate text-lg font-black tabular-nums text-gray-900 sm:text-xl">{{ analytics?.today?.roas ?? '—' }}</p>
+                    <p class="mt-1 text-[10px] leading-tight sm:text-xs" :class="deltaClass(analytics?.delta?.roas)">
                         الفرق عن أمس: {{ analytics?.delta?.roas === null ? '—' : `${analytics.delta.roas >= 0 ? '+' : ''}${analytics.delta.roas}` }}
                     </p>
                 </div>
-                <div class="ui-card ui-card-hover p-3">
-                    <p class="text-xs text-gray-500">تكلفة الرسالة اليوم</p>
-                    <p class="mt-1 text-xl font-black text-gray-900">{{ analytics?.today?.cost_per_message ?? '—' }}</p>
-                    <p class="mt-1 text-xs text-gray-600">
+                <div class="ui-card ui-card-hover min-w-0 p-2.5 sm:p-3">
+                    <p class="text-[11px] leading-tight text-gray-500 sm:text-xs">تكلفة الرسالة اليوم</p>
+                    <p class="mt-1 truncate text-lg font-black tabular-nums text-gray-900 sm:text-xl">{{ analytics?.today?.cost_per_message ?? '—' }}</p>
+                    <p class="mt-1 text-[10px] leading-tight text-gray-600 sm:text-xs">
                         رسائل اليوم: {{ analytics?.today?.messages || 0 }} · نقرات اليوم: {{ analytics?.today?.clicks || 0 }}
                     </p>
                 </div>
@@ -193,27 +195,27 @@ const hasRoasData = computed(() =>
             </div>
 
             <div v-if="showWindowCards" class="grid grid-cols-2 gap-2 md:grid-cols-4">
-                <div class="ui-card ui-card-hover p-3">
-                    <p class="text-xs text-gray-500">ROAS آخر {{ executive_cards?.window_days || 7 }} يوم</p>
-                    <p class="mt-1 text-xl font-black text-gray-900">{{ executive_cards?.roas_window ?? '—' }}</p>
+                <div class="ui-card ui-card-hover min-w-0 p-2.5 sm:p-3">
+                    <p class="text-[11px] leading-tight text-gray-500 sm:text-xs">ROAS آخر {{ executive_cards?.window_days || 7 }} يوم</p>
+                    <p class="mt-1 truncate text-lg font-black tabular-nums text-gray-900 sm:text-xl">{{ executive_cards?.roas_window ?? '—' }}</p>
                 </div>
-                <div class="ui-card ui-card-hover p-3">
-                    <p class="text-xs text-gray-500">Conversion آخر {{ executive_cards?.window_days || 7 }} يوم</p>
-                    <p class="mt-1 text-xl font-black text-gray-900">{{ executive_cards?.conversion_rate_window ?? '—' }}%</p>
+                <div class="ui-card ui-card-hover min-w-0 p-2.5 sm:p-3">
+                    <p class="text-[11px] leading-tight text-gray-500 sm:text-xs">Conversion آخر {{ executive_cards?.window_days || 7 }} يوم</p>
+                    <p class="mt-1 truncate text-lg font-black tabular-nums text-gray-900 sm:text-xl">{{ executive_cards?.conversion_rate_window ?? '—' }}%</p>
                 </div>
-                <div class="ui-card ui-card-hover p-3">
-                    <p class="text-xs text-gray-500">CAC آخر {{ executive_cards?.window_days || 7 }} يوم</p>
-                    <p class="mt-1 text-xl font-black text-gray-900">{{ executive_cards?.cac_window ?? '—' }}</p>
+                <div class="ui-card ui-card-hover min-w-0 p-2.5 sm:p-3">
+                    <p class="text-[11px] leading-tight text-gray-500 sm:text-xs">CAC آخر {{ executive_cards?.window_days || 7 }} يوم</p>
+                    <p class="mt-1 truncate text-lg font-black tabular-nums text-gray-900 sm:text-xl">{{ executive_cards?.cac_window ?? '—' }}</p>
                 </div>
-                <div class="ui-card ui-card-hover p-3">
-                    <p class="text-xs text-gray-500">AOV آخر {{ executive_cards?.window_days || 7 }} يوم</p>
-                    <p class="mt-1 text-xl font-black text-gray-900">{{ executive_cards?.aov_window ?? '—' }}</p>
+                <div class="ui-card ui-card-hover min-w-0 p-2.5 sm:p-3">
+                    <p class="text-[11px] leading-tight text-gray-500 sm:text-xs">AOV آخر {{ executive_cards?.window_days || 7 }} يوم</p>
+                    <p class="mt-1 truncate text-lg font-black tabular-nums text-gray-900 sm:text-xl">{{ executive_cards?.aov_window ?? '—' }}</p>
                 </div>
             </div>
-            <div v-if="showWindowCards" class="mx-auto w-full md:max-w-sm">
-                <div class="ui-card ui-card-hover p-3 text-center">
-                    <p class="text-xs text-gray-500">إيراد آخر {{ executive_cards?.window_days || 7 }} يوم</p>
-                    <p class="mt-1 text-xl font-black text-gray-900">{{ formatMoney(executive_cards?.revenue_window || 0) }}</p>
+            <div v-if="showWindowCards" class="mx-auto w-full min-w-0 md:max-w-sm">
+                <div class="ui-card ui-card-hover p-2.5 text-center sm:p-3">
+                    <p class="text-[11px] text-gray-500 sm:text-xs">إيراد آخر {{ executive_cards?.window_days || 7 }} يوم</p>
+                    <p class="mt-1 truncate text-lg font-black tabular-nums text-gray-900 sm:text-xl">{{ formatMoney(executive_cards?.revenue_window || 0) }}</p>
                 </div>
             </div>
             <div v-if="showWindowCards" class="flex justify-center">
@@ -264,9 +266,57 @@ const hasRoasData = computed(() =>
                 </div>
             </div>
 
-            <div class="ui-card p-5">
-                    <h2 class="text-lg font-semibold text-gray-900">الأداء اليومي للحملات</h2>
-                <div class="mt-4 overflow-x-auto">
+            <div class="ui-card p-4 sm:p-5">
+                <h2 class="text-base font-semibold text-gray-900 sm:text-lg">الأداء اليومي للحملات</h2>
+
+                <!-- موبايل: بطاقات بدون تمرير أفقي -->
+                <div class="mt-3 space-y-2 md:hidden">
+                    <article
+                        v-for="row in daily_trend"
+                        :key="`trend-card-${row.date}`"
+                        class="rounded-xl border border-gray-100 bg-gray-50/80 p-3 text-xs text-gray-800"
+                    >
+                        <p class="mb-2 font-bold text-gray-900">{{ row.date }}</p>
+                        <dl class="grid grid-cols-2 gap-x-3 gap-y-2">
+                            <div class="min-w-0">
+                                <dt class="text-[11px] text-gray-500">المبيعات</dt>
+                                <dd class="truncate font-semibold tabular-nums">{{ formatMoney(row.revenue) }}</dd>
+                            </div>
+                            <div class="min-w-0">
+                                <dt class="text-[11px] text-gray-500">الطلبات</dt>
+                                <dd class="font-semibold tabular-nums">{{ row.orders_count }}</dd>
+                            </div>
+                            <div class="min-w-0">
+                                <dt class="text-[11px] text-gray-500">الإنفاق</dt>
+                                <dd class="truncate font-semibold tabular-nums">{{ formatMoney(row.ad_spend) }}</dd>
+                            </div>
+                            <div class="min-w-0">
+                                <dt class="text-[11px] text-gray-500">الرسائل</dt>
+                                <dd class="font-semibold tabular-nums">{{ row.messages_count }}</dd>
+                            </div>
+                            <div class="min-w-0">
+                                <dt class="text-[11px] text-gray-500">النقرات</dt>
+                                <dd class="font-semibold tabular-nums">{{ row.clicks_count }}</dd>
+                            </div>
+                            <div class="min-w-0">
+                                <dt class="text-[11px] text-gray-500">ROAS</dt>
+                                <dd class="font-semibold tabular-nums">{{ row.roas_from_sales ?? '—' }}</dd>
+                            </div>
+                            <div class="col-span-2 min-w-0">
+                                <dt class="text-[11px] text-gray-500">تكلفة الرسالة</dt>
+                                <dd class="font-semibold tabular-nums">{{ row.cost_per_message ?? '—' }}</dd>
+                            </div>
+                        </dl>
+                    </article>
+                    <p
+                        v-if="!daily_trend?.length"
+                        class="rounded-xl border border-dashed border-gray-200 px-3 py-8 text-center text-sm text-gray-500"
+                    >
+                        لا توجد بيانات ربط يومي بعد.
+                    </p>
+                </div>
+
+                <div class="mt-4 hidden overflow-x-auto md:block">
                     <table class="min-w-full text-sm">
                         <thead>
                             <tr class="border-b border-gray-200 text-right text-xs text-gray-500">
@@ -377,9 +427,48 @@ const hasRoasData = computed(() =>
                 </div>
             </div>
 
-            <div class="ui-card p-5">
-                <h2 class="text-lg font-semibold text-gray-900">أداء المنتجات</h2>
-                <div class="mt-4 overflow-x-auto">
+            <div class="ui-card p-4 sm:p-5">
+                <h2 class="text-base font-semibold text-gray-900 sm:text-lg">أداء المنتجات</h2>
+
+                <div class="mt-3 space-y-2 md:hidden">
+                    <article
+                        v-for="row in product_performance"
+                        :key="`pp-card-${row.product_id}`"
+                        class="rounded-xl border border-gray-100 bg-gray-50/80 p-3 text-xs"
+                    >
+                        <p class="mb-2 font-bold text-gray-900">{{ row.product }}</p>
+                        <dl class="grid grid-cols-2 gap-x-3 gap-y-2 text-gray-800">
+                            <div>
+                                <dt class="text-[11px] text-gray-500">الكمية</dt>
+                                <dd class="font-semibold tabular-nums">{{ row.sold_quantity }}</dd>
+                            </div>
+                            <div class="min-w-0">
+                                <dt class="text-[11px] text-gray-500">الإيراد</dt>
+                                <dd class="truncate font-semibold tabular-nums">{{ formatMoney(row.revenue) }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-[11px] text-gray-500">ROAS</dt>
+                                <dd class="font-semibold tabular-nums">{{ row.roas ?? '—' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-[11px] text-gray-500">CAC</dt>
+                                <dd class="font-semibold tabular-nums">{{ row.cac ?? '—' }}</dd>
+                            </div>
+                            <div class="col-span-2">
+                                <dt class="text-[11px] text-gray-500">Conv%</dt>
+                                <dd class="font-semibold tabular-nums">{{ row.conversion_rate ?? '—' }}</dd>
+                            </div>
+                        </dl>
+                    </article>
+                    <p
+                        v-if="!product_performance?.length"
+                        class="rounded-xl border border-dashed border-gray-200 px-3 py-8 text-center text-sm text-gray-500"
+                    >
+                        لا توجد بيانات منتجات كافية.
+                    </p>
+                </div>
+
+                <div class="mt-4 hidden overflow-x-auto md:block">
                     <table class="min-w-full text-sm">
                         <thead>
                             <tr class="border-b border-gray-200 text-right text-xs text-gray-500">
@@ -408,9 +497,56 @@ const hasRoasData = computed(() =>
                 </div>
             </div>
 
-            <div class="ui-card p-5">
-                <h2 class="text-lg font-semibold text-gray-900">بيانات حملات Meta للعملاء</h2>
-                <div v-if="campaign_rows?.length" class="mt-4 overflow-x-auto">
+            <div class="ui-card p-4 sm:p-5">
+                <h2 class="text-base font-semibold text-gray-900 sm:text-lg">بيانات حملات Meta للعملاء</h2>
+
+                <div v-if="campaign_rows?.length" class="mt-3 space-y-2 md:hidden">
+                    <article
+                        v-for="row in campaign_rows"
+                        :key="`campaign-card-${row.id}`"
+                        class="rounded-xl border border-gray-100 bg-gray-50/80 p-3 text-xs text-gray-800"
+                    >
+                        <p class="font-bold text-gray-900">{{ row.client || 'عميل غير معروف' }}</p>
+                        <p class="mt-1 text-[11px] text-gray-600">{{ row.source_ref || 'Meta Campaign' }}</p>
+                        <p class="mt-0.5 text-[11px] text-gray-500">{{ row.report_date || '—' }}</p>
+                        <dl class="mt-2 grid grid-cols-2 gap-x-3 gap-y-2">
+                            <div class="min-w-0">
+                                <dt class="text-[11px] text-gray-500">الإنفاق</dt>
+                                <dd class="truncate font-semibold tabular-nums">{{ formatMoney(row.ad_spend) }}</dd>
+                            </div>
+                            <div class="min-w-0">
+                                <dt class="text-[11px] text-gray-500">الإيراد</dt>
+                                <dd class="truncate font-semibold tabular-nums">{{ formatMoney(row.campaign_revenue) }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-[11px] text-gray-500">ROAS</dt>
+                                <dd class="font-semibold tabular-nums">{{ row.roas ?? '—' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-[11px] text-gray-500">CVR%</dt>
+                                <dd class="font-semibold tabular-nums">{{ row.cvr ?? '—' }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-[11px] text-gray-500">Leads</dt>
+                                <dd class="font-semibold tabular-nums">{{ row.leads_count }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-[11px] text-gray-500">المشتريات</dt>
+                                <dd class="font-semibold tabular-nums">{{ row.purchases_count }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-[11px] text-gray-500">الرسائل</dt>
+                                <dd class="font-semibold tabular-nums">{{ row.messages_count }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-[11px] text-gray-500">النقرات</dt>
+                                <dd class="font-semibold tabular-nums">{{ row.clicks_count }}</dd>
+                            </div>
+                        </dl>
+                    </article>
+                </div>
+
+                <div v-if="campaign_rows?.length" class="mt-4 hidden overflow-x-auto md:block">
                     <table class="min-w-full text-sm">
                         <thead>
                             <tr class="border-b border-gray-200 text-right text-xs text-gray-500">
@@ -452,17 +588,26 @@ const hasRoasData = computed(() =>
 
         <div
             v-if="showFilters"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            class="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-4"
             @click.self="showFilters = false"
         >
-            <div class="w-full max-w-xl rounded-2xl border border-gray-200 bg-white p-5 shadow-xl">
-                <div class="mb-3 flex items-center justify-between">
-                    <h3 class="text-lg font-semibold text-gray-900">الفلاتر</h3>
-                    <button type="button" class="rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-gray-100" @click="showFilters = false">
+            <div
+                class="max-h-[88dvh] w-full overflow-y-auto overscroll-contain rounded-t-2xl border border-gray-200 bg-white shadow-xl sm:mx-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-2xl"
+            >
+                <div class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3 sm:px-5 sm:pt-5">
+                    <h3 class="text-base font-bold text-gray-900 sm:text-lg">الفلاتر</h3>
+                    <button
+                        type="button"
+                        class="min-h-10 rounded-xl px-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+                        @click="showFilters = false"
+                    >
                         إغلاق
                     </button>
                 </div>
-                <form class="grid grid-cols-1 gap-3 md:grid-cols-2" @submit.prevent="applyFilter(); showFilters = false;">
+                <form
+                    class="grid grid-cols-1 gap-3 px-4 pb-6 pt-3 sm:gap-4 sm:px-5 sm:pb-5 md:grid-cols-2"
+                    @submit.prevent="applyFilter(); showFilters = false;"
+                >
                     <div class="md:col-span-2">
                         <InputLabel for="client_filter_modal" value="العميل" />
                         <select id="client_filter_modal" v-model="filterForm.client_id" class="filter-select mt-1 block w-full rounded-xl border-gray-300 text-sm shadow-sm">
@@ -480,8 +625,8 @@ const hasRoasData = computed(() =>
                         <InputLabel for="end_date_filter_modal" value="إلى تاريخ" />
                         <input id="end_date_filter_modal" v-model="filterForm.end_date" type="date" class="filter-select mt-1 block w-full rounded-xl border-gray-300 text-sm shadow-sm" />
                     </div>
-                    <div class="md:col-span-2 flex justify-end">
-                        <PrimaryButton type="submit">تطبيق</PrimaryButton>
+                    <div class="md:col-span-2 flex flex-col gap-2 pt-1 sm:flex-row sm:justify-end">
+                        <PrimaryButton type="submit" class="w-full justify-center sm:w-auto">تطبيق</PrimaryButton>
                     </div>
                 </form>
             </div>

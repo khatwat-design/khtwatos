@@ -7,9 +7,9 @@ use App\Models\ClientCampaignUpdate;
 use App\Models\ClientDailySale;
 use App\Models\ClientDailySaleItem;
 use App\Models\ClientMetaIntegration;
-use App\Models\ClientMetaOauthToken;
 use App\Models\MetaOAuthToken;
 use App\Models\Team;
+use App\Services\ClientMetaConnectionService;
 use App\Services\MetaCampaignSyncService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -26,6 +26,7 @@ class WarehouseController extends Controller
 {
     public function __construct(
         private readonly MetaCampaignSyncService $metaSync,
+        private readonly ClientMetaConnectionService $clientMetaConnection,
     ) {}
 
     public function index(Request $request): Response
@@ -168,7 +169,7 @@ class WarehouseController extends Controller
 
     public function upsertMetaIntegration(Request $request): RedirectResponse
     {
-        if (!Gate::forUser($request->user())->allows('manage-campaign-updates')) {
+        if (! Gate::forUser($request->user())->allows('manage-campaign-updates')) {
             abort(403, 'هذه العملية متاحة لمدير النظام أو مدراء الحملات.');
         }
 
@@ -178,12 +179,12 @@ class WarehouseController extends Controller
             'is_active' => ['nullable', 'boolean'],
         ]);
 
-        if (!Schema::hasTable('client_meta_integrations')) {
+        if (! Schema::hasTable('client_meta_integrations')) {
             return back()->withErrors(['meta_integration' => 'يرجى تشغيل migrate أولاً لتفعيل ربط Meta.']);
         }
 
         $accountId = preg_replace('/\D+/', '', (string) $data['ad_account_id']);
-        if (!$accountId) {
+        if (! $accountId) {
             return back()->withErrors(['ad_account_id' => 'يرجى إدخال رقم حساب إعلاني صحيح.']);
         }
 
@@ -200,7 +201,7 @@ class WarehouseController extends Controller
 
     public function syncMetaCampaigns(Request $request): RedirectResponse
     {
-        if (!Gate::forUser($request->user())->allows('manage-campaign-updates')) {
+        if (! Gate::forUser($request->user())->allows('manage-campaign-updates')) {
             abort(403, 'هذه العملية متاحة لمدير النظام أو مدراء الحملات.');
         }
 
@@ -208,7 +209,7 @@ class WarehouseController extends Controller
             'client_id' => ['required', 'exists:clients,id'],
         ]);
 
-        if (!Schema::hasTable('client_meta_integrations')) {
+        if (! Schema::hasTable('client_meta_integrations')) {
             return back()->withErrors(['meta_integration' => 'يرجى تشغيل migrate أولاً لتفعيل مزامنة Meta.']);
         }
 
@@ -217,7 +218,7 @@ class WarehouseController extends Controller
             ->where('is_active', true)
             ->first();
 
-        if (!$integration) {
+        if (! $integration) {
             return back()->withErrors(['client_id' => 'لا يوجد ربط Meta نشط لهذا العميل.']);
         }
 
@@ -238,7 +239,7 @@ class WarehouseController extends Controller
 
     private function autoSyncClientIfNeeded(?int $clientId, Carbon $windowStart, Carbon $windowEnd): void
     {
-        if (!$clientId || !Schema::hasTable('client_meta_integrations')) {
+        if (! $clientId || ! Schema::hasTable('client_meta_integrations')) {
             return;
         }
 
@@ -247,7 +248,7 @@ class WarehouseController extends Controller
             ->where('is_active', true)
             ->first();
 
-        if (!$integration) {
+        if (! $integration) {
             return;
         }
 
@@ -257,7 +258,7 @@ class WarehouseController extends Controller
         }
 
         $token = $this->resolveClientMetaAccessToken($clientId);
-        if (!$token) {
+        if (! $token) {
             return;
         }
 
@@ -268,11 +269,11 @@ class WarehouseController extends Controller
 
     public function redirectToMetaOAuth(Request $request): RedirectResponse
     {
-        if (!Gate::forUser($request->user())->allows('manage-campaign-updates')) {
+        if (! Gate::forUser($request->user())->allows('manage-campaign-updates')) {
             abort(403, 'هذه العملية متاحة لمدير النظام أو مدراء الحملات.');
         }
 
-        if (!Schema::hasTable('meta_oauth_tokens')) {
+        if (! Schema::hasTable('meta_oauth_tokens')) {
             return back()->withErrors(['meta_oauth' => 'يرجى تشغيل migrate أولاً لتفعيل OAuth.']);
         }
 
@@ -299,17 +300,17 @@ class WarehouseController extends Controller
 
     public function handleMetaOAuthCallback(Request $request): RedirectResponse
     {
-        if (!Gate::forUser($request->user())->allows('manage-campaign-updates')) {
+        if (! Gate::forUser($request->user())->allows('manage-campaign-updates')) {
             abort(403, 'هذه العملية متاحة لمدير النظام أو مدراء الحملات.');
         }
 
-        if (!Schema::hasTable('meta_oauth_tokens')) {
+        if (! Schema::hasTable('meta_oauth_tokens')) {
             return redirect()->route('warehouse.index')->withErrors(['meta_oauth' => 'يرجى تشغيل migrate أولاً لتفعيل OAuth.']);
         }
 
         $state = (string) $request->query('state', '');
         $expectedState = (string) $request->session()->pull('meta_oauth_state', '');
-        if ($state === '' || $expectedState === '' || !hash_equals($expectedState, $state)) {
+        if ($state === '' || $expectedState === '' || ! hash_equals($expectedState, $state)) {
             return redirect()->route('warehouse.index')->withErrors(['meta_oauth' => 'فشل التحقق الأمني (state mismatch).']);
         }
 
@@ -381,7 +382,7 @@ class WarehouseController extends Controller
 
     public function disconnectMetaOAuth(Request $request): RedirectResponse
     {
-        if (!Gate::forUser($request->user())->allows('manage-campaign-updates')) {
+        if (! Gate::forUser($request->user())->allows('manage-campaign-updates')) {
             abort(403, 'هذه العملية متاحة لمدير النظام أو مدراء الحملات.');
         }
 
@@ -394,7 +395,7 @@ class WarehouseController extends Controller
 
     private function resolveUserMetaAccessToken(Request $request): ?string
     {
-        if (!Schema::hasTable('meta_oauth_tokens')) {
+        if (! Schema::hasTable('meta_oauth_tokens')) {
             return null;
         }
 
@@ -402,7 +403,7 @@ class WarehouseController extends Controller
             ->where('user_id', $request->user()->id)
             ->first();
 
-        if (!$row) {
+        if (! $row) {
             return null;
         }
 
@@ -415,7 +416,7 @@ class WarehouseController extends Controller
 
     private function metaOAuthPayload(Request $request): array
     {
-        if (!Schema::hasTable('meta_oauth_tokens')) {
+        if (! Schema::hasTable('meta_oauth_tokens')) {
             return [
                 'enabled' => false,
                 'connected' => false,
@@ -437,24 +438,12 @@ class WarehouseController extends Controller
 
     private function resolveClientMetaAccessToken(int $clientId): ?string
     {
-        if (!Schema::hasTable('client_meta_oauth_tokens')) {
-            return null;
-        }
-
-        $row = ClientMetaOauthToken::query()->where('client_id', $clientId)->first();
-        if (!$row) {
-            return null;
-        }
-        if ($row->expires_at && $row->expires_at->isPast()) {
-            return null;
-        }
-
-        return (string) $row->access_token;
+        return $this->clientMetaConnection->getAccessTokenForClient($clientId);
     }
 
     private function buildMetaOverview(): array
     {
-        if (!Schema::hasTable('client_meta_integrations')) {
+        if (! Schema::hasTable('client_meta_integrations')) {
             return [
                 'connected_clients' => 0,
                 'ready_clients' => 0,
@@ -469,7 +458,8 @@ class WarehouseController extends Controller
         $attention = $rows
             ->filter(function (ClientMetaIntegration $row) {
                 $issues = (array) (($row->last_scan_payload ?? [])['issues'] ?? []);
-                return $row->setup_status === 'needs_attention' || !empty($issues) || !empty($row->last_error);
+
+                return $row->setup_status === 'needs_attention' || ! empty($issues) || ! empty($row->last_error);
             })
             ->map(fn (ClientMetaIntegration $row) => [
                 'client_id' => $row->client_id,
@@ -595,7 +585,7 @@ class WarehouseController extends Controller
         foreach ($latestUpdates as $rows) {
             $latest = $rows->first();
             $previous = $rows->skip(1)->first();
-            if (!$latest || !$previous) {
+            if (! $latest || ! $previous) {
                 continue;
             }
 

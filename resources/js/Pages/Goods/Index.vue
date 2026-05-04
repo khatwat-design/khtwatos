@@ -111,17 +111,18 @@ function statusClass(status) {
     <AuthenticatedLayout>
         <template #title>البضاعة</template>
 
-        <div class="mx-auto max-w-7xl space-y-4">
+        <div class="mx-auto w-full min-w-0 max-w-7xl space-y-4 px-3 pb-8 sm:px-4">
             <div v-if="page.props.flash?.success" class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
                 {{ page.props.flash.success }}
             </div>
             <div v-if="page.props.flash?.error || reminderForm.errors.goods_reminder" class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
                 {{ page.props.flash?.error || reminderForm.errors.goods_reminder }}
             </div>
-            <div class="flex items-center justify-between gap-2">
-                <div class="flex flex-1 items-center gap-2">
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-stretch sm:justify-between sm:gap-2">
+                <div class="flex w-full flex-col gap-2 sm:flex-1 sm:flex-row sm:items-center sm:gap-2">
                     <select
-                        class="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm"
+                        class="min-h-11 w-full shrink-0 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm sm:max-w-[11rem]"
                         :value="filters?.status || ''"
                         @change="applyStatusFilter"
                     >
@@ -132,59 +133,154 @@ function statusClass(status) {
                     </select>
                     <TextInput
                         v-model="customerSearch"
-                        class="block w-full max-w-xs"
+                        class="block min-h-11 w-full flex-1 rounded-xl border-gray-300 text-sm"
                         placeholder="بحث بالاسم/الهاتف/الشركة..."
                     />
                 </div>
                 <button
                     type="button"
-                    class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white hover:bg-brand-700"
+                    class="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-brand-700 sm:w-auto sm:px-3"
                     title="إضافة عميل بضاعة"
                     @click="showCreateModal = true"
                 >
-                    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg class="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M12 5v14M5 12h14" />
                     </svg>
+                    <span class="sm:hidden">إضافة عميل بضاعة</span>
                 </button>
             </div>
 
-            <div class="overflow-hidden rounded-2xl border border-white/20 bg-white/80 shadow">
-                <table class="min-w-full text-sm">
-                    <thead class="bg-white">
-                        <tr class="border-b border-slate-200 text-right text-xs text-gray-500">
-                            <th class="px-3 py-2">الاسم</th>
-                            <th class="px-3 py-2">الهاتف</th>
-                            <th class="px-3 py-2">الشركة</th>
-                            <th class="px-3 py-2">الحالة</th>
-                            <th class="px-3 py-2">المسؤول</th>
-                            <th class="px-3 py-2">تحويل الحالة</th>
-                            <th class="px-3 py-2">تذكير المبيعات</th>
-                            <th class="px-3 py-2">استبيان أسبوعي</th>
+            <!-- موبايل: بطاقات (نفس أسلوب العملاء) -->
+            <div class="space-y-3 md:hidden">
+                <article
+                    v-for="customer in filteredCustomers"
+                    :key="`goods-card-${customer.id}`"
+                    class="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ring-1 ring-gray-100/80"
+                >
+                    <div class="flex gap-3 p-4">
+                        <div class="relative shrink-0">
+                            <div
+                                class="flex h-14 w-14 items-center justify-center rounded-2xl border border-gray-100 bg-gradient-to-br from-brand-50 to-white text-lg font-black text-brand-700 shadow-inner ring-2 ring-white"
+                            >
+                                {{ String(customer.name || '?').trim().charAt(0) || '؟' }}
+                            </div>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <h3 class="text-base font-bold leading-snug text-gray-900">
+                                        {{ customer.name }}
+                                    </h3>
+                                    <p v-if="customer.company" class="mt-0.5 truncate text-xs text-gray-500">
+                                        {{ customer.company }}
+                                    </p>
+                                    <p class="mt-1 font-mono text-xs text-gray-600" dir="ltr">{{ customer.phone || '—' }}</p>
+                                </div>
+                            </div>
+                            <span
+                                class="mt-2 inline-flex max-w-full items-center rounded-lg px-2.5 py-1 text-[11px] font-semibold leading-tight ring-1"
+                                :class="statusClass(customer.status)"
+                            >
+                                {{ statusLabel(customer.status) }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 border-t border-gray-50 bg-gradient-to-b from-gray-50/40 to-white px-3 pb-2 pt-2">
+                        <div class="rounded-xl bg-white/90 px-2.5 py-2 shadow-sm ring-1 ring-gray-100/80">
+                            <p class="text-[10px] font-semibold text-gray-400">المسؤول</p>
+                            <p class="mt-0.5 truncate text-xs font-semibold text-gray-800">{{ customer.owner?.name || '—' }}</p>
+                        </div>
+                        <div class="rounded-xl bg-white/90 px-2.5 py-2 shadow-sm ring-1 ring-gray-100/80">
+                            <p class="text-[10px] font-semibold text-gray-400">الحالة</p>
+                            <p class="mt-0.5 truncate text-xs font-semibold text-gray-800">{{ statusLabel(customer.status) }}</p>
+                        </div>
+                    </div>
+                    <div class="space-y-3 border-t border-gray-100 px-3 pb-4 pt-3">
+                        <div>
+                            <label class="mb-1.5 block text-[11px] font-semibold text-gray-600">تحويل الحالة</label>
+                            <select
+                                class="min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm"
+                                :value="customer.status"
+                                @change="updateStatus(customer, $event.target.value)"
+                            >
+                                <option v-for="status in status_options" :key="`m-status-${customer.id}-${status.value}`" :value="status.value">
+                                    {{ status.label }}
+                                </option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <button
+                                type="button"
+                                class="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-brand-300 bg-brand-50 px-3 text-sm font-semibold text-brand-800 transition hover:bg-brand-100 disabled:opacity-60"
+                                :disabled="reminderForm.processing || !customer.contact?.id"
+                                @click="sendSalesReminder(customer)"
+                            >
+                                إرسال تذكير مبيعات
+                            </button>
+                            <button
+                                type="button"
+                                class="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-indigo-300 bg-indigo-50 px-3 text-sm font-semibold text-indigo-800 transition hover:bg-indigo-100 disabled:opacity-60"
+                                :disabled="reminderForm.processing || !customer.contact?.id"
+                                @click="sendWeeklySurvey(customer)"
+                            >
+                                إرسال استبيان أسبوعي
+                            </button>
+                        </div>
+                        <Link
+                            v-if="customer.client?.id"
+                            :href="route('clients.show', customer.client.id)"
+                            class="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-gray-200 bg-white text-sm font-semibold text-brand-700 transition hover:bg-gray-50"
+                        >
+                            فتح ملف العميل
+                        </Link>
+                    </div>
+                </article>
+                <p
+                    v-if="!filteredCustomers?.length"
+                    class="rounded-2xl border border-dashed border-gray-200 bg-white/80 px-4 py-10 text-center text-sm text-gray-500"
+                >
+                    لا يوجد عملاء بضاعة مطابقون للبحث أو الفلترة.
+                </p>
+            </div>
+
+            <!-- سطح المكتب والتابلت: جدول -->
+            <div class="ui-card hidden overflow-x-auto md:block">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-white/90">
+                        <tr>
+                            <th class="px-4 py-2.5 text-start text-xs font-medium text-gray-500">الاسم</th>
+                            <th class="px-4 py-2.5 text-start text-xs font-medium text-gray-500">الهاتف</th>
+                            <th class="px-4 py-2.5 text-start text-xs font-medium text-gray-500">الشركة</th>
+                            <th class="px-4 py-2.5 text-start text-xs font-medium text-gray-500">الحالة</th>
+                            <th class="px-4 py-2.5 text-start text-xs font-medium text-gray-500">المسؤول</th>
+                            <th class="px-4 py-2.5 text-start text-xs font-medium text-gray-500">تحويل الحالة</th>
+                            <th class="px-4 py-2.5 text-start text-xs font-medium text-gray-500">تذكير المبيعات</th>
+                            <th class="px-4 py-2.5 text-start text-xs font-medium text-gray-500">استبيان أسبوعي</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <tr v-for="customer in filteredCustomers" :key="customer.id" class="border-b border-slate-100">
-                            <td class="px-3 py-2 font-semibold text-gray-900">
+                    <tbody class="divide-y divide-gray-100">
+                        <tr v-for="customer in filteredCustomers" :key="customer.id" class="align-top">
+                            <td class="px-4 py-3 font-semibold text-gray-900">
                                 {{ customer.name }}
                                 <Link
                                     v-if="customer.client?.id"
                                     :href="route('clients.show', customer.client.id)"
-                                    class="mr-1 inline-block text-xs font-medium text-brand-600 underline decoration-brand-600/30 hover:text-brand-700"
+                                    class="mt-1 inline-block text-xs font-medium text-brand-600 underline decoration-brand-600/30 hover:text-brand-700"
                                 >
                                     ملف العميل
                                 </Link>
                             </td>
-                            <td class="px-3 py-2" dir="ltr">{{ customer.phone || '—' }}</td>
-                            <td class="px-3 py-2">{{ customer.company || '—' }}</td>
-                            <td class="px-3 py-2">
+                            <td class="px-4 py-3 text-gray-700" dir="ltr">{{ customer.phone || '—' }}</td>
+                            <td class="px-4 py-3 text-gray-700">{{ customer.company || '—' }}</td>
+                            <td class="px-4 py-3">
                                 <span class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold" :class="statusClass(customer.status)">
                                     {{ statusLabel(customer.status) }}
                                 </span>
                             </td>
-                            <td class="px-3 py-2">{{ customer.owner?.name || '—' }}</td>
-                            <td class="px-3 py-2">
+                            <td class="px-4 py-3 text-gray-700">{{ customer.owner?.name || '—' }}</td>
+                            <td class="px-4 py-3">
                                 <select
-                                    class="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs"
+                                    class="min-h-9 w-full max-w-[10rem] rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-gray-900"
                                     :value="customer.status"
                                     @change="updateStatus(customer, $event.target.value)"
                                 >
@@ -193,20 +289,20 @@ function statusClass(status) {
                                     </option>
                                 </select>
                             </td>
-                            <td class="px-3 py-2">
+                            <td class="px-4 py-3">
                                 <button
                                     type="button"
-                                    class="rounded-lg border border-brand-300 bg-brand-50 px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-100 disabled:opacity-60"
+                                    class="rounded-lg border border-brand-300 bg-brand-50 px-2 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100 disabled:opacity-60"
                                     :disabled="reminderForm.processing || !customer.contact?.id"
                                     @click="sendSalesReminder(customer)"
                                 >
                                     إرسال تذكير
                                 </button>
                             </td>
-                            <td class="px-3 py-2">
+                            <td class="px-4 py-3">
                                 <button
                                     type="button"
-                                    class="rounded-lg border border-indigo-300 bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+                                    class="rounded-lg border border-indigo-300 bg-indigo-50 px-2 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
                                     :disabled="reminderForm.processing || !customer.contact?.id"
                                     @click="sendWeeklySurvey(customer)"
                                 >
@@ -215,7 +311,9 @@ function statusClass(status) {
                             </td>
                         </tr>
                         <tr v-if="!filteredCustomers?.length">
-                            <td colspan="8" class="px-4 py-8 text-center text-gray-500">لا يوجد عملاء مطابقون للبحث/الفلترة.</td>
+                            <td colspan="8" class="px-4 py-10 text-center text-gray-500">
+                                لا يوجد عملاء بضاعة مطابقون للبحث أو الفلترة.
+                            </td>
                         </tr>
                     </tbody>
                 </table>
@@ -224,17 +322,23 @@ function statusClass(status) {
 
         <div
             v-if="showCreateModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            class="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-4"
             @click.self="showCreateModal = false"
         >
-            <div class="w-full max-w-2xl rounded-2xl border border-gray-200 bg-white p-5 shadow-xl">
-                <div class="mb-4 flex items-center justify-between">
-                    <h3 class="text-lg font-semibold text-gray-900">إضافة عميل لقسم البضاعة</h3>
-                    <button type="button" class="rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-gray-100" @click="showCreateModal = false">
+            <div
+                class="max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-gray-200 bg-white shadow-xl sm:mx-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-2xl sm:p-5"
+            >
+                <div class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3 sm:border-0 sm:px-0 sm:pb-4 sm:pt-0">
+                    <h3 class="text-base font-bold text-gray-900 sm:text-lg">إضافة عميل لقسم البضاعة</h3>
+                    <button
+                        type="button"
+                        class="min-h-10 rounded-xl px-3 text-sm font-medium text-gray-600 hover:bg-gray-100"
+                        @click="showCreateModal = false"
+                    >
                         إغلاق
                     </button>
                 </div>
-                <form class="grid grid-cols-1 gap-3 md:grid-cols-2" @submit.prevent="submitCreate">
+                <form class="grid grid-cols-1 gap-3 px-4 pb-6 pt-2 sm:px-0 sm:pb-0 sm:pt-0 md:grid-cols-2" @submit.prevent="submitCreate">
                     <div class="md:col-span-2">
                         <InputLabel for="goods_contact_id" value="ربط بجهة من قسم الخارج (اختياري)" />
                         <select
@@ -282,8 +386,8 @@ function statusClass(status) {
                         <InputLabel for="goods_notes" value="ملاحظات" />
                         <textarea id="goods_notes" v-model="createForm.notes" rows="3" class="mt-1 block w-full rounded-md border-gray-300" />
                     </div>
-                    <div class="md:col-span-2 flex justify-end">
-                        <PrimaryButton :disabled="createForm.processing">حفظ</PrimaryButton>
+                    <div class="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end md:col-span-2">
+                        <PrimaryButton class="w-full justify-center sm:w-auto" :disabled="createForm.processing">حفظ</PrimaryButton>
                     </div>
                 </form>
             </div>

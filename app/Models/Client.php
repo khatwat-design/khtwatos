@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Str;
 
 class Client extends Model
 {
@@ -31,12 +31,13 @@ class Client extends Model
     protected $casts = [
         'subscription_started_at' => 'datetime',
         'subscription_ends_at' => 'datetime',
+        'meta_oauth_connecting_at' => 'datetime',
     ];
 
     protected static function booted(): void
     {
         static::creating(function (Client $client): void {
-            if (!$client->portal_token) {
+            if (! $client->portal_token) {
                 $client->portal_token = Str::random(48);
             }
         });

@@ -15,6 +15,8 @@ use App\Models\PipelineStage;
 use App\Models\Task;
 use App\Models\TaskStatusHistory;
 use App\Models\User;
+use App\Services\CampaignDecisionEngineService;
+use App\Services\ClientMetaConnectionService;
 use App\Services\ClientWorkflowAutomationService;
 use App\Services\SmartNotificationService;
 use Illuminate\Http\RedirectResponse;
@@ -35,7 +37,9 @@ class ClientController extends Controller
 {
     public function __construct(
         private readonly ClientWorkflowAutomationService $workflowAutomation,
-        private readonly SmartNotificationService $smartNotifications
+        private readonly SmartNotificationService $smartNotifications,
+        private readonly ClientMetaConnectionService $clientMetaConnection,
+        private readonly CampaignDecisionEngineService $campaignDecisionEngine,
     ) {}
 
     public function index(Request $request): Response
@@ -182,6 +186,12 @@ class ClientController extends Controller
             }
         }
 
+        $campaignDecisionPayload = $this->campaignDecisionEngine->buildPayload(
+            $client,
+            $client->campaignUpdates,
+            $client->dailySales,
+        );
+
         return Inertia::render('Clients/Show', [
             'client' => [
                 'id' => $client->id,
@@ -321,21 +331,25 @@ class ClientController extends Controller
                 'expires_at' => $note->expires_at?->toIso8601String(),
                 'created_at' => $note->created_at?->toIso8601String(),
             ])->values(),
-            'meta_profile' => [
-                'facebook_page' => $metaIntegration?->meta_page_id,
-                'instagram_page' => $metaIntegration?->meta_instagram_account_id,
-                'ad_account_id' => $metaIntegration?->ad_account_id,
-                'outside_instagram_threads' => Schema::hasTable('outside_contacts')
-                    ? OutsideContact::query()
-                        ->where('client_id', $client->id)
-                        ->where('channel', 'instagram')
-                        ->count()
-                    : 0,
-            ],
+            'meta_profile' => array_merge(
+                [
+                    'facebook_page' => $metaIntegration?->meta_page_id,
+                    'instagram_page' => $metaIntegration?->meta_instagram_account_id,
+                    'ad_account_id' => $metaIntegration?->ad_account_id,
+                    'outside_instagram_threads' => Schema::hasTable('outside_contacts')
+                        ? OutsideContact::query()
+                            ->where('client_id', $client->id)
+                            ->where('channel', 'instagram')
+                            ->count()
+                        : 0,
+                ],
+                $this->clientMetaConnection->connectionSummary($client),
+            ),
             'outside_threads' => $outsideThreadsPayload,
             'accountManagers' => User::orderBy('name')->get(['id', 'name']),
             'campaignManagers' => $this->campaignManagers(),
             'can_manage_subscription' => $this->canManageClientSubscription($request->user()),
+            'campaign_decision_engine' => $campaignDecisionPayload,
         ]);
     }
 

@@ -12,14 +12,17 @@ use Illuminate\Support\Str;
 
 class MetaCampaignSyncService
 {
+    public function __construct(
+        private readonly ClientMetaConnectionService $metaConnection,
+    ) {}
+
     public function syncIntegration(
         ClientMetaIntegration $integration,
         Carbon $fromDate,
         Carbon $toDate,
         ?int $actorUserId = null,
         ?string $accessToken = null
-    ): array
-    {
+    ): array {
         $token = (string) ($accessToken ?: config('services.meta_ads.access_token'));
         if ($token === '') {
             $integration->update(['last_error' => 'Missing META_ADS_ACCESS_TOKEN']);
@@ -28,7 +31,7 @@ class MetaCampaignSyncService
         }
 
         $accountId = preg_replace('/\D+/', '', (string) $integration->ad_account_id);
-        if (!$accountId) {
+        if (! $accountId) {
             $integration->update(['last_error' => 'Invalid ad account id']);
 
             return ['inserted' => 0, 'updated' => 0, 'days' => 0, 'error' => 'رقم الحساب الإعلاني غير صالح.'];
@@ -53,6 +56,14 @@ class MetaCampaignSyncService
             $errorBody = Str::limit((string) $response->body(), 900);
             $integration->update(['last_error' => $errorBody]);
 
+            $this->metaConnection->recordMetaApiFailure(
+                (int) $integration->client_id,
+                'campaign_insights_sync',
+                $response->status(),
+                $response->json(),
+                (string) $response->body(),
+            );
+
             return ['inserted' => 0, 'updated' => 0, 'days' => 0, 'error' => "Meta API error ({$response->status()})"];
         }
 
@@ -65,7 +76,7 @@ class MetaCampaignSyncService
         $updated = 0;
 
         foreach ($byDate as $date => $items) {
-            if (!$date) {
+            if (! $date) {
                 continue;
             }
 

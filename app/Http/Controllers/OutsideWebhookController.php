@@ -6,6 +6,7 @@ use App\Models\ClientMetaIntegration;
 use App\Models\OutsideContact;
 use App\Models\OutsideConversation;
 use App\Models\OutsideMessage;
+use App\Services\MessagingIntelligenceService;
 use App\Services\OutsideWhatsappInboundService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,7 +19,8 @@ use Throwable;
 class OutsideWebhookController extends Controller
 {
     public function __construct(
-        private readonly OutsideWhatsappInboundService $inboundService
+        private readonly OutsideWhatsappInboundService $inboundService,
+        private readonly MessagingIntelligenceService $messagingIntelligence,
     ) {}
 
     public function verify(Request $request)
@@ -249,6 +251,8 @@ class OutsideWebhookController extends Controller
             'type' => $type,
             'conversation_id' => $conversation->id,
         ]);
+
+        $this->messagingIntelligence->refreshAfterInbound($conversation->fresh());
     }
 
     /**
@@ -358,6 +362,8 @@ class OutsideWebhookController extends Controller
             'type' => $type,
             'conversation_id' => $conversation->id,
         ]);
+
+        $this->messagingIntelligence->refreshAfterInbound($conversation->fresh());
     }
 
     /**

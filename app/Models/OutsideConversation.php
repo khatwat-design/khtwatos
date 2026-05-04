@@ -22,11 +22,26 @@ class OutsideConversation extends Model
         'unread_count',
         'last_inbound_at',
         'last_outbound_at',
+        'intelligence_classification',
+        'intelligence_classification_at',
+        'intelligence_summary',
+        'intelligence_summary_at',
+        'intelligence_summary_inbound_count',
+        'intelligence_suggested_replies',
+        'intelligence_suggested_at',
+        'intelligence_routing',
+        'intelligence_client_context',
     ];
 
     protected $casts = [
         'last_inbound_at' => 'datetime',
         'last_outbound_at' => 'datetime',
+        'intelligence_classification_at' => 'datetime',
+        'intelligence_summary_at' => 'datetime',
+        'intelligence_suggested_replies' => 'array',
+        'intelligence_suggested_at' => 'datetime',
+        'intelligence_routing' => 'array',
+        'intelligence_client_context' => 'array',
     ];
 
     public function contact(): BelongsTo
