@@ -315,10 +315,10 @@ const outsideMetricTiles = computed(() => [
     <AuthenticatedLayout>
         <template #title>الرئيسية</template>
 
-        <div class="home-dashboard mx-auto max-w-7xl space-y-5 pb-4 md:space-y-6 md:pb-6">
+        <div class="home-dashboard mx-auto max-w-7xl space-y-5 pb-4 md:space-y-6 md:pb-6 lg:max-w-6xl lg:space-y-4 lg:pb-5">
             <!-- نبض تنفيذي -->
             <section
-                class="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50/90 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.12)] ring-1 ring-slate-900/[0.04]"
+                class="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50/90 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.12)] ring-1 ring-slate-900/[0.04] lg:rounded-2xl"
             >
                 <div
                     class="pointer-events-none absolute -start-24 -top-28 h-72 w-72 rounded-full bg-brand-500/[0.08] blur-3xl"
@@ -328,37 +328,37 @@ const outsideMetricTiles = computed(() => [
                     class="pointer-events-none absolute -bottom-20 end-0 h-56 w-56 rounded-full bg-indigo-500/[0.06] blur-3xl"
                     aria-hidden="true"
                 />
-                <div class="relative grid gap-5 p-5 md:grid-cols-[1fr_auto] md:items-center md:gap-8 md:p-7">
+                <div class="relative grid gap-5 p-5 md:grid-cols-[1fr_auto] md:items-center md:gap-6 md:p-6 lg:gap-5 lg:p-5">
                     <div class="min-w-0">
-                        <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-brand-700/90">
+                        <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-brand-700/90 lg:text-[10px]">
                             نظرة تشغيلية
                         </p>
-                        <h2 class="mt-1.5 text-xl font-black leading-tight tracking-tight text-slate-900 md:text-2xl">
+                        <h2 class="mt-1.5 text-xl font-black leading-tight tracking-tight text-slate-900 md:text-2xl lg:text-xl">
                             لوحة التحكم الإدارية
                         </h2>
-                        <p class="mt-2 max-w-prose text-sm leading-relaxed text-slate-600">
+                        <p class="mt-2 max-w-prose text-sm leading-relaxed text-slate-600 lg:text-[13px]">
                             مزامنة مؤشرات الاجتماعات، قناة الخارج، والعملاء في صفحة واحدة واضحة.
                         </p>
                     </div>
-                    <div class="flex flex-wrap gap-2.5 md:flex-nowrap md:justify-end">
+                    <div class="flex flex-wrap gap-2.5 md:flex-nowrap md:justify-end lg:gap-2">
                         <div
-                            class="flex min-h-[5.25rem] min-w-[46%] flex-1 flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 p-4 shadow-sm sm:min-w-[9.75rem] sm:flex-none md:min-w-[10.5rem]"
+                            class="flex min-h-[5.25rem] min-w-[46%] flex-1 flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 p-4 shadow-sm sm:min-w-[9.75rem] sm:flex-none md:min-w-[10.5rem] lg:min-h-[4.25rem] lg:min-w-[9rem] lg:p-3"
                         >
-                            <span class="text-[11px] font-semibold text-slate-500">اليوم</span>
-                            <span class="mt-1 text-2xl font-black tabular-nums text-slate-900">{{ meetings?.today ?? 0 }}</span>
+                            <span class="text-[11px] font-semibold text-slate-500 lg:text-[10px]">اليوم</span>
+                            <span class="mt-1 text-2xl font-black tabular-nums text-slate-900 lg:text-xl">{{ meetings?.today ?? 0 }}</span>
                             <span class="mt-0.5 text-[10px] text-slate-400">اجتماعات مجدولة اليوم</span>
                         </div>
                         <div
-                            class="flex min-h-[5.25rem] min-w-[46%] flex-1 flex-col justify-center rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/90 to-white p-4 shadow-sm ring-1 ring-emerald-100/50 sm:min-w-[9.75rem] sm:flex-none md:min-w-[10.5rem]"
+                            class="flex min-h-[5.25rem] min-w-[46%] flex-1 flex-col justify-center rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/90 to-white p-4 shadow-sm ring-1 ring-emerald-100/50 sm:min-w-[9.75rem] sm:flex-none md:min-w-[10.5rem] lg:min-h-[4.25rem] lg:min-w-[9rem] lg:p-3"
                         >
-                            <span class="text-[11px] font-semibold text-emerald-800/90">إنجاز الاجتماعات</span>
-                            <span class="mt-1 text-2xl font-black tabular-nums text-emerald-950">{{ meetingsCompletionRate }}٪</span>
+                            <span class="text-[11px] font-semibold text-emerald-800/90 lg:text-[10px]">إنجاز الاجتماعات</span>
+                            <span class="mt-1 text-2xl font-black tabular-nums text-emerald-950 lg:text-xl">{{ meetingsCompletionRate }}٪</span>
                             <span class="mt-0.5 text-[10px] text-emerald-700/80">من إجمالي سجل الاجتماعات</span>
                         </div>
                     </div>
                 </div>
                 <div
-                    class="relative flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 bg-slate-50/60 px-5 py-2.5 text-xs text-slate-600 md:px-7"
+                    class="relative flex flex-wrap items-center justify-between gap-2 border-t border-slate-200/70 bg-slate-50/60 px-5 py-2.5 text-xs text-slate-600 md:px-6 lg:px-5 lg:py-2 lg:text-[11px]"
                 >
                     <span class="font-medium tabular-nums text-slate-700">{{ todayDateLabel }}</span>
                     <span class="text-[11px] text-slate-400">تحديث تلقائي عند كل زيارة للصفحة</span>
@@ -367,30 +367,30 @@ const outsideMetricTiles = computed(() => [
 
             <!-- الخارج والرسائل — على الهاتف نفس ترتيب البطاقة المرجعية (عمودي + شبكة) -->
             <section
-                class="rounded-3xl border border-slate-200/85 bg-white/95 p-4 shadow-md ring-1 ring-slate-900/[0.03] sm:p-5 md:p-6"
+                class="rounded-3xl border border-slate-200/85 bg-white/95 p-4 shadow-md ring-1 ring-slate-900/[0.03] sm:p-5 md:p-6 lg:rounded-2xl lg:p-4"
             >
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-3">
                     <div class="min-w-0 flex-1">
-                        <h3 class="text-base font-bold tracking-tight text-slate-900 md:text-lg">
+                        <h3 class="text-base font-bold tracking-tight text-slate-900 md:text-lg lg:text-[15px]">
                             ملخص الأداء والتحليلات
                         </h3>
-                        <p class="mt-1 text-xs leading-relaxed text-slate-500 md:text-sm">
+                        <p class="mt-1 text-xs leading-relaxed text-slate-500 md:text-sm lg:text-[11px]">
                             قناة الخارج — واتساب وإنستغرام. الأرقام لقطة عند التحميل؛ للمزامنة أثناء العمل استخدم صفحة الخارج.
                         </p>
                     </div>
                     <div
-                        class="flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-2xl border border-slate-200/90 bg-slate-50/90 px-4 py-2.5 text-sm text-slate-700 shadow-inner lg:inline-flex lg:w-auto"
+                        class="flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-2xl border border-slate-200/90 bg-slate-50/90 px-4 py-2.5 text-sm text-slate-700 shadow-inner lg:inline-flex lg:min-h-0 lg:w-auto lg:rounded-xl lg:px-3 lg:py-2"
                     >
-                        <span class="tabular-nums text-lg font-black text-slate-900">{{ outside_metrics?.total_conversations ?? 0 }}</span>
-                        <span class="text-xs font-medium text-slate-500">محادثة مسجّلة</span>
+                        <span class="tabular-nums text-lg font-black text-slate-900 lg:text-base">{{ outside_metrics?.total_conversations ?? 0 }}</span>
+                        <span class="text-xs font-medium text-slate-500 lg:text-[11px]">محادثة مسجّلة</span>
                     </div>
                 </div>
 
-                <div class="mt-5 grid grid-cols-2 gap-2.5 lg:grid-cols-5 lg:gap-3">
+                <div class="mt-5 grid grid-cols-2 gap-2.5 lg:mt-4 lg:grid-cols-5 lg:gap-2">
                     <div
                         v-for="tile in outsideMetricTiles"
                         :key="`om-${tile.key}`"
-                        class="rounded-2xl border bg-gradient-to-br p-3.5 shadow-sm sm:p-4"
+                        class="rounded-2xl border bg-gradient-to-br p-3.5 shadow-sm sm:p-4 lg:rounded-xl lg:p-2.5"
                         :class="[
                             tile.border,
                             tile.bg,
@@ -400,10 +400,10 @@ const outsideMetricTiles = computed(() => [
                         <p class="text-[10px] font-bold uppercase tracking-wide" :class="tile.labelClass">
                             {{ tile.label }}
                         </p>
-                        <p class="mt-1.5 text-2xl font-black tabular-nums leading-none" :class="tile.valueClass">
+                        <p class="mt-1.5 text-2xl font-black tabular-nums leading-none lg:mt-1 lg:text-xl" :class="tile.valueClass">
                             {{ tile.value }}
                         </p>
-                        <p class="mt-1 text-[10px] font-medium text-slate-500">
+                        <p class="mt-1 text-[10px] font-medium text-slate-500 lg:text-[9px]">
                             {{ tile.hint }}
                         </p>
                     </div>
@@ -411,15 +411,15 @@ const outsideMetricTiles = computed(() => [
             </section>
 
             <!-- بطاقات رئيسية: شبكة 2×2 (بطاقتان في كل صف) -->
-            <section class="grid grid-cols-2 gap-2.5 sm:gap-4">
+            <section class="grid grid-cols-2 gap-2.5 sm:gap-4 lg:gap-3">
                 <article
                     v-for="card in kpiCards"
                     :key="card.key"
-                    class="group min-w-0 overflow-hidden rounded-2xl border border-slate-200/50 bg-transparent shadow-sm ring-0 transition hover:border-slate-300/70 hover:shadow-md sm:rounded-3xl"
+                    class="group min-w-0 overflow-hidden rounded-2xl border border-slate-200/50 bg-transparent shadow-sm ring-0 transition hover:border-slate-300/70 hover:shadow-md sm:rounded-3xl lg:rounded-2xl"
                 >
-                    <div class="border-b border-slate-200/40 bg-transparent px-3 py-3 sm:px-5 sm:py-4">
+                    <div class="border-b border-slate-200/40 bg-transparent px-3 py-3 sm:px-5 sm:py-4 lg:px-3 lg:py-2.5">
                         <div class="flex items-start justify-between gap-1.5">
-                            <p class="min-w-0 truncate text-[11px] font-bold tracking-tight text-slate-800 sm:text-xs">
+                            <p class="min-w-0 truncate text-[11px] font-bold tracking-tight text-slate-800 sm:text-xs lg:text-[10px]">
                                 {{ card.title }}
                             </p>
                             <span
@@ -428,11 +428,11 @@ const outsideMetricTiles = computed(() => [
                                 KPI
                             </span>
                         </div>
-                        <p class="mt-1 truncate text-xl font-black tabular-nums tracking-tight text-slate-900 sm:text-2xl md:text-3xl">
+                        <p class="mt-1 truncate text-xl font-black tabular-nums tracking-tight text-slate-900 sm:text-2xl md:text-3xl lg:text-xl lg:leading-tight">
                             {{ card.value }}
                         </p>
                     </div>
-                    <div class="space-y-2 bg-transparent p-3 sm:space-y-3 sm:p-5">
+                    <div class="space-y-2 bg-transparent p-3 sm:space-y-3 sm:p-5 lg:space-y-1.5 lg:p-3">
                         <div class="flex items-center justify-between gap-1.5 text-[10px] sm:text-xs">
                             <p class="min-w-0 flex-1 truncate font-medium text-slate-600">{{ card.sub }}</p>
                             <span
@@ -453,30 +453,30 @@ const outsideMetricTiles = computed(() => [
 
             <!-- مسار العملاء -->
             <section
-                class="overflow-hidden rounded-3xl border border-slate-200/85 bg-white/95 p-4 shadow-md ring-1 ring-slate-900/[0.03] sm:p-6 lg:p-8"
+                class="overflow-hidden rounded-3xl border border-slate-200/85 bg-white/95 p-4 shadow-md ring-1 ring-slate-900/[0.03] sm:p-6 lg:rounded-2xl lg:p-5"
             >
-                <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between lg:gap-2">
                     <div>
-                        <h3 class="text-base font-bold tracking-tight text-slate-900 md:text-lg">
+                        <h3 class="text-base font-bold tracking-tight text-slate-900 md:text-lg lg:text-[15px]">
                             العملاء حسب المراحل
                         </h3>
-                        <p class="mt-1 text-xs text-slate-500 md:text-sm">
+                        <p class="mt-1 text-xs text-slate-500 md:text-sm lg:text-[11px]">
                             توزيع حيّ على مسار المبيعات الحالي في النظام.
                         </p>
                     </div>
                     <span
-                        class="inline-flex w-fit items-center rounded-full border border-brand-200/90 bg-brand-50 px-3 py-1.5 text-[11px] font-bold text-brand-800"
+                        class="inline-flex w-fit items-center rounded-full border border-brand-200/90 bg-brand-50 px-3 py-1.5 text-[11px] font-bold text-brand-800 lg:px-2.5 lg:py-1 lg:text-[10px]"
                     >
                         الإجمالي:
                         <span class="ms-1 tabular-nums">{{ clientsTotal }}</span>
                     </span>
                 </div>
 
-                <div class="mt-6 grid gap-6 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:gap-10 xl:grid-cols-[minmax(0,19rem)_minmax(0,1fr)] xl:gap-12">
+                <div class="mt-6 grid gap-6 lg:mt-5 lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] lg:gap-6 xl:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] xl:gap-8">
                     <div
-                        class="flex flex-col items-center justify-center rounded-3xl border border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-white p-5 shadow-inner md:p-6 lg:p-7"
+                        class="flex flex-col items-center justify-center rounded-3xl border border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-white p-5 shadow-inner md:p-6 lg:rounded-2xl lg:p-4"
                     >
-                        <div class="relative h-40 w-40 shrink-0 md:h-48 md:w-48 lg:h-52 lg:w-52">
+                        <div class="relative h-40 w-40 shrink-0 md:h-48 md:w-48 lg:h-36 lg:w-36">
                             <svg class="h-full w-full -rotate-90" viewBox="0 0 128 128" aria-hidden="true">
                                 <circle
                                     cx="64"
@@ -501,11 +501,11 @@ const outsideMetricTiles = computed(() => [
                                 />
                             </svg>
                             <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                                <p class="text-xs font-medium text-slate-500 md:text-[13px]">العملاء</p>
-                                <p class="text-3xl font-black tabular-nums text-slate-900 md:text-4xl">{{ clientsTotal }}</p>
+                                <p class="text-xs font-medium text-slate-500 md:text-[13px] lg:text-[11px]">العملاء</p>
+                                <p class="text-3xl font-black tabular-nums text-slate-900 md:text-4xl lg:text-2xl">{{ clientsTotal }}</p>
                             </div>
                         </div>
-                        <p v-if="topStage" class="mt-4 max-w-[18rem] text-center text-xs leading-relaxed text-slate-600 md:text-sm">
+                        <p v-if="topStage" class="mt-4 max-w-[18rem] text-center text-xs leading-relaxed text-slate-600 md:text-sm lg:mt-3 lg:max-w-[14rem] lg:text-[11px]">
                             أعلى مرحلة حالياً:
                             <span class="font-bold text-slate-900">{{ topStage.label }}</span>
                             <span class="tabular-nums text-slate-500">({{ topStage.percent }}٪)</span>
@@ -513,35 +513,35 @@ const outsideMetricTiles = computed(() => [
                     </div>
 
                     <div class="min-w-0 lg:min-h-0">
-                        <p class="mb-3 text-[11px] leading-relaxed text-slate-600 md:text-sm">
+                        <p class="mb-3 text-[11px] leading-relaxed text-slate-600 md:text-sm lg:mb-2 lg:text-[11px]">
                             لكل مرحلة: الاسم كاملاً، ثم عدد العملاء ونسبته من الإجمالي
                             <span class="font-bold tabular-nums text-slate-800">({{ clientsTotal }})</span>
                             ، ثم شريط يمثل تلك النسبة (يبدأ من اليسار ويمتد بقدر الحصة).
                         </p>
                         <ul
                             v-if="stageDistribution.length"
-                            class="max-h-[min(72vh,32rem)] space-y-2.5 overflow-y-auto overflow-x-hidden pe-1 [-webkit-overflow-scrolling:touch] lg:max-h-[min(75vh,42rem)] lg:space-y-3"
+                            class="max-h-[min(72vh,32rem)] space-y-2.5 overflow-y-auto overflow-x-hidden pe-1 [-webkit-overflow-scrolling:touch] lg:grid lg:max-h-[min(70vh,28rem)] lg:auto-rows-min lg:grid-cols-2 lg:gap-2 lg:space-y-0 xl:grid-cols-3"
                             role="list"
                         >
                             <li
                                 v-for="stage in stageDistribution"
                                 :key="`stage-row-${stage.id}`"
-                                class="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-3 shadow-sm ring-1 ring-slate-900/[0.02] md:p-4"
+                                class="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-3 shadow-sm ring-1 ring-slate-900/[0.02] md:p-4 lg:rounded-xl lg:p-2.5"
                             >
-                                <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                                    <p class="min-w-0 text-[13px] font-bold leading-snug text-slate-900 sm:flex-1 sm:text-end md:text-sm lg:text-[15px]">
+                                <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3 lg:gap-1.5">
+                                    <p class="min-w-0 text-[13px] font-bold leading-snug text-slate-900 sm:flex-1 sm:text-end md:text-sm lg:text-[12px]">
                                         {{ stage.label }}
                                     </p>
-                                    <div class="flex shrink-0 flex-wrap items-baseline gap-x-2 sm:justify-end">
-                                        <span class="text-lg font-black tabular-nums text-slate-900 md:text-xl">{{ stage.count }}</span>
-                                        <span class="text-[11px] font-medium text-slate-500 md:text-xs">من {{ clientsTotal }}</span>
-                                        <span class="rounded-md bg-white/80 px-2 py-0.5 text-[10px] font-bold tabular-nums text-slate-600 ring-1 ring-slate-200/80 md:text-[11px]">
+                                    <div class="flex shrink-0 flex-wrap items-baseline gap-x-2 sm:justify-end lg:gap-1">
+                                        <span class="text-lg font-black tabular-nums text-slate-900 md:text-xl lg:text-base">{{ stage.count }}</span>
+                                        <span class="text-[11px] font-medium text-slate-500 md:text-xs lg:text-[10px]">من {{ clientsTotal }}</span>
+                                        <span class="rounded-md bg-white/80 px-2 py-0.5 text-[10px] font-bold tabular-nums text-slate-600 ring-1 ring-slate-200/80 md:text-[11px] lg:px-1.5 lg:py-0 lg:text-[9px]">
                                             {{ stage.percent }}٪
                                         </span>
                                     </div>
                                 </div>
-                                <div class="mt-3 flex items-center gap-2.5 md:mt-3.5" dir="ltr">
-                                    <div class="h-2.5 min-h-2.5 flex-1 overflow-hidden rounded-full bg-slate-200/90 md:h-3 lg:h-3.5">
+                                <div class="mt-3 flex items-center gap-2.5 md:mt-3.5 lg:mt-2" dir="ltr">
+                                    <div class="h-2.5 min-h-2.5 flex-1 overflow-hidden rounded-full bg-slate-200/90 md:h-3 lg:h-2">
                                         <div
                                             class="h-full max-w-full rounded-full transition-[width] duration-500 ease-out"
                                             :style="{
@@ -565,109 +565,109 @@ const outsideMetricTiles = computed(() => [
             </section>
 
             <!-- اجتماعات · موظفون · مهام -->
-            <section class="grid gap-4 lg:grid-cols-3 lg:gap-6 xl:gap-8">
+            <section class="grid gap-4 lg:grid-cols-3 lg:gap-4 xl:gap-5">
                 <div
-                    class="rounded-3xl border border-slate-200/85 bg-white/95 p-4 shadow-md ring-1 ring-slate-900/[0.03] sm:p-5"
+                    class="rounded-3xl border border-slate-200/85 bg-white/95 p-4 shadow-md ring-1 ring-slate-900/[0.03] sm:p-5 lg:rounded-2xl lg:p-4"
                 >
-                    <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                        <h3 class="text-sm font-bold text-slate-900 md:text-base">تحليلات الاجتماعات</h3>
-                        <span class="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">6 مؤشرات</span>
+                    <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-3 lg:pb-2">
+                        <h3 class="text-sm font-bold text-slate-900 md:text-base lg:text-[13px]">تحليلات الاجتماعات</h3>
+                        <span class="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500 lg:text-[9px]">6 مؤشرات</span>
                     </div>
-                    <div class="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3">
+                    <div class="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3 lg:mt-3 lg:gap-2">
                         <div
                             v-for="card in meetingsCards"
                             :key="`meeting-${card.key}`"
-                            class="rounded-2xl border p-3 shadow-sm transition hover:shadow-md"
+                            class="rounded-2xl border p-3 shadow-sm transition hover:shadow-md lg:rounded-xl lg:p-2.5"
                             :class="card.tone"
                         >
                             <div class="flex items-center justify-between gap-1">
-                                <span class="text-[11px] font-bold">{{ card.label }}</span>
+                                <span class="text-[11px] font-bold lg:text-[10px]">{{ card.label }}</span>
                                 <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-50" aria-hidden="true" />
                             </div>
-                            <p class="mt-2 text-xl font-black tabular-nums leading-none md:text-2xl">{{ card.value }}</p>
+                            <p class="mt-2 text-xl font-black tabular-nums leading-none md:text-2xl lg:mt-1.5 lg:text-lg">{{ card.value }}</p>
                         </div>
                     </div>
                 </div>
 
                 <div
-                    class="rounded-3xl border border-slate-200/85 bg-white/95 p-4 shadow-md ring-1 ring-slate-900/[0.03] sm:p-5 lg:p-6"
+                    class="rounded-3xl border border-slate-200/85 bg-white/95 p-4 shadow-md ring-1 ring-slate-900/[0.03] sm:p-5 lg:rounded-2xl lg:p-4"
                 >
-                    <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-3 lg:pb-4">
-                        <h3 class="text-sm font-bold text-slate-900 md:text-base lg:text-lg">تحليلات الموظفين</h3>
+                    <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-3 lg:pb-2">
+                        <h3 class="text-sm font-bold text-slate-900 md:text-base lg:text-[13px]">تحليلات الموظفين</h3>
                     </div>
-                    <div class="mt-4 grid grid-cols-3 gap-2 md:gap-3">
+                    <div class="mt-4 grid grid-cols-3 gap-2 md:gap-3 lg:mt-3 lg:gap-2">
                         <div
-                            class="rounded-2xl border border-slate-200/80 bg-slate-50/90 p-2.5 text-center shadow-sm sm:p-3 md:p-4"
+                            class="rounded-2xl border border-slate-200/80 bg-slate-50/90 p-2.5 text-center shadow-sm sm:p-3 md:p-4 lg:rounded-xl lg:p-2"
                         >
-                            <p class="text-[10px] font-semibold text-slate-600 md:text-[11px]">مدراء نظام</p>
-                            <p class="mt-1 text-xl font-black tabular-nums text-slate-900 md:text-2xl lg:text-3xl">{{ employees?.admins ?? 0 }}</p>
+                            <p class="text-[10px] font-semibold text-slate-600 md:text-[11px] lg:text-[9px]">مدراء نظام</p>
+                            <p class="mt-1 text-xl font-black tabular-nums text-slate-900 md:text-2xl lg:text-lg">{{ employees?.admins ?? 0 }}</p>
                         </div>
                         <div
-                            class="rounded-2xl border border-brand-200/80 bg-brand-50/90 p-2.5 text-center shadow-sm sm:p-3 md:p-4"
+                            class="rounded-2xl border border-brand-200/80 bg-brand-50/90 p-2.5 text-center shadow-sm sm:p-3 md:p-4 lg:rounded-xl lg:p-2"
                         >
-                            <p class="text-[10px] font-semibold text-brand-900/80 md:text-[11px]">قادة فرق</p>
-                            <p class="mt-1 text-xl font-black tabular-nums text-brand-950 md:text-2xl lg:text-3xl">{{ employees?.leads ?? 0 }}</p>
+                            <p class="text-[10px] font-semibold text-brand-900/80 md:text-[11px] lg:text-[9px]">قادة فرق</p>
+                            <p class="mt-1 text-xl font-black tabular-nums text-brand-950 md:text-2xl lg:text-lg">{{ employees?.leads ?? 0 }}</p>
                         </div>
                         <div
-                            class="rounded-2xl border border-slate-200/80 bg-white p-2.5 text-center shadow-sm sm:p-3 md:p-4"
+                            class="rounded-2xl border border-slate-200/80 bg-white p-2.5 text-center shadow-sm sm:p-3 md:p-4 lg:rounded-xl lg:p-2"
                         >
-                            <p class="text-[10px] font-semibold text-slate-600 md:text-[11px]">موظفون</p>
-                            <p class="mt-1 text-xl font-black tabular-nums text-slate-900 md:text-2xl lg:text-3xl">{{ employees?.members ?? 0 }}</p>
+                            <p class="text-[10px] font-semibold text-slate-600 md:text-[11px] lg:text-[9px]">موظفون</p>
+                            <p class="mt-1 text-xl font-black tabular-nums text-slate-900 md:text-2xl lg:text-lg">{{ employees?.members ?? 0 }}</p>
                         </div>
                     </div>
-                    <div class="mt-5 border-t border-slate-100 pt-4 lg:mt-6 lg:pt-5">
-                        <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500 md:text-xs">حسب الفريق</p>
-                        <p class="mt-1 text-[11px] leading-relaxed text-slate-600 md:text-sm">
+                    <div class="mt-5 border-t border-slate-100 pt-4 lg:mt-4 lg:pt-3">
+                        <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500 md:text-xs lg:text-[10px]">حسب الفريق</p>
+                        <p class="mt-1 text-[11px] leading-relaxed text-slate-600 md:text-sm lg:text-[11px]">
                             بطاقات لكل فريق: الاسم والعدد. أقصى عدد موظفين في فريق واحد عندك حالياً:
                             <span class="font-bold tabular-nums text-slate-800">{{ maxTeamEmployees }}</span>.
                         </p>
                         <ul
                             v-if="(employees?.byTeam || []).length"
-                            class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3"
+                            class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 lg:gap-2 xl:grid-cols-4"
                             role="list"
                         >
                             <li
                                 v-for="team in employees?.byTeam || []"
                                 :key="`team-${team.id}`"
-                                class="flex min-h-[6.5rem] flex-col justify-between rounded-2xl border border-slate-200/80 bg-slate-50/60 p-3 text-end shadow-sm ring-1 ring-slate-900/[0.02] md:p-4"
+                                class="flex flex-col justify-between gap-1 rounded-xl border border-slate-200/80 bg-slate-50/60 px-2.5 py-2 text-end shadow-sm ring-1 ring-slate-900/[0.02] sm:gap-1.5 sm:px-3 sm:py-2.5"
                             >
-                                <p class="text-[13px] font-bold leading-snug text-slate-900 md:text-sm lg:text-[15px]">
+                                <p class="text-[12px] font-bold leading-snug text-slate-900 sm:text-[13px] lg:text-[11px]">
                                     {{ team.name }}
                                 </p>
-                                <div class="mt-2 flex flex-wrap items-end justify-end gap-x-1.5 gap-y-1 tabular-nums">
-                                    <span class="text-2xl font-black text-slate-900 md:text-3xl">{{ team.employees }}</span>
-                                    <span class="text-[11px] font-semibold text-slate-600 md:text-xs">موظفون</span>
-                                    <span class="text-[11px] text-slate-400 md:text-xs">·</span>
-                                    <span class="text-[11px] font-semibold text-slate-600 md:text-xs">{{ team.leads }} قادة</span>
+                                <div class="flex flex-wrap items-end justify-end gap-x-1 gap-y-0.5 tabular-nums">
+                                    <span class="text-lg font-black text-slate-900 sm:text-xl lg:text-base">{{ team.employees }}</span>
+                                    <span class="text-[10px] font-semibold text-slate-600 lg:text-[9px]">موظفون</span>
+                                    <span class="text-[10px] text-slate-400 lg:text-[9px]">·</span>
+                                    <span class="text-[10px] font-semibold text-slate-600 lg:text-[9px]">{{ team.leads }} قادة</span>
                                 </div>
                             </li>
                         </ul>
                         <p v-else class="mt-2 text-center text-xs text-slate-500">لا توجد بيانات فرق بعد.</p>
                     </div>
-                    <div class="mt-5 border-t border-slate-100 pt-4 lg:mt-6 lg:pt-5">
-                        <h4 class="text-[11px] font-bold uppercase tracking-wide text-slate-500 md:text-xs">
+                    <div class="mt-5 border-t border-slate-100 pt-4 lg:mt-4 lg:pt-3">
+                        <h4 class="text-[11px] font-bold uppercase tracking-wide text-slate-500 md:text-xs lg:text-[10px]">
                             مدراء الحملات (عدد العملاء)
                         </h4>
-                        <p class="mt-1 text-[11px] leading-relaxed text-slate-600 md:text-sm">
+                        <p class="mt-1 text-[11px] leading-relaxed text-slate-600 md:text-sm lg:text-[11px]">
                             بطاقات لكل مدير: الاسم وعدد العملاء. أعلى عدد عملاء لمدير حملات عندك حالياً:
                             <span class="font-bold tabular-nums text-slate-800">{{ maxCampaignManagerClients }}</span>.
                         </p>
                         <ul
                             v-if="(employees?.campaignManagers || []).length"
-                            class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3"
+                            class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 lg:gap-2 xl:grid-cols-4"
                             role="list"
                         >
                             <li
                                 v-for="manager in employees?.campaignManagers || []"
                                 :key="`cm-${manager.id}`"
-                                class="flex min-h-[6.5rem] flex-col justify-between rounded-2xl border border-slate-200/80 bg-slate-50/60 p-3 text-end shadow-sm ring-1 ring-slate-900/[0.02] md:p-4"
+                                class="flex flex-col justify-between gap-1 rounded-xl border border-slate-200/80 bg-slate-50/60 px-2.5 py-2 text-end shadow-sm ring-1 ring-slate-900/[0.02] sm:gap-1.5 sm:px-3 sm:py-2.5"
                             >
-                                <p class="text-[13px] font-bold leading-snug text-slate-900 md:text-sm lg:text-[15px]">
+                                <p class="text-[12px] font-bold leading-snug text-slate-900 sm:text-[13px] lg:text-[11px]">
                                     {{ manager.name }}
                                 </p>
-                                <div class="mt-2 flex items-end justify-end gap-1.5 tabular-nums">
-                                    <span class="text-2xl font-black text-slate-900 md:text-3xl">{{ manager.clients }}</span>
-                                    <span class="pb-0.5 text-[11px] font-medium text-slate-500 md:text-xs">عميل</span>
+                                <div class="flex items-end justify-end gap-1 tabular-nums">
+                                    <span class="text-lg font-black text-slate-900 sm:text-xl lg:text-base">{{ manager.clients }}</span>
+                                    <span class="pb-0.5 text-[10px] font-medium text-slate-500 lg:text-[9px]">عميل</span>
                                 </div>
                             </li>
                         </ul>
@@ -676,20 +676,20 @@ const outsideMetricTiles = computed(() => [
                 </div>
 
                 <div
-                    class="flex min-h-0 flex-col rounded-3xl border border-slate-200/85 bg-white/95 p-4 shadow-md ring-1 ring-slate-900/[0.03] sm:p-5 lg:min-h-[28rem] lg:p-6 xl:min-h-[30rem]"
+                    class="flex min-h-0 flex-col rounded-3xl border border-slate-200/85 bg-white/95 p-4 shadow-md ring-1 ring-slate-900/[0.03] sm:p-5 lg:min-h-0 lg:rounded-2xl lg:p-4"
                 >
-                    <div class="shrink-0 border-b border-slate-100 pb-3 lg:pb-4">
-                        <h3 class="text-sm font-bold text-slate-900 md:text-base lg:text-lg">المهام حسب العمود</h3>
-                        <p class="mt-1 text-[11px] leading-relaxed text-slate-500 md:text-xs lg:text-sm">
-                            رسم أعمدة: الارتفاع يتناسب مع العدد مقارنة بأعلى عمود ({{ taskColumnChart.max }}). على الشاشات العريضة يزداد ارتفاع الرسم لتسهيل القراءة.
+                    <div class="shrink-0 border-b border-slate-100 pb-3 lg:pb-2">
+                        <h3 class="text-sm font-bold text-slate-900 md:text-base lg:text-[13px]">المهام حسب العمود</h3>
+                        <p class="mt-1 text-[11px] leading-relaxed text-slate-500 md:text-xs lg:text-[10px]">
+                            رسم أعمدة: الارتفاع يتناسب مع العدد مقارنة بأعلى عمود ({{ taskColumnChart.max }}).
                         </p>
                     </div>
                     <div
                         v-if="taskColumnChart.bars.length"
-                        class="mt-4 flex min-h-0 flex-1 flex-col overflow-x-auto [-webkit-overflow-scrolling:touch] lg:mt-5"
+                        class="mt-4 flex min-h-0 flex-1 flex-col overflow-x-auto [-webkit-overflow-scrolling:touch] lg:mt-3"
                     >
                         <svg
-                            class="mx-auto block h-auto w-full min-w-[min(100%,22rem)] max-w-full text-slate-600 lg:min-h-[18rem] xl:min-h-[20rem]"
+                            class="mx-auto block h-auto w-full min-w-[min(100%,22rem)] max-w-full text-slate-600 lg:max-h-[14rem] lg:min-h-0"
                             :viewBox="`0 0 ${taskColumnChart.W} ${taskColumnChart.H}`"
                             role="img"
                             aria-labelledby="home-task-chart-title"
