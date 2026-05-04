@@ -9,7 +9,12 @@ const removeFns = [];
 
 onMounted(() => {
     removeFns.push(
-        router.on('start', () => {
+        router.on('start', (event) => {
+            // لا تعرض لودر الشعار لزيارات الخلفية (مثل reload جزئي async في قسم الخارج كل ثانية)
+            const visit = event.detail?.visit;
+            if (visit && visit.showProgress === false) {
+                return;
+            }
             window.clearTimeout(showTimer);
             showTimer = window.setTimeout(() => {
                 showLoader.value = true;
