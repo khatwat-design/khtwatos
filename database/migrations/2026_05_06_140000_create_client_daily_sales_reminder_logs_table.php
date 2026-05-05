@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('client_daily_sales_reminder_logs')) {
+            return;
+        }
+
         Schema::create('client_daily_sales_reminder_logs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('client_id')->constrained()->cascadeOnDelete();

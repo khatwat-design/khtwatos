@@ -85,19 +85,28 @@ class ClientMetaOnboardingService
 
         $integration = null;
         if (Schema::hasTable('client_meta_integrations') && $adAccountId) {
-            $integration = ClientMetaIntegration::query()->updateOrCreate(
-                ['client_id' => $client->id],
-                [
-                    'ad_account_id' => preg_replace('/\D+/', '', $adAccountId),
-                    'meta_business_id' => $businessId,
-                    'meta_page_id' => $pageId,
-                    'meta_instagram_account_id' => $instagramId,
-                    'is_active' => true,
-                    'setup_status' => $issues->isEmpty() ? 'completed' : 'needs_attention',
-                    'last_error' => $issues->isEmpty() ? null : 'Needs manual fix steps',
-                    'last_scan_payload' => ['checks' => $checks, 'issues' => $issues->values()->all()],
-                ]
-            );
+            $normalizedAdAccountId = preg_replace('/\D+/', '', $adAccountId);
+            $integration = ClientMetaIntegration::query()
+                ->where('client_id', $client->id)
+                ->orWhere('ad_account_id', $normalizedAdAccountId)
+                ->first();
+
+            if (! $integration) {
+                $integration = new ClientMetaIntegration();
+            }
+
+            $integration->fill([
+                'client_id' => $client->id,
+                'ad_account_id' => $normalizedAdAccountId,
+                'meta_business_id' => $businessId,
+                'meta_page_id' => $pageId,
+                'meta_instagram_account_id' => $instagramId,
+                'is_active' => true,
+                'setup_status' => $issues->isEmpty() ? 'completed' : 'needs_attention',
+                'last_error' => $issues->isEmpty() ? null : 'Needs manual fix steps',
+                'last_scan_payload' => ['checks' => $checks, 'issues' => $issues->values()->all()],
+            ]);
+            $integration->save();
             $actions->push('تم تحديث ربط العميل مع الحساب الإعلاني.');
         }
 
