@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ChatNotificationReadService;
 use App\Services\SystemNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -9,9 +10,10 @@ use Illuminate\Support\Facades\Schema;
 
 class NotificationController extends Controller
 {
-    public function __construct(private readonly SystemNotificationService $systemNotificationService)
-    {
-    }
+    public function __construct(
+        private readonly SystemNotificationService $systemNotificationService,
+        private readonly ChatNotificationReadService $chatNotificationRead,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -23,14 +25,30 @@ class NotificationController extends Controller
             return response()->json([
                 'notifications' => [],
                 'unread_count' => 0,
+                'chat_notifications_unread' => 0,
             ]);
         }
 
         // Keep deadline alerts fresh even without page navigation.
         $this->systemNotificationService->syncForUser($user);
 
-        $notifications = $user->notifications()
-            ->latest()
+        $scope = $request->query('scope', 'all');
+        if (! in_array($scope, ['all', 'system', 'chat'], true)) {
+            $scope = 'all';
+        }
+
+        $baseQuery = $user->notifications()->latest();
+
+        if ($scope === 'system') {
+            $baseQuery->where(function ($q): void {
+                $q->whereNull('data->category')
+                    ->orWhere('data->category', '<>', 'chat');
+            });
+        } elseif ($scope === 'chat') {
+            $baseQuery->where('data->category', 'chat');
+        }
+
+        $notifications = $baseQuery
             ->limit(25)
             ->get()
             ->map(fn ($notification) => [
@@ -42,9 +60,18 @@ class NotificationController extends Controller
             ])
             ->values();
 
+        $systemUnread = $this->chatNotificationRead->unreadNonChatNotificationsCount($user);
+        $chatUnread = $this->chatNotificationRead->unreadChatNotificationsCount($user);
+
         return response()->json([
             'notifications' => $notifications,
-            'unread_count' => (int) $user->unreadNotifications()->count(),
+            'unread_count' => match ($scope) {
+                'system' => $systemUnread,
+                'chat' => $chatUnread,
+                default => (int) $user->unreadNotifications()->count(),
+            },
+            'chat_notifications_unread' => $chatUnread,
+            'system_notifications_unread' => $systemUnread,
         ]);
     }
 
@@ -55,7 +82,11 @@ class NotificationController extends Controller
             abort(401);
         }
         if (! Schema::hasTable('notifications')) {
-            return response()->json(['ok' => true, 'unread_count' => 0]);
+            return response()->json([
+                'ok' => true,
+                'unread_count' => 0,
+                'chat_notifications_unread' => 0,
+            ]);
         }
 
         $notification = $user->notifications()->where('id', $id)->firstOrFail();
@@ -65,7 +96,8 @@ class NotificationController extends Controller
 
         return response()->json([
             'ok' => true,
-            'unread_count' => (int) $user->unreadNotifications()->count(),
+            'unread_count' => $this->chatNotificationRead->unreadNonChatNotificationsCount($user),
+            'chat_notifications_unread' => $this->chatNotificationRead->unreadChatNotificationsCount($user),
         ]);
     }
 
@@ -76,15 +108,26 @@ class NotificationController extends Controller
             abort(401);
         }
         if (! Schema::hasTable('notifications')) {
-            return response()->json(['ok' => true, 'unread_count' => 0]);
+            return response()->json([
+                'ok' => true,
+                'unread_count' => 0,
+                'chat_notifications_unread' => 0,
+            ]);
         }
 
-        $user->unreadNotifications->markAsRead();
+        // لا يمسّ إشعارات الدردشة — لها لوحة ومسار مستقلان.
+        $user->unreadNotifications()
+            ->where(function ($q): void {
+                $q->whereNull('data->category')
+                    ->orWhere('data->category', '<>', 'chat');
+            })
+            ->get()
+            ->each(fn ($n) => $n->markAsRead());
 
         return response()->json([
             'ok' => true,
-            'unread_count' => 0,
+            'unread_count' => $this->chatNotificationRead->unreadNonChatNotificationsCount($user),
+            'chat_notifications_unread' => $this->chatNotificationRead->unreadChatNotificationsCount($user),
         ]);
     }
 }
-

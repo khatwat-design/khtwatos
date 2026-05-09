@@ -3,6 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Http\Controllers\TeamNotebookController;
+use App\Services\ChatNotificationReadService;
+use App\Services\ChatUnreadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
@@ -35,6 +37,19 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
 
+        $systemNotificationsUnread = 0;
+        $chatNotificationsUnread = 0;
+        $chatMessagesUnreadTotal = 0;
+
+        if ($user) {
+            if (Schema::hasTable('notifications')) {
+                $chatEventsRead = app(ChatNotificationReadService::class);
+                $systemNotificationsUnread = $chatEventsRead->unreadNonChatNotificationsCount($user);
+                $chatNotificationsUnread = $chatEventsRead->unreadChatNotificationsCount($user);
+            }
+            $chatMessagesUnreadTotal = app(ChatUnreadService::class)->fullUnreadPayload($user)['totalUnreadMessages'];
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
@@ -52,7 +67,9 @@ class HandleInertiaRequests extends Middleware
                 ],
             ],
             'notifications' => [
-                'unread_count' => ($user && Schema::hasTable('notifications')) ? (int) $user->unreadNotifications()->count() : 0,
+                'unread_count' => $systemNotificationsUnread,
+                'chat_notifications_unread' => $chatNotificationsUnread,
+                'chat_messages_unread_total' => $chatMessagesUnreadTotal,
                 'webpush_public_key' => config('services.webpush.public_key'),
             ],
             'flash' => [

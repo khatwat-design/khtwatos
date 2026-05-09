@@ -23,6 +23,17 @@ const teamNotebook = computed(() => {
     return nb?.team_id ? nb : null;
 });
 
+/** إخفاء الدفتر في صفحات تحتاج مساحة قراءة كاملة أو لا تناسب الطفو */
+const showTeamNotebookDock = computed(() => {
+    if (!teamNotebook.value) {
+        return false;
+    }
+    if (route().current('chat.*') || route().current('outside.*')) {
+        return false;
+    }
+    return true;
+});
+
 const nav = [
     ...(page.props.auth?.can?.viewAdminHome
         ? [{ label: 'الرئيسية', routeName: 'home.index', match: 'home.*' }]
@@ -164,6 +175,7 @@ async function fetchNotifications({ silent = false } = {}) {
     }
     try {
         const response = await window.axios.get(route('notifications.index'), {
+            params: { scope: 'system' },
             headers: { Accept: 'application/json' },
         });
         notifications.value = response?.data?.notifications || [];
@@ -421,7 +433,7 @@ async function openNotification(note) {
                     <slot />
                 </main>
 
-                <TeamNotebookDock v-if="teamNotebook" :key="teamNotebook.team_id" :notebook="teamNotebook" />
+                <TeamNotebookDock v-if="showTeamNotebookDock" :key="teamNotebook.team_id" :notebook="teamNotebook" />
                 <nav class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 py-1.5 backdrop-blur-xl md:hidden">
                     <div class="grid gap-1" :style="{ gridTemplateColumns: `repeat(${Math.max(mobileBottomNav.length, 1)}, minmax(0, 1fr))` }">
                         <Link
@@ -430,7 +442,7 @@ async function openNotification(note) {
                             :href="route(item.routeName)"
                             prefetch
                             :class="[
-                                'inline-flex h-12 items-center justify-center rounded-xl transition-all duration-200 ease-out',
+                                'relative inline-flex h-12 items-center justify-center rounded-xl transition-all duration-200 ease-out',
                                 active(item.match)
                                     ? 'bg-brand-100 text-black ring-1 ring-brand-200'
                                     : 'text-slate-700 hover:bg-slate-100',
@@ -479,6 +491,19 @@ async function openNotification(note) {
                                 <path d="M3 20a6 6 0 0 1 12 0M14 20a4.5 4.5 0 0 1 7 0" />
                             </svg>
                             <span v-else class="h-2 w-2 rounded-full bg-current" />
+                            <span
+                                v-if="
+                                    item.routeName === 'chat.index' &&
+                                    Number(page.props.notifications?.chat_messages_unread_total || 0) > 0
+                                "
+                                class="absolute -top-0.5 end-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[9px] font-bold leading-none text-white shadow-sm ring-2 ring-white"
+                            >
+                                {{
+                                    Number(page.props.notifications?.chat_messages_unread_total) > 99
+                                        ? '99+'
+                                        : page.props.notifications.chat_messages_unread_total
+                                }}
+                            </span>
                         </Link>
                     </div>
                 </nav>

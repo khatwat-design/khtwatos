@@ -1,6 +1,6 @@
 <script setup>
 import { router } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
     notebook: {
@@ -90,11 +90,75 @@ watch(
     },
 );
 
-watch(panelOpen, (open) => {
+watch(panelOpen, async (open) => {
     if (!open) {
         peekExpanded.value = false;
+        teardownVisualViewportWatch();
+    } else if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+        await nextTick();
+        readVisualViewport();
+        setupVisualViewportWatch();
     }
 });
+
+/** ضبط إطار اللوحة داخل المساحة المرئية (فوق لوحة مفاتيح الجوال) */
+const visualViewportRect = ref({
+    offsetTop: 0,
+    height: typeof window !== 'undefined' ? window.innerHeight : 640,
+});
+
+function readVisualViewport() {
+    if (typeof window === 'undefined') {
+        return;
+    }
+    const vv = window.visualViewport;
+    if (vv) {
+        visualViewportRect.value = { offsetTop: vv.offsetTop, height: vv.height };
+    } else {
+        visualViewportRect.value = { offsetTop: 0, height: window.innerHeight };
+    }
+}
+
+let vvCleanup = null;
+
+function setupVisualViewportWatch() {
+    teardownVisualViewportWatch();
+    const vv = window.visualViewport;
+    if (!vv) {
+        return;
+    }
+    const handler = () => readVisualViewport();
+    vv.addEventListener('resize', handler);
+    vv.addEventListener('scroll', handler);
+    vvCleanup = () => {
+        vv.removeEventListener('resize', handler);
+        vv.removeEventListener('scroll', handler);
+        vvCleanup = null;
+    };
+}
+
+function teardownVisualViewportWatch() {
+    if (vvCleanup) {
+        vvCleanup();
+    }
+}
+
+const dockAnchorStyle = computed(() => {
+    if (!panelOpen.value || typeof window === 'undefined') {
+        return undefined;
+    }
+    if (window.matchMedia('(min-width: 768px)').matches) {
+        return undefined;
+    }
+    const { offsetTop, height } = visualViewportRect.value;
+    return {
+        top: `${offsetTop}px`,
+        height: `${height}px`,
+    };
+});
+
+const dockAnchorTransitionClass =
+    'notebook-dock-anchor transition-[top,height,bottom] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none motion-reduce:duration-150';
 
 function onSpineEnter() {
     if (!panelOpen.value) {
@@ -158,11 +222,12 @@ onBeforeUnmount(() => {
     window.removeEventListener('keydown', onKeydown);
     window.clearTimeout(personalTimer);
     window.clearTimeout(sharedTimer);
+    teardownVisualViewportWatch();
 });
 
 /**
- * حركة الانزلاق: النسبة من عرض الحاوية (عمود + ورق).
- * مرتاح: يظهر العمود (~56px) دائمًا؛ المرّ يُخرج جزءًا من الورق.
+ * حركة الانزلاق: translateX(-100% + X) يُظهر أقصى اليمين من الصف.
+ * flex-row-reverse يضع العمود الجوزي يمين الورق فيُظهر عند الإغلاق طرف العمود وليس الورقة.
  */
 const slideClass = computed(() => {
     if (panelOpen.value) {
@@ -213,19 +278,34 @@ const sharedHint = computed(() => {
                 />
             </Transition>
 
-            <!-- موضع: أسفل اليسار على الجوال فوق شريط التنقل، وسط الجانب الأيسر على الشاشات الكبيرة -->
+            <!-- جوال مغلق: أسفل اليسار فوق الشريط — جوال مفتوح: وسط المساحة المرئية (visualViewport) فوق الكيبورد -->
             <div
-                class="pointer-events-none absolute left-3 z-[80] max-md:bottom-[calc(4.85rem+env(safe-area-inset-bottom,0px))] md:left-0 md:top-1/2 md:-translate-y-1/2"
+                class="pointer-events-none z-[80]"
+                :class="[
+                    dockAnchorTransitionClass,
+                    panelOpen
+                        ? 'md:absolute md:left-0 md:top-1/2 md:-translate-y-1/2 md:bottom-auto max-md:fixed max-md:inset-x-0 max-md:bottom-auto max-md:flex max-md:items-center max-md:justify-start max-md:pl-2 max-md:pr-2'
+                        : 'absolute max-md:left-1 md:left-0 max-md:bottom-[calc(4.85rem+env(safe-area-inset-bottom,0px))] md:top-1/2 md:-translate-y-1/2 md:bottom-auto',
+                ]"
+                :style="dockAnchorStyle"
             >
                 <div
-                    class="notebook-slide pointer-events-auto flex w-max max-w-[calc(100vw-1.25rem)] flex-row items-stretch shadow-2xl shadow-black/25 will-change-transform md:max-w-none"
-                    :class="slideClass"
+                    class="notebook-slide pointer-events-auto flex w-max max-w-[calc(100vw-0.75rem)] flex-row-reverse items-stretch will-change-transform md:max-w-none md:shadow-2xl md:shadow-black/25"
+                    :class="[
+                        slideClass,
+                        panelOpen ? 'shadow-2xl shadow-black/25 max-md:shadow-2xl max-md:shadow-black/30' : 'shadow-lg shadow-black/20',
+                    ]"
                     @pointerdown.capture="onDockPointerDownCapture"
                 >
-                    <!-- عمود الدفتر — دائمًا ظاهر بوضوح -->
+                    <!-- عمود الدفتر — بجانب حافة الشاشة عند الإغلاق (يمين الصف بسبب row-reverse) -->
                     <button
                         type="button"
-                        class="notebook-spine relative z-[2] flex w-14 shrink-0 cursor-pointer flex-col items-center justify-between rounded-r-xl border border-amber-950/40 bg-gradient-to-b from-[#4a3220] via-[#6b472e] to-[#2e1f14] py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ring-2 ring-amber-100/30 md:w-[3.75rem] md:rounded-r-2xl md:py-5"
+                        class="notebook-spine relative z-[2] flex shrink-0 cursor-pointer flex-col items-center justify-between rounded-l-none border border-amber-950/40 bg-gradient-to-b from-[#4a3220] via-[#6b472e] to-[#2e1f14] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ring-amber-100/30 md:w-[3.75rem] md:rounded-r-2xl md:py-5 md:ring-2"
+                        :class="
+                            panelOpen
+                                ? 'w-[3.75rem] rounded-r-xl py-5 ring-2'
+                                : 'w-11 rounded-r-lg py-2.5 ring-1 md:w-[3.75rem] md:rounded-r-2xl md:py-5 md:ring-2'
+                        "
                         aria-label="فتح دفتر الفريق"
                         :aria-expanded="panelOpen"
                         @mouseenter="onSpineEnter"
@@ -233,15 +313,18 @@ const sharedHint = computed(() => {
                     >
                         <!-- شريط مرجعي (bookmark) -->
                         <span
-                            class="pointer-events-none absolute -right-1 top-[18%] h-10 w-3 rounded-sm bg-gradient-to-b from-rose-400 to-rose-700 shadow-md ring-1 ring-rose-950/20"
+                            class="pointer-events-none absolute -left-1 top-[18%] rounded-sm bg-gradient-to-b from-rose-400 to-rose-700 shadow-md ring-1 ring-rose-950/20"
+                            :class="panelOpen ? 'h-10 w-3' : 'h-7 w-2.5 md:h-10 md:w-3'"
                             aria-hidden="true"
                         />
                         <span
-                            class="pointer-events-none absolute inset-x-2 top-3 h-px bg-gradient-to-r from-transparent via-amber-100/40 to-transparent"
+                            class="pointer-events-none absolute h-px bg-gradient-to-r from-transparent via-amber-100/40 to-transparent"
+                            :class="panelOpen ? 'inset-x-2 top-3' : 'inset-x-1.5 top-2 md:inset-x-2 md:top-3'"
                         />
-                        <div class="flex flex-col items-center gap-1.5 pt-1">
+                        <div class="flex flex-col items-center" :class="panelOpen ? 'gap-1.5 pt-1' : 'gap-0.5 pt-0.5 md:gap-1.5 md:pt-1'">
                             <svg
-                                class="h-8 w-8 text-amber-50 drop-shadow md:h-9 md:w-9"
+                                class="text-amber-50 drop-shadow"
+                                :class="panelOpen ? 'h-9 w-9' : 'h-6 w-6 md:h-9 md:w-9'"
                                 viewBox="0 0 24 24"
                                 fill="none"
                                 stroke="currentColor"
@@ -251,22 +334,33 @@ const sharedHint = computed(() => {
                                 <path d="M6 4h9l3 3v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
                                 <path d="M14 4v4h4M8 11h8M8 15h6" />
                             </svg>
-                            <span class="text-[9px] font-black uppercase tracking-[0.28em] text-amber-100/80">Notes</span>
+                            <span
+                                class="font-black uppercase text-amber-100/80"
+                                :class="panelOpen ? 'text-[9px] tracking-[0.28em]' : 'text-[7px] tracking-[0.2em] md:text-[9px] md:tracking-[0.28em]'"
+                            >
+                                Notes
+                            </span>
                         </div>
                         <span
-                            class="mb-2 rotate-180 px-1 text-center text-[11px] font-bold leading-tight text-amber-50/95 [writing-mode:vertical-rl]"
+                            class="rotate-180 px-0.5 text-center font-bold leading-tight text-amber-50/95 [writing-mode:vertical-rl]"
+                            :class="panelOpen ? 'mb-2 px-1 text-[11px]' : 'mb-1 text-[9px] md:mb-2 md:px-1 md:text-[11px]'"
                         >
                             دفتر الفريق
                         </span>
                         <span
-                            class="pointer-events-none absolute inset-x-2 bottom-3 h-px bg-gradient-to-r from-transparent via-amber-100/25 to-transparent"
+                            class="pointer-events-none absolute h-px bg-gradient-to-r from-transparent via-amber-100/25 to-transparent"
+                            :class="panelOpen ? 'inset-x-2 bottom-3' : 'inset-x-1.5 bottom-2 md:inset-x-2 md:bottom-3'"
                         />
                     </button>
 
                     <!-- صفحات الورق -->
                     <div
-                        class="notebook-paper relative z-[1] flex min-h-[min(22rem,52vh)] w-[min(17.5rem,calc(100vw-5.5rem))] flex-col rounded-l-xl border border-r-0 border-amber-900/20 bg-[linear-gradient(105deg,#fffef9_0%,#f7f0e4_45%,#fdfbf6_100%)] md:min-h-[min(26rem,62vh)] md:w-[22rem]"
-                        :class="panelOpen ? 'md:!w-[min(34rem,calc(100vw-2rem))]' : ''"
+                        class="notebook-paper relative z-[1] flex flex-col rounded-r-none border border-r-0 border-amber-900/20 bg-[linear-gradient(105deg,#fffef9_0%,#f7f0e4_45%,#fdfbf6_100%)] md:min-h-[min(26rem,62vh)] md:w-[22rem] md:rounded-l-xl"
+                        :class="
+                            panelOpen
+                                ? 'max-md:max-h-[min(28rem,calc(100dvh-2rem))] max-md:overflow-y-auto min-h-[min(22rem,min(52vh,calc(100dvh-10rem)))] w-[min(22rem,calc(100vw-1rem))] rounded-l-xl md:!w-[min(34rem,calc(100vw-2rem))]'
+                                : 'min-h-[min(14rem,36vh)] w-[min(13.5rem,calc(100vw-3.25rem))] rounded-l-lg md:min-h-[min(26rem,62vh)] md:w-[22rem] md:rounded-l-xl'
+                        "
                         role="dialog"
                         :aria-modal="panelOpen"
                         :aria-hidden="!panelOpen"
@@ -277,59 +371,79 @@ const sharedHint = computed(() => {
                             class="pointer-events-none absolute inset-0 opacity-[0.055] [background-image:linear-gradient(#78716c_1px,transparent_1px)] [background-size:100%_1.35rem]"
                         />
                         <div
-                            class="pointer-events-none absolute inset-y-5 left-5 w-px bg-rose-400/40"
+                            class="pointer-events-none absolute inset-y-5 right-5 w-px bg-rose-400/40"
                             aria-hidden="true"
                         />
 
-                        <div class="relative flex min-h-0 flex-1 flex-col px-3.5 pb-3 pt-3.5 md:px-5 md:pb-4 md:pt-5">
-                            <div class="flex items-start justify-between gap-2 border-b border-amber-900/12 pb-2.5">
-                                <div>
-                                    <p class="text-sm font-black text-slate-900">دفتر الملاحظات</p>
-                                    <p class="mt-0.5 text-[11px] leading-snug text-slate-600">خاصّة لك + ورقة عامة للفريق</p>
-                                </div>
+                        <div
+                            class="relative flex min-h-0 flex-1 flex-col md:px-5 md:pb-4 md:pt-5"
+                            :class="panelOpen ? 'px-3.5 pb-3 pt-3.5' : 'px-2.5 pb-2 pt-2.5'"
+                        >
+                            <div
+                                class="flex items-start justify-between border-b border-amber-900/12"
+                                :class="panelOpen ? 'gap-2 pb-2.5' : 'gap-1.5 pb-2 md:gap-2 md:pb-2.5'"
+                            >
+                                <p class="font-black text-slate-900" :class="panelOpen ? 'text-sm' : 'text-xs md:text-sm'">دفتر الملاحظات</p>
                                 <button
                                     type="button"
-                                    class="rounded-xl bg-white/90 px-2.5 py-1 text-[11px] font-bold text-slate-700 shadow-sm ring-1 ring-slate-900/10 hover:bg-white"
+                                    class="bg-white/90 font-bold text-slate-700 shadow-sm ring-1 ring-slate-900/10 hover:bg-white md:rounded-xl md:px-2.5 md:py-1 md:text-[11px]"
+                                    :class="panelOpen ? 'rounded-xl px-2.5 py-1 text-[11px]' : 'rounded-lg px-2 py-0.5 text-[10px]'"
                                     @click.stop="panelOpen = false"
                                 >
                                     إغلاق
                                 </button>
                             </div>
 
-                            <div class="mt-2.5 grid grid-cols-2 gap-1 rounded-xl bg-slate-900/[0.05] p-1 ring-1 ring-slate-900/[0.06]">
+                            <div
+                                class="grid grid-cols-2 bg-slate-900/[0.05] ring-1 ring-slate-900/[0.06]"
+                                :class="
+                                    panelOpen
+                                        ? 'mt-2.5 gap-1 rounded-xl p-1 md:mt-2.5'
+                                        : 'mt-2 gap-0.5 rounded-lg p-0.5 md:mt-2.5 md:gap-1 md:rounded-xl md:p-1'
+                                "
+                            >
                                 <button
                                     type="button"
-                                    class="rounded-lg px-2 py-2 text-[11px] font-bold transition-colors duration-150"
-                                    :class="
+                                    class="font-bold transition-colors duration-150 md:rounded-lg md:px-2 md:py-2 md:text-[11px]"
+                                    :class="[
+                                        panelOpen ? 'rounded-lg px-2 py-2 text-[11px]' : 'rounded-md px-1.5 py-1.5 text-[10px]',
                                         activeSheet === 'personal'
                                             ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/10'
-                                            : 'text-slate-600 hover:bg-white/80'
-                                    "
+                                            : 'text-slate-600 hover:bg-white/80',
+                                    ]"
                                     @click.stop="activeSheet = 'personal'"
                                 >
                                     خاصّتي
                                 </button>
                                 <button
                                     type="button"
-                                    class="rounded-lg px-2 py-2 text-[11px] font-bold transition-colors duration-150"
-                                    :class="
+                                    class="font-bold transition-colors duration-150 md:rounded-lg md:px-2 md:py-2 md:text-[11px]"
+                                    :class="[
+                                        panelOpen ? 'rounded-lg px-2 py-2 text-[11px]' : 'rounded-md px-1.5 py-1.5 text-[10px]',
                                         activeSheet === 'shared'
                                             ? 'bg-emerald-50 text-emerald-950 shadow-sm ring-1 ring-emerald-800/15'
-                                            : 'text-slate-600 hover:bg-white/80'
-                                    "
+                                            : 'text-slate-600 hover:bg-white/80',
+                                    ]"
                                     @click.stop="activeSheet = 'shared'"
                                 >
                                     عامّة للفريق
                                 </button>
                             </div>
 
-                            <div class="mt-2.5 flex min-h-0 flex-1 flex-col">
+                            <div class="flex min-h-0 flex-1 flex-col" :class="panelOpen ? 'mt-2.5' : 'mt-2 md:mt-2.5'">
                                 <template v-if="activeSheet === 'personal'">
-                                    <p class="mb-1 text-[10px] text-slate-500">لا تظهر إلا لك.</p>
+                                    <p class="text-slate-500" :class="panelOpen ? 'mb-1 text-[10px]' : 'mb-0.5 text-[9px] md:mb-1 md:text-[10px]'">
+                                        لا تظهر إلا لك.
+                                    </p>
                                     <textarea
                                         v-model="personalBody"
                                         rows="8"
-                                        class="min-h-[10rem] w-full flex-1 resize-none rounded-xl border border-slate-200/95 bg-white/90 px-3 py-2 text-[13px] leading-relaxed text-slate-900 shadow-inner outline-none placeholder:text-slate-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-200/80"
+                                        class="w-full flex-1 resize-none border border-slate-200/95 bg-white/90 leading-relaxed text-slate-900 shadow-inner outline-none placeholder:text-slate-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-200/80 md:min-h-[10rem] md:rounded-xl md:px-3 md:py-2 md:text-[13px]"
+                                        :class="
+                                            panelOpen
+                                                ? 'min-h-[10rem] rounded-xl px-3 py-2 text-[13px] max-md:min-h-[min(12rem,28svh)]'
+                                                : 'min-h-[6.5rem] rounded-lg px-2 py-1.5 text-[12px]'
+                                        "
                                         placeholder="اكتب ملاحظاتك…"
                                         :disabled="!panelOpen"
                                         @input="schedulePersonalSave"
@@ -340,11 +454,18 @@ const sharedHint = computed(() => {
                                     </p>
                                 </template>
                                 <template v-else>
-                                    <p class="mb-1 text-[10px] text-slate-500">يراها كل الفريق.</p>
+                                    <p class="text-slate-500" :class="panelOpen ? 'mb-1 text-[10px]' : 'mb-0.5 text-[9px] md:mb-1 md:text-[10px]'">
+                                        يراها كل الفريق.
+                                    </p>
                                     <textarea
                                         v-model="sharedBody"
                                         rows="8"
-                                        class="min-h-[10rem] w-full flex-1 resize-none rounded-xl border border-emerald-900/20 bg-emerald-50/50 px-3 py-2 text-[13px] leading-relaxed text-slate-900 shadow-inner outline-none placeholder:text-slate-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200/80"
+                                        class="w-full flex-1 resize-none border border-emerald-900/20 bg-emerald-50/50 leading-relaxed text-slate-900 shadow-inner outline-none placeholder:text-slate-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200/80 md:min-h-[10rem] md:rounded-xl md:px-3 md:py-2 md:text-[13px]"
+                                        :class="
+                                            panelOpen
+                                                ? 'min-h-[10rem] rounded-xl px-3 py-2 text-[13px] max-md:min-h-[min(12rem,28svh)]'
+                                                : 'min-h-[6.5rem] rounded-lg px-2 py-1.5 text-[12px]'
+                                        "
                                         placeholder="ملاحظات عامة للفريق…"
                                         :disabled="!panelOpen"
                                         @input="scheduleSharedSave"
@@ -357,8 +478,8 @@ const sharedHint = computed(() => {
                                 </template>
                             </div>
 
-                            <p v-if="!panelOpen" class="mt-2 text-center text-[10px] font-semibold text-slate-500">
-                                اضغط الورقة أو العمود لفتح الدفتر بالكامل
+                            <p v-if="!panelOpen" class="mt-1.5 text-center text-[9px] font-semibold text-slate-500 md:mt-2 md:text-[10px]">
+                                اضغط العمود أو الورقة عند إظهارها لفتح الدفتر بالكامل
                             </p>
                         </div>
                     </div>
@@ -373,20 +494,20 @@ const sharedHint = computed(() => {
     transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* مطوي: يظهر تقريبًا عمود الكتاب فقط (~56–60px) */
+/* مطوي: الشريط الظاهر = عرض العمود (جوال w-11 = 2.75rem، md = 3.75rem) */
 .notebook-slide--collapsed {
-    transform: translateX(calc(-100% + 3.75rem));
+    transform: translateX(calc(-100% + 2.75rem));
 }
 
 @media (min-width: 768px) {
     .notebook-slide--collapsed {
-        transform: translateX(calc(-100% + 4.25rem));
+        transform: translateX(calc(-100% + 3.75rem));
     }
 }
 
-/* مرّ الماوس: يخرج جزء واضح من الورق */
+/* مرّ الماوس: يخرج جزءًا من الورق — أقل على الجوال لتقليل الحجب */
 .notebook-slide--peek {
-    transform: translateX(calc(-100% + 10.5rem));
+    transform: translateX(calc(-100% + 7.25rem));
 }
 
 @media (min-width: 768px) {

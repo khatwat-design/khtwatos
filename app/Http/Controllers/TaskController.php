@@ -18,6 +18,7 @@ use App\Services\SmartNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -29,9 +30,7 @@ class TaskController extends Controller
     public function __construct(
         private readonly ClientWorkflowAutomationService $workflowAutomation,
         private readonly SmartNotificationService $smartNotifications
-    )
-    {
-    }
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -44,7 +43,7 @@ class TaskController extends Controller
             ? Team::where('slug', $requestedSlug)->first()
             : null;
         if (! $team) {
-            $team = $teams->first();
+            $team = $this->defaultTaskTeam($request->user(), $teams);
         }
 
         if ($team) {
@@ -150,7 +149,7 @@ class TaskController extends Controller
         ]);
     }
 
-    public function details(Task $task): \Illuminate\Http\JsonResponse
+    public function details(Task $task): JsonResponse
     {
         $task->load([
             'messages.user:id,name',
@@ -259,7 +258,7 @@ class TaskController extends Controller
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, Team>
+     * @return Collection<int, Team>
      */
     private function ensureTeams()
     {
@@ -280,6 +279,32 @@ class TaskController extends Controller
             ->whereIn('slug', collect($defaults)->pluck('slug'))
             ->orderBy('sort_order')
             ->get(['id', 'name', 'slug']);
+    }
+
+    /**
+     * بدون ?team= في الرابط: أول لوحة من فرق المستخدم بترتيب التبويبات؛ وإلا أول فريق عام (سلوك قديم).
+     *
+     * @param  Collection<int, Team>  $teams
+     */
+    private function defaultTaskTeam(?User $user, Collection $teams): ?Team
+    {
+        $first = $teams->first();
+        if (! $user || $teams->isEmpty()) {
+            return $first;
+        }
+
+        $memberTeamIds = $user->teams()
+            ->whereIn('teams.id', $teams->pluck('id'))
+            ->orderBy('teams.sort_order')
+            ->pluck('teams.id');
+
+        foreach ($teams as $candidate) {
+            if ($memberTeamIds->contains($candidate->id)) {
+                return $candidate;
+            }
+        }
+
+        return $first;
     }
 
     public function store(Request $request): RedirectResponse
@@ -497,7 +522,7 @@ class TaskController extends Controller
     public function deleteAttachment(Request $request, TaskAttachment $taskAttachment)
     {
         $user = $request->user();
-        if (!$user || !$user->isAdmin()) {
+        if (! $user || ! $user->isAdmin()) {
             abort(403, 'لا تملك صلاحية حذف هذا المرفق.');
         }
 
@@ -549,7 +574,7 @@ class TaskController extends Controller
 
         $task->assignees()->sync($assigneeIds);
         $task->assignee_id = $assigneeIds[0] ?? $task->assignee_id;
-        if (!empty($data['due_at'])) {
+        if (! empty($data['due_at'])) {
             $task->due_at = $data['due_at'];
         }
         $task->save();
@@ -568,7 +593,7 @@ class TaskController extends Controller
         ]);
 
         $titles = collect($data['titles'] ?? []);
-        if ($titles->isEmpty() && !empty($data['title'])) {
+        if ($titles->isEmpty() && ! empty($data['title'])) {
             $titles = collect([$data['title']]);
         }
 
@@ -621,7 +646,7 @@ class TaskController extends Controller
      */
     private function normalizeAssigneeIds(mixed $value): array
     {
-        if (!is_array($value)) {
+        if (! is_array($value)) {
             return [];
         }
 
@@ -634,17 +659,17 @@ class TaskController extends Controller
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      * @return array<int, int>
      */
     private function extractAssigneeIds(array $data): array
     {
         $ids = $data['assignee_ids'] ?? [];
-        if (!empty($ids)) {
+        if (! empty($ids)) {
             return $ids;
         }
 
-        if (!empty($data['assignee_id'])) {
+        if (! empty($data['assignee_id'])) {
             return [(int) $data['assignee_id']];
         }
 
@@ -654,7 +679,7 @@ class TaskController extends Controller
     private function ensureCanManageTask(Request $request, Task $task): void
     {
         $user = $request->user();
-        if (!$user) {
+        if (! $user) {
             abort(403);
         }
 
@@ -667,12 +692,12 @@ class TaskController extends Controller
         }
 
         $teamId = $task->taskBoard?->team_id;
-        if (!$teamId) {
+        if (! $teamId) {
             $task->loadMissing('taskBoard');
             $teamId = $task->taskBoard?->team_id;
         }
 
-        if (!$teamId) {
+        if (! $teamId) {
             abort(403, 'لا يمكن إدارة هذه المهمة.');
         }
 
@@ -681,7 +706,7 @@ class TaskController extends Controller
             ->wherePivot('is_lead', true)
             ->exists();
 
-        if (!$isLeadOfTeam) {
+        if (! $isLeadOfTeam) {
             abort(403, 'هذه العملية مسموحة لمدراء الأقسام فقط.');
         }
     }
@@ -689,7 +714,7 @@ class TaskController extends Controller
     private function ensureAdmin(Request $request): void
     {
         $user = $request->user();
-        if (!$user || !$user->isAdmin()) {
+        if (! $user || ! $user->isAdmin()) {
             abort(403, 'هذه العملية متاحة لمدير النظام فقط.');
         }
     }

@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\AcademyController;
+use App\Http\Controllers\ChatNotificationsController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientPortalController;
+use App\Http\Controllers\DirectChatController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\GoodsCustomerController;
 use App\Http\Controllers\HomeController;
@@ -10,6 +12,7 @@ use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OutsideController;
 use App\Http\Controllers\OutsideWebhookController;
+use App\Http\Controllers\PrivateChatRoomController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicBookingController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -94,6 +97,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/chat/messages/{teamChatMessage}', [TeamChatController::class, 'destroy'])->name('chat.messages.destroy');
     Route::post('/chat/typing', [TeamChatController::class, 'typingUpdate'])->name('chat.typing.update');
     Route::get('/chat/typing', [TeamChatController::class, 'typingUsers'])->name('chat.typing.index');
+    Route::post('/chat/private-rooms', [PrivateChatRoomController::class, 'store'])->name('chat.private-rooms.store');
+    Route::delete('/chat/private-rooms/{privateChatRoom}', [PrivateChatRoomController::class, 'destroy'])->name('chat.private-rooms.destroy');
+    Route::post('/chat/private-rooms/{privateChatRoom}/leave', [PrivateChatRoomController::class, 'leave'])->name('chat.private-rooms.leave');
+    Route::post('/chat/private-rooms/{privateChatRoom}/messages', [PrivateChatRoomController::class, 'storeMessage'])->name('chat.private-rooms.messages.store');
+    Route::get('/chat/private-rooms/{privateChatRoom}/messages', [PrivateChatRoomController::class, 'messages'])->name('chat.private-rooms.messages.index');
+    Route::post('/chat/direct/open', [DirectChatController::class, 'open'])->name('chat.direct.open');
+    Route::post('/chat/direct/{directConversation}/messages', [DirectChatController::class, 'storeMessage'])->name('chat.direct.messages.store');
+    Route::get('/chat/direct/{directConversation}/messages', [DirectChatController::class, 'messages'])->name('chat.direct.messages.index');
+    Route::get('/chat/unread-summary', [TeamChatController::class, 'unreadSummary'])->name('chat.unread-summary');
+    Route::get('/chat/notifications-feed', [ChatNotificationsController::class, 'index'])->name('chat.notifications.index');
+    Route::post('/chat/notifications-feed/read-all', [ChatNotificationsController::class, 'markAllRead'])->name('chat.notifications.read-all');
     Route::get('/outside', [OutsideController::class, 'index'])->name('outside.index');
     Route::post('/outside/contacts', [OutsideController::class, 'storeContact'])->name('outside.contacts.store');
     Route::delete('/outside/contacts/{outsideContact}', [OutsideController::class, 'destroyContact'])->name('outside.contacts.destroy');

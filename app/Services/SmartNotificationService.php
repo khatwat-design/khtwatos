@@ -4,7 +4,11 @@ namespace App\Services;
 
 use App\Models\Client;
 use App\Models\ClientCampaignUpdate;
+use App\Models\DirectConversation;
+use App\Models\DirectMessage;
 use App\Models\Meeting;
+use App\Models\PrivateChatMessage;
+use App\Models\PrivateChatRoom;
 use App\Models\Task;
 use App\Models\Team;
 use App\Models\TeamChatMessage;
@@ -12,16 +16,15 @@ use App\Models\User;
 use App\Notifications\SystemEventNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class SmartNotificationService
 {
-    public function __construct(private readonly WebPushService $webPushService)
-    {
-    }
+    public function __construct(private readonly WebPushService $webPushService) {}
 
     /**
-     * @param array<int, int> $userIds
-     * @param array<string, mixed> $payload
+     * @param  array<int, int>  $userIds
+     * @param  array<string, mixed>  $payload
      */
     public function notifyUsers(array $userIds, array $payload, ?int $actorId = null): void
     {
@@ -151,14 +154,74 @@ class SmartNotificationService
         }
 
         $ids = $team->users()->pluck('users.id')->map(fn ($id) => (int) $id)->all();
+        $senderName = $message->relationLoaded('user') ? ($message->user?->name ?? 'موظف') : (User::query()->find($message->user_id)?->name ?? 'موظف');
+        $preview = trim(Str::limit(strip_tags((string) ($message->body ?? '')), 120));
+
         $this->notifyUsers($ids, [
-            'title' => 'رسالة جديدة في الدردشة',
-            'body' => $team->name,
+            'title' => 'رسالة في '.$team->name,
+            'body' => trim($senderName.': '.($preview !== '' ? $preview : 'رسالة أو مرفق')),
             'severity' => 'info',
             'category' => 'chat',
-            'link' => route('chat.index', ['team' => $team->slug]),
-            'meta' => ['team_id' => $team->id],
+            'link' => route('chat.index', ['tab' => 'all', 'team' => $team->slug]),
+            'meta' => [
+                'chat_kind' => 'team',
+                'team_id' => $team->id,
+                'team_slug' => $team->slug,
+                'preview' => $preview,
+                'sender_id' => $message->user_id,
+            ],
+        ], $actorId);
+    }
+
+    public function notifyPrivateRoomMessage(PrivateChatRoom $room, PrivateChatMessage $message, ?int $actorId = null): void
+    {
+        $ids = $room->members()->pluck('users.id')->map(fn ($id) => (int) $id)->all();
+        $senderName = $message->relationLoaded('user') ? ($message->user?->name ?? 'موظف') : (User::query()->find($message->user_id)?->name ?? 'موظف');
+        $preview = trim(Str::limit(strip_tags((string) ($message->body ?? '')), 120));
+
+        $this->notifyUsers($ids, [
+            'title' => 'غرفة: '.$room->name,
+            'body' => trim($senderName.': '.($preview !== '' ? $preview : 'رسالة أو مرفق')),
+            'severity' => 'info',
+            'category' => 'chat',
+            'link' => route('chat.index', ['tab' => 'rooms', 'private_room' => $room->id]),
+            'meta' => [
+                'chat_kind' => 'private_room',
+                'private_room_id' => $room->id,
+                'preview' => $preview,
+                'sender_id' => $message->user_id,
+            ],
+        ], $actorId);
+    }
+
+    public function notifyDirectMessage(DirectConversation $conversation, DirectMessage $message, ?int $actorId = null): void
+    {
+        $recipientIds = $conversation->users()
+            ->where('users.id', '!=', $message->user_id)
+            ->pluck('users.id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if (empty($recipientIds)) {
+            return;
+        }
+
+        $sender = $message->relationLoaded('user') ? $message->user : User::query()->find($message->user_id);
+        $senderName = $sender?->name ?? 'موظف';
+        $preview = trim(Str::limit(strip_tags((string) ($message->body ?? '')), 120));
+
+        $this->notifyUsers($recipientIds, [
+            'title' => 'رسالة من '.$senderName,
+            'body' => $preview !== '' ? $preview : 'رسالة أو مرفق',
+            'severity' => 'info',
+            'category' => 'chat',
+            'link' => route('chat.index', ['tab' => 'direct', 'direct' => $conversation->id]),
+            'meta' => [
+                'chat_kind' => 'direct',
+                'direct_conversation_id' => $conversation->id,
+                'preview' => $preview,
+                'sender_id' => $message->user_id,
+            ],
         ], $actorId);
     }
 }
-

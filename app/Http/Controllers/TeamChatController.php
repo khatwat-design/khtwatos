@@ -5,11 +5,18 @@ namespace App\Http\Controllers;
 use App\Events\TeamChatMessageCreated;
 use App\Events\TeamChatMessageDeleted;
 use App\Events\TeamChatMessageUpdated;
+use App\Models\DirectConversation;
+use App\Models\DirectMessage;
+use App\Models\PrivateChatMessage;
+use App\Models\PrivateChatRoom;
 use App\Models\Team;
 use App\Models\TeamChatMessage;
-use App\Models\TeamChatRead;
 use App\Models\TeamChatTypingState;
+use App\Models\User;
+use App\Services\ChatNotificationReadService;
+use App\Services\ChatUnreadService;
 use App\Services\SmartNotificationService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,38 +26,142 @@ use Inertia\Response;
 
 class TeamChatController extends Controller
 {
-    public function __construct(private readonly SmartNotificationService $smartNotifications) {}
+    public function __construct(
+        private readonly SmartNotificationService $smartNotifications,
+        private readonly ChatUnreadService $chatUnread,
+        private readonly ChatNotificationReadService $chatNotificationRead,
+    ) {}
 
     public function index(Request $request): Response
     {
         $teams = $this->ensureTeams();
-        $selectedSlug = $request->query('team');
-        $selectedTeam = $selectedSlug
-            ? $teams->firstWhere('slug', $selectedSlug)
-            : $teams->first();
+        $user = $request->user();
 
-        TeamNotebookController::rememberNotebookTeam($request, $selectedTeam);
+        $tab = $request->query('tab', 'all');
+        if (! in_array($tab, ['all', 'rooms', 'direct'], true)) {
+            $tab = 'all';
+        }
 
-        $messages = TeamChatMessage::query()
-            ->with('user:id,name')
-            ->where('team_id', $selectedTeam->id)
-            ->latest()
-            ->limit(150)
-            ->get()
-            ->reverse()
-            ->values();
-        $this->markTeamAsRead($request, $selectedTeam->id);
-        $unreadCounts = $this->buildUnreadCounts($request);
+        $privateRoomsPayload = $this->buildPrivateRoomsForUser($user);
+        $directPeersPayload = $this->buildDirectPeersForUser($user);
+        $chatUsers = User::query()->orderBy('name')->get(['id', 'name']);
+
+        $viewKind = 'none';
+        $messages = collect();
+        $selectedTeam = null;
+        $selectedPrivateRoom = null;
+        $selectedDirect = null;
+
+        if ($request->filled('private_room')) {
+            $room = PrivateChatRoom::query()->find((int) $request->query('private_room'));
+            if ($room && $room->userIsMember($user)) {
+                $viewKind = 'private_room';
+                $selectedPrivateRoom = [
+                    'id' => $room->id,
+                    'name' => $room->name,
+                    'creator_id' => $room->creator_id,
+                    'is_creator' => (int) $room->creator_id === (int) $user->id,
+                ];
+                $messages = PrivateChatMessage::query()
+                    ->with('user:id,name')
+                    ->where('private_chat_room_id', $room->id)
+                    ->latest()
+                    ->limit(150)
+                    ->get()
+                    ->reverse()
+                    ->values()
+                    ->map(fn (PrivateChatMessage $msg) => $msg->toChatArray())
+                    ->values();
+            }
+        } elseif ($request->filled('direct')) {
+            $conversation = DirectConversation::query()->find((int) $request->query('direct'));
+            if ($conversation && $conversation->userParticipates($user)) {
+                $viewKind = 'direct';
+                $peer = $conversation->otherUser($user);
+                $selectedDirect = [
+                    'id' => $conversation->id,
+                    'peer' => $peer ? ['id' => $peer->id, 'name' => $peer->name] : null,
+                ];
+                $messages = DirectMessage::query()
+                    ->with('user:id,name')
+                    ->where('direct_conversation_id', $conversation->id)
+                    ->latest()
+                    ->limit(150)
+                    ->get()
+                    ->reverse()
+                    ->values()
+                    ->map(fn (DirectMessage $msg) => $msg->toChatArray())
+                    ->values();
+            }
+        }
+
+        if ($viewKind === 'none') {
+            $selectedSlug = $request->query('team');
+            $selectedTeam = $selectedSlug ? $teams->firstWhere('slug', $selectedSlug) : null;
+
+            if ($selectedTeam) {
+                TeamNotebookController::rememberNotebookTeam($request, $selectedTeam);
+                $viewKind = 'team';
+                $messages = TeamChatMessage::query()
+                    ->with('user:id,name')
+                    ->where('team_id', $selectedTeam->id)
+                    ->latest()
+                    ->limit(150)
+                    ->get()
+                    ->reverse()
+                    ->values()
+                    ->map(fn (TeamChatMessage $msg) => $this->mapMessage($msg))
+                    ->values();
+            }
+        }
+
+        if ($viewKind === 'team' && $selectedTeam) {
+            $this->chatUnread->markTeamAsRead($request, (int) $selectedTeam->id);
+        } elseif ($viewKind === 'private_room' && $selectedPrivateRoom) {
+            $this->chatUnread->markPrivateRoomAsRead($request, (int) $selectedPrivateRoom['id']);
+        } elseif ($viewKind === 'direct' && $selectedDirect) {
+            $this->chatUnread->markDirectAsRead($request, (int) $selectedDirect['id']);
+        }
+
+        $this->chatNotificationRead->markReadForActiveThread(
+            $user,
+            $viewKind,
+            $viewKind === 'team' && $selectedTeam ? ['id' => $selectedTeam->id, 'slug' => $selectedTeam->slug] : null,
+            $selectedPrivateRoom,
+            $selectedDirect,
+        );
+
+        $chatUnreadPayload = $this->chatUnread->fullUnreadPayload($user);
+
+        $teamLastChatAt = $this->lastTeamChatMessageAtByTeamId();
+
+        $teamsPayload = $teams
+            ->map(fn (Team $t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'slug' => $t->slug,
+                'last_activity_at' => $this->nullableIso8601($teamLastChatAt[(int) $t->id] ?? null),
+            ])
+            ->values()
+            ->all();
 
         return Inertia::render('Chat/Index', [
-            'teams' => $teams,
-            'selectedTeam' => [
+            'chatTab' => $tab,
+            'viewKind' => $viewKind,
+            'teams' => $teamsPayload,
+            'selectedTeam' => $selectedTeam ? [
                 'id' => $selectedTeam->id,
                 'name' => $selectedTeam->name,
                 'slug' => $selectedTeam->slug,
-            ],
-            'messages' => $messages->map(fn (TeamChatMessage $msg) => $this->mapMessage($msg)),
-            'unreadCounts' => $unreadCounts,
+            ] : null,
+            'privateRooms' => $privateRoomsPayload,
+            'directPeers' => $directPeersPayload,
+            'chatUsers' => $chatUsers,
+            'selectedPrivateRoom' => $selectedPrivateRoom,
+            'selectedDirect' => $selectedDirect,
+            'messages' => $messages,
+            'unreadCounts' => $chatUnreadPayload['unreadCounts'],
+            'chatUnread' => $chatUnreadPayload,
         ]);
     }
 
@@ -87,9 +198,14 @@ class TeamChatController extends Controller
         $message->load('user:id,name');
         broadcast(new TeamChatMessageCreated($message));
         $this->smartNotifications->notifyTeamChatMessage($message, $request->user()?->id);
-        $this->markTeamAsRead($request, (int) $data['team_id']);
+        $this->chatUnread->markTeamAsRead($request, (int) $data['team_id']);
 
         return redirect()->back();
+    }
+
+    public function unreadSummary(Request $request): JsonResponse
+    {
+        return response()->json($this->chatUnread->fullUnreadPayload($request->user()));
     }
 
     public function messages(Request $request): JsonResponse
@@ -114,12 +230,11 @@ class TeamChatController extends Controller
         if (empty($data['after_id'])) {
             $rows = $rows->reverse()->values();
         }
-        $this->markTeamAsRead($request, (int) $data['team_id']);
+        $this->chatUnread->markTeamAsRead($request, (int) $data['team_id']);
 
-        return response()->json([
+        return response()->json(array_merge([
             'messages' => $rows->map(fn (TeamChatMessage $msg) => $this->mapMessage($msg))->values(),
-            'unreadCounts' => $this->buildUnreadCounts($request),
-        ]);
+        ], $this->chatUnread->fullUnreadPayload($request->user())));
     }
 
     public function update(Request $request, TeamChatMessage $teamChatMessage): RedirectResponse
@@ -199,6 +314,125 @@ class TeamChatController extends Controller
         ]);
     }
 
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildPrivateRoomsForUser(?User $user): array
+    {
+        if (! $user) {
+            return [];
+        }
+
+        $lastMsgAtByRoom = $this->lastPrivateRoomMessageAtByRoomId();
+
+        return PrivateChatRoom::query()
+            ->whereHas('members', fn ($q) => $q->where('users.id', $user->id))
+            ->orderBy('name')
+            ->get()
+            ->map(fn (PrivateChatRoom $r) => [
+                'id' => $r->id,
+                'name' => $r->name,
+                'creator_id' => $r->creator_id,
+                'is_creator' => (int) $r->creator_id === (int) $user->id,
+                'last_activity_at' => $this->nullableIso8601($lastMsgAtByRoom[(int) $r->id] ?? null),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * كل الموظفين الآخرين مع معرف المحادثة إن وُجدت (بدون الحاجة لإظهار الخيط يدويًا).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildDirectPeersForUser(?User $user): array
+    {
+        if (! $user) {
+            return [];
+        }
+
+        $conversationPeerMap = [];
+        DirectConversation::query()
+            ->whereHas('users', fn ($q) => $q->where('users.id', $user->id))
+            ->with(['users:id,name'])
+            ->get()
+            ->each(function (DirectConversation $c) use ($user, &$conversationPeerMap): void {
+                $peer = $c->otherUser($user);
+                if ($peer) {
+                    $conversationPeerMap[(int) $peer->id] = (int) $c->id;
+                }
+            });
+
+        $lastMsgAtByConversation = $this->lastDirectMessageAtByConversationId();
+
+        return User::query()
+            ->whereKeyNot($user->id)
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(function (User $peer) use ($conversationPeerMap, $lastMsgAtByConversation): array {
+                $conversationId = $conversationPeerMap[(int) $peer->id] ?? null;
+
+                return [
+                    'user_id' => (int) $peer->id,
+                    'name' => $peer->name,
+                    'conversation_id' => $conversationId,
+                    'last_activity_at' => $this->nullableIso8601(
+                        $conversationId ? ($lastMsgAtByConversation[(int) $conversationId] ?? null) : null,
+                    ),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function lastTeamChatMessageAtByTeamId(): array
+    {
+        return TeamChatMessage::query()
+            ->selectRaw('team_id, MAX(created_at) as last_at')
+            ->groupBy('team_id')
+            ->get()
+            ->mapWithKeys(fn ($row) => [(int) $row->team_id => $row->last_at])
+            ->all();
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function lastPrivateRoomMessageAtByRoomId(): array
+    {
+        return PrivateChatMessage::query()
+            ->selectRaw('private_chat_room_id, MAX(created_at) as last_at')
+            ->groupBy('private_chat_room_id')
+            ->get()
+            ->mapWithKeys(fn ($row) => [(int) $row->private_chat_room_id => $row->last_at])
+            ->all();
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function lastDirectMessageAtByConversationId(): array
+    {
+        return DirectMessage::query()
+            ->selectRaw('direct_conversation_id, MAX(created_at) as last_at')
+            ->groupBy('direct_conversation_id')
+            ->get()
+            ->mapWithKeys(fn ($row) => [(int) $row->direct_conversation_id => $row->last_at])
+            ->all();
+    }
+
+    private function nullableIso8601(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return Carbon::parse($value)->toIso8601String();
+    }
+
     private function ensureTeams()
     {
         $defaults = [
@@ -236,58 +470,6 @@ class TeamChatController extends Controller
         }
 
         abort(403, 'لا تملك صلاحية تعديل/حذف هذه الرسالة.');
-    }
-
-    private function markTeamAsRead(Request $request, int $teamId): void
-    {
-        $userId = $request->user()?->id;
-        if (! $userId) {
-            return;
-        }
-
-        $lastId = (int) TeamChatMessage::query()
-            ->where('team_id', $teamId)
-            ->max('id');
-
-        TeamChatRead::query()->updateOrCreate(
-            [
-                'team_id' => $teamId,
-                'user_id' => $userId,
-            ],
-            [
-                'last_read_message_id' => $lastId,
-                'last_read_at' => now(),
-            ],
-        );
-    }
-
-    /**
-     * @return array<int, int>
-     */
-    private function buildUnreadCounts(Request $request): array
-    {
-        $userId = $request->user()?->id;
-        if (! $userId) {
-            return [];
-        }
-
-        $teams = Team::query()->get(['id']);
-        $readMap = TeamChatRead::query()
-            ->where('user_id', $userId)
-            ->pluck('last_read_message_id', 'team_id');
-
-        $result = [];
-        foreach ($teams as $team) {
-            $lastRead = (int) ($readMap[$team->id] ?? 0);
-            $count = TeamChatMessage::query()
-                ->where('team_id', $team->id)
-                ->where('id', '>', $lastRead)
-                ->count();
-
-            $result[(int) $team->id] = (int) $count;
-        }
-
-        return $result;
     }
 
     /**
