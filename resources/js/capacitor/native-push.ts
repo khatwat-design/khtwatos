@@ -1,10 +1,16 @@
 import { Capacitor } from '@capacitor/core';
 
 export async function initNativePushForAuthenticatedSession(options?: {
+    /** يجب أن يكون true من الخادم فقط بعد تهيئة google-services.json (أندرويد) وملف آيفون إن وُجد؛ وإلا قد يتعطل التطبيق عند تسجيل FCM */
+    enabled?: boolean;
     deviceStoreUrl?: string;
     onSilentRefresh?: () => void;
 }): Promise<void> {
     if (!Capacitor.isNativePlatform()) {
+        return;
+    }
+
+    if (!options?.enabled) {
         return;
     }
 

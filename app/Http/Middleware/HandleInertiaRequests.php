@@ -73,6 +73,7 @@ class HandleInertiaRequests extends Middleware
                 'chat_messages_unread_total' => $chatMessagesUnreadTotal,
                 'webpush_public_key' => config('services.webpush.public_key'),
                 'native_fcm_configured' => NativePushService::isConfigured(),
+                'firebase_mobile_push_enabled' => (bool) config('services.firebase.mobile_push_enabled'),
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

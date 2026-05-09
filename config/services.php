@@ -56,6 +56,11 @@ return [
     */
     'firebase' => [
         'credentials' => env('FIREBASE_CREDENTIALS'),
+        /**
+         * عند false لا يستدعي التطبيق تسجيل FCM على الجهاز — يمنع تعطل أندرويد إذا كان APK يُبنى بدون google-services.json.
+         * ضع true بعد إضافة android/app/google-services.json (وGoogleService-Info.plist لآيفون) وإعادة بناء التطبيق.
+         */
+        'mobile_push_enabled' => env('FIREBASE_MOBILE_PUSH_ENABLED', false),
     ],
 
     'meta_ads' => [

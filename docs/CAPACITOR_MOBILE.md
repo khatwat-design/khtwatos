@@ -81,13 +81,15 @@ npm run cap:android:apk
 - **تطبيق Capacitor:** بعد الدخول إلى أي صفحة تستخدم `AuthenticatedLayout` يُطلب إذن الإشعار (ما لم يكن ممنوحًا مسبقًا)، ثم يُستدعى `PushNotifications.register()` ويُرسَل الرمز إلى الخادم (`device_push_tokens`) عبر `POST /device-push-tokens` مع كوكيز الجلسة وCSRF (إعداد axios الافتراضي في `resources/js/bootstrap.js`).
 - **إرسال FCM:** اضبط `FIREBASE_CREDENTIALS` على مسار JSON لحساب خدمة Firebase؛ ثم يُرسل الخادم تلقائيًا مع كل استدعاء `WebPushService::sendToUsers` أيضًا إلى أجهزة أندرويد/آيفون المرتبطة بالمستخدم.
 
-### أندرويد: بدون `google-services.json` لن تعمل الإشعارات
+### أندرويد: بدون `google-services.json` لن تعمل الإشعارات — وتجنّب تعطّل التطبيق
 
-Gradle يطبّق إضافة Google Services **فقط** إذا وُجد الملف `android/app/google-services.json`. بدونه لا يُهيأ FCM في التطبيق؛ غالبًا لن يظهر توكن صالح ولن تصل رسائل Firebase، حتى لو ظهر حوار الإذن.
+Gradle يطبّق إضافة Google Services **فقط** إذا وُجد الملف `android/app/google-services.json`. بدونه لا يُهيأ Firebase في العملية الأصلية. استدعاء `PushNotifications.register()` من الويب على جهاز كهذا يؤدي غالبًا إلى توقّف التطبيق («متوقف») بعد الموافقة على الإذن.
+
+لذلك يشارَك مع الواجهة العلم **`notifications.firebase_mobile_push_enabled`** من متغير البيئة **`FIREBASE_MOBILE_PUSH_ENABLED`** (افتراضي **`false`**). لا يُفعل على الخادم إلا بعدما يُضاف **`google-services.json`** إلى مشروع أندرويد ويُعاد بناء APK.
 
 1. أنشئ مشروعًا في [Firebase Console](https://console.firebase.google.com/) وأضف تطبيق Android بـ **`applicationId`** مطابقًا لـ `android/app/build.gradle` (حاليًا `design.khatwat.erp`).
 2. حمّل **`google-services.json`** وضعه في **`android/app/`** ثم أعد `npm run cap:sync` وبناء APK من جديد.
-3. على الخادم: تأكد من `FIREBASE_CREDENTIALS` وأن إرسال الإشعارات يمر عبر المسار الذي يستدعي `NativePushService` / FCM.
+3. على الخادم: **`FIREBASE_MOBILE_PUSH_ENABLED=true`** بعد توفر ملف العميل في الـ APK، مع **`FIREBASE_CREDENTIALS`** لإرسال الرسائل من Laravel عبر `NativePushService`.
 
 ### إذا لم يُطلب الإذن أو لا يصل التوكن للخادم
 

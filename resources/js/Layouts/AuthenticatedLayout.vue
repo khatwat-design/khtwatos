@@ -96,6 +96,7 @@ onMounted(() => {
         Notification.permission === 'granted';
     registerServiceWorker();
     void initNativePushForAuthenticatedSession({
+        enabled: Boolean(page.props.notifications?.firebase_mobile_push_enabled),
         deviceStoreUrl: route('device-push-tokens.store'),
         onSilentRefresh: () => fetchNotifications({ silent: true }),
     });
