@@ -58,6 +58,43 @@ class TeamNotebookController extends Controller
     }
 
     /**
+     * دفتر موسّع لكل الصفحات: يعتمد على آخر فريق زاره الموظف من المهام/الدردشة، أو أول فريق بالترتيب.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function sharedPayloadForRequest(Request $request): ?array
+    {
+        $user = $request->user();
+        if (! $user || ! Schema::hasTable('team_notebook_personals')) {
+            return null;
+        }
+
+        $teamId = self::resolveNotebookTeamId($request);
+        if (! $teamId) {
+            return null;
+        }
+
+        $team = Team::query()->find($teamId);
+
+        return self::payloadForTeam($team, $request);
+    }
+
+    public static function rememberNotebookTeam(Request $request, Team $team): void
+    {
+        $request->session()->put('notebook_team_id', (int) $team->id);
+    }
+
+    public static function resolveNotebookTeamId(Request $request): ?int
+    {
+        $sid = $request->session()->get('notebook_team_id');
+        if ($sid !== null && $sid !== '' && Team::query()->whereKey((int) $sid)->exists()) {
+            return (int) $sid;
+        }
+
+        return Team::query()->orderBy('sort_order')->value('id');
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public static function payloadForTeam(?Team $team, Request $request): ?array

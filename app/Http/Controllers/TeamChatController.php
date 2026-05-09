@@ -29,6 +29,8 @@ class TeamChatController extends Controller
             ? $teams->firstWhere('slug', $selectedSlug)
             : $teams->first();
 
+        TeamNotebookController::rememberNotebookTeam($request, $selectedTeam);
+
         $messages = TeamChatMessage::query()
             ->with('user:id,name')
             ->where('team_id', $selectedTeam->id)
@@ -49,7 +51,6 @@ class TeamChatController extends Controller
             ],
             'messages' => $messages->map(fn (TeamChatMessage $msg) => $this->mapMessage($msg)),
             'unreadCounts' => $unreadCounts,
-            'team_notebook' => TeamNotebookController::payloadForTeam($selectedTeam, $request),
         ]);
     }
 

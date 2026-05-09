@@ -47,6 +47,10 @@ class TaskController extends Controller
             $team = $teams->first();
         }
 
+        if ($team) {
+            TeamNotebookController::rememberNotebookTeam($request, $team);
+        }
+
         $clientId = $request->filled('client_id') ? (int) $request->query('client_id') : null;
         $includeArchived = $request->boolean('include_archived');
 
@@ -143,7 +147,6 @@ class TaskController extends Controller
                 'id' => $filterClient->id,
                 'name' => $filterClient->name,
             ] : null,
-            'team_notebook' => TeamNotebookController::payloadForTeam($team, $request),
         ]);
     }
 

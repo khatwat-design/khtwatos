@@ -20,17 +20,7 @@ const avatarUrl = computed(() => page.props.auth?.user?.avatar_url || '/images/m
 
 const teamNotebook = computed(() => {
     const nb = page.props.team_notebook;
-    if (!nb?.team_id) {
-        return null;
-    }
-    const path = String(page.url?.split('?')[0] || '');
-    const onTasks = path === '/tasks' || path.startsWith('/tasks/');
-    const onChat = path === '/chat' || path.startsWith('/chat/');
-    if (!onTasks && !onChat) {
-        return null;
-    }
-
-    return nb;
+    return nb?.team_id ? nb : null;
 });
 
 const nav = [
