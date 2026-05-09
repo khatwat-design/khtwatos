@@ -35,9 +35,7 @@ const showTeamNotebookDock = computed(() => {
 });
 
 const nav = [
-    ...(page.props.auth?.can?.viewAdminHome
-        ? [{ label: 'الرئيسية', routeName: 'home.index', match: 'home.*' }]
-        : []),
+    { label: 'الرئيسية', routeName: 'home.index', match: 'home.*' },
     { label: 'المهام', routeName: 'tasks.index', match: 'tasks.*' },
     { label: 'الدردشة', routeName: 'chat.index', match: 'chat.*' },
     { label: 'الخارج', routeName: 'outside.index', match: 'outside.*' },

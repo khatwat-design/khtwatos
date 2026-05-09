@@ -1,15 +1,76 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 
 const props = defineProps({
+    dashboard_mode: {
+        type: String,
+        default: 'admin',
+    },
+    staff: {
+        type: Object,
+        default: null,
+    },
     outside_metrics: Object,
     cards: Object,
     clientsByStage: Array,
     tasksByColumn: Array,
     meetings: Object,
     employees: Object,
+});
+
+function formatStaffDateTime(iso) {
+    if (!iso) {
+        return '—';
+    }
+    try {
+        return new Date(iso).toLocaleString('ar-SA', { dateStyle: 'medium', timeStyle: 'short' });
+    } catch {
+        return '—';
+    }
+}
+
+/** شريط عمودي بلون ثابت لكل نوع مؤشر (بدون خلفيات صاخبة) */
+const staffKpiCards = computed(() => {
+    const c = props.staff?.cards || {};
+    return [
+        {
+            key: 'tasks',
+            title: 'مهامي النشطة',
+            value: Number(c.tasks_assigned || 0),
+            sub: `متأخرة: ${Number(c.tasks_overdue || 0)}`,
+            stripeBg: 'bg-slate-600',
+        },
+        {
+            key: 'meetings',
+            title: 'اجتماعات قادمة',
+            value: Number(c.meetings_upcoming || 0),
+            sub: 'مجدولة لك كمضيف أو مدعو',
+            stripeBg: 'bg-amber-500',
+        },
+        {
+            key: 'clients_am',
+            title: 'عملاء (مسؤول حساب)',
+            value: Number(c.clients_account_manager || 0),
+            sub: 'مرتبطون بك كمسؤول حساب',
+            stripeBg: 'bg-sky-500',
+        },
+        {
+            key: 'clients_cm',
+            title: 'عملاء (مدير حملات)',
+            value: Number(c.clients_campaign_manager || 0),
+            sub: 'مرتبطون بك كمدير حملات',
+            stripeBg: 'bg-violet-500',
+        },
+        {
+            key: 'outside',
+            title: 'الخارج — غير مقروء',
+            value: Number(c.outside_unread_assigned || 0),
+            sub: 'محادثات موجهة إليك بانتظار القراءة',
+            stripeBg: 'bg-emerald-500',
+        },
+    ];
 });
 
 const stageLabelMap = {
@@ -51,6 +112,17 @@ function truncateChartLabel(name, maxLen = 14) {
         return s;
     }
     return `${s.slice(0, maxLen - 1)}…`;
+}
+
+/** شريط لوني لبطاقات أولويات المتابعة */
+function staffFollowupStripeClass(kind) {
+    const map = {
+        danger: 'bg-rose-500',
+        warning: 'bg-amber-500',
+        info: 'bg-sky-500',
+        success: 'bg-emerald-500',
+    };
+    return map[kind] || 'bg-slate-400';
 }
 
 const taskColumnChart = computed(() => {
@@ -315,7 +387,201 @@ const outsideMetricTiles = computed(() => [
     <AuthenticatedLayout>
         <template #title>الرئيسية</template>
 
-        <div class="home-dashboard mx-auto max-w-7xl space-y-5 pb-4 md:space-y-6 md:pb-6 lg:max-w-6xl lg:space-y-4 lg:pb-5">
+        <div
+            v-if="dashboard_mode === 'staff' && staff"
+            class="staff-home mx-auto max-w-6xl space-y-5 pb-6 md:space-y-6 md:pb-8"
+        >
+            <!-- بطاقة ترحيب: نفس لغة التصميم العامة (أبيض + ظلال خفيفة + لمسة brand) -->
+            <section
+                class="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50/95 shadow-[0_12px_40px_-14px_rgba(15,23,42,0.12)] ring-1 ring-slate-900/[0.04]"
+            >
+                <div
+                    class="pointer-events-none absolute -start-20 -top-24 h-64 w-64 rounded-full bg-brand-500/[0.07] blur-3xl"
+                    aria-hidden="true"
+                />
+                <div
+                    class="pointer-events-none absolute -bottom-16 end-0 h-52 w-52 rounded-full bg-indigo-500/[0.06] blur-3xl"
+                    aria-hidden="true"
+                />
+                <div class="relative border-b border-slate-100/90 px-5 pb-5 pt-5 sm:px-6 sm:pb-6 sm:pt-6">
+                    <div class="flex flex-wrap items-start justify-between gap-4">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-brand-700/95">
+                                مساحة عملك
+                            </p>
+                            <h2 class="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-[1.65rem]">
+                                مرحبًا، {{ $page.props.auth?.user?.name }}
+                            </h2>
+                            <p class="mt-2 max-w-prose text-sm leading-relaxed text-slate-600">
+                                <span class="font-semibold text-slate-800">{{ staff.role_label }}</span>
+                                <template v-if="staff.teams?.length">
+                                    <span class="text-slate-400"> · </span>
+                                    <span class="text-slate-600">الفِرق التي تنضوي تحتها</span>
+                                </template>
+                            </p>
+                        </div>
+                        <div
+                            class="hidden shrink-0 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 text-center shadow-inner shadow-slate-900/[0.03] sm:block"
+                        >
+                            <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">اليوم</p>
+                            <p class="mt-1 text-lg font-black tabular-nums text-slate-900">
+                                {{ new Date().toLocaleDateString('ar-SA', { day: 'numeric', month: 'short' }) }}
+                            </p>
+                        </div>
+                    </div>
+                    <div v-if="staff.teams?.length" class="mt-5 flex flex-wrap gap-2">
+                        <span
+                            v-for="(t, idx) in staff.teams"
+                            :key="`team-chip-${idx}-${t.slug}`"
+                            class="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-[12px] font-semibold text-slate-800 shadow-sm"
+                        >
+                            {{ t.name }}
+                            <span
+                                v-if="t.is_lead"
+                                class="rounded-lg bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm"
+                            >
+                                قائد فريق
+                            </span>
+                        </span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- مؤشرات موحّدة: خلفية بيضاء + شريط لوني ثابت على الطرف -->
+            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                <article
+                    v-for="card in staffKpiCards"
+                    :key="`stk-${card.key}`"
+                    class="flex min-h-[7.5rem] overflow-hidden rounded-2xl border border-slate-200/85 bg-white shadow-sm ring-1 ring-slate-900/[0.025]"
+                >
+                    <div class="w-1 shrink-0 self-stretch" :class="card.stripeBg" aria-hidden="true" />
+                    <div class="min-w-0 flex-1 px-4 py-4">
+                        <p class="text-[11px] font-bold text-slate-500">{{ card.title }}</p>
+                        <p class="mt-2 text-3xl font-black tabular-nums text-slate-900">{{ card.value }}</p>
+                        <p class="mt-2 text-[11px] font-medium leading-snug text-slate-500">{{ card.sub }}</p>
+                    </div>
+                </article>
+            </section>
+
+            <section
+                class="rounded-3xl border border-slate-200/85 bg-white p-5 shadow-md shadow-slate-900/[0.04] ring-1 ring-slate-900/[0.03] sm:p-6"
+            >
+                <div class="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 pb-4">
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900">ما يستحق متابعتك</h3>
+                        <p class="mt-1 text-xs leading-relaxed text-slate-500">
+                            تنبيهات مبنية على مهامك، الخارج، الاجتماعات، وعملاءك — وليس روابط ثابتة.
+                        </p>
+                    </div>
+                    <span
+                        class="rounded-full bg-brand-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-800 ring-1 ring-brand-200/70"
+                    >
+                        من بيانات النظام
+                    </span>
+                </div>
+                <ul v-if="staff.priority_followups?.length" class="mt-5 space-y-2.5" role="list">
+                    <li v-for="(item, pi) in staff.priority_followups" :key="`pf-${pi}-${item.title}`">
+                        <div
+                            class="flex min-h-[4.25rem] overflow-hidden rounded-2xl border border-slate-200/85 bg-slate-50/35 shadow-sm ring-1 ring-slate-900/[0.02]"
+                        >
+                            <div
+                                class="w-1 shrink-0 self-stretch"
+                                :class="staffFollowupStripeClass(item.kind)"
+                                aria-hidden="true"
+                            />
+                            <div class="flex min-w-0 flex-1 flex-col justify-center gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                                <div class="min-w-0 text-start">
+                                    <p class="text-sm font-bold text-slate-900">{{ item.title }}</p>
+                                    <p class="mt-1 text-[11px] leading-relaxed text-slate-600">{{ item.detail }}</p>
+                                </div>
+                                <Link
+                                    v-if="item.route && item.action_label"
+                                    :href="route(item.route)"
+                                    class="shrink-0 self-start rounded-xl border border-brand-200/90 bg-white px-3 py-2 text-[11px] font-bold text-brand-800 shadow-sm transition hover:border-brand-400 hover:bg-brand-50 sm:self-center"
+                                >
+                                    {{ item.action_label }}
+                                </Link>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+            </section>
+
+            <section class="grid gap-4 lg:grid-cols-2">
+                <div
+                    class="rounded-3xl border border-slate-200/85 bg-white p-5 shadow-md shadow-slate-900/[0.04] ring-1 ring-slate-900/[0.03] sm:p-6"
+                >
+                    <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-4">
+                        <h3 class="text-sm font-bold text-slate-900">مهامك القريبة</h3>
+                        <Link
+                            :href="route('tasks.index')"
+                            class="rounded-lg px-2 py-1 text-[11px] font-bold text-brand-700 transition hover:bg-brand-50 hover:text-brand-900"
+                        >
+                            كل المهام
+                        </Link>
+                    </div>
+                    <ul v-if="staff.recent_tasks?.length" class="mt-4 space-y-2" role="list">
+                        <li v-for="t in staff.recent_tasks" :key="`rt-${t.id}`">
+                            <Link
+                                :href="route('tasks.details', t.id)"
+                                class="block rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2.5 transition hover:border-brand-300/60 hover:bg-brand-50/35"
+                            >
+                                <p class="text-[13px] font-semibold text-slate-900">{{ t.title }}</p>
+                                <p class="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
+                                    <span v-if="t.column_name" class="rounded-md bg-white px-1.5 py-0.5 font-medium text-slate-600 ring-1 ring-slate-200/80">{{ t.column_name }}</span>
+                                    <span class="tabular-nums">{{ formatStaffDateTime(t.due_at) }}</span>
+                                </p>
+                            </Link>
+                        </li>
+                    </ul>
+                    <p v-else class="mt-8 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 py-8 text-center text-sm text-slate-500">
+                        لا توجد مهام مسندة إليك حاليًا.
+                    </p>
+                </div>
+
+                <div
+                    class="rounded-3xl border border-slate-200/85 bg-white p-5 shadow-md shadow-slate-900/[0.04] ring-1 ring-slate-900/[0.03] sm:p-6"
+                >
+                    <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-4">
+                        <h3 class="text-sm font-bold text-slate-900">اجتماعاتك القادمة</h3>
+                        <Link
+                            :href="route('meetings.index')"
+                            class="rounded-lg px-2 py-1 text-[11px] font-bold text-brand-700 transition hover:bg-brand-50 hover:text-brand-900"
+                        >
+                            الجدول الكامل
+                        </Link>
+                    </div>
+                    <ul v-if="staff.upcoming_meetings?.length" class="mt-4 space-y-2" role="list">
+                        <li v-for="m in staff.upcoming_meetings" :key="`um-${m.id}`">
+                            <Link
+                                :href="route('meetings.edit', m.id)"
+                                class="block rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2.5 transition hover:border-brand-300/60 hover:bg-brand-50/35"
+                            >
+                                <p class="text-[13px] font-semibold text-slate-900">{{ m.title }}</p>
+                                <p class="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
+                                    <span class="tabular-nums font-medium text-slate-600">{{ formatStaffDateTime(m.start_at) }}</span>
+                                    <span v-if="m.client_name">· {{ m.client_name }}</span>
+                                    <span
+                                        v-if="m.is_host"
+                                        class="rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-900 ring-1 ring-amber-200/80"
+                                    >
+                                        مضيف
+                                    </span>
+                                </p>
+                            </Link>
+                        </li>
+                    </ul>
+                    <p v-else class="mt-8 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 py-8 text-center text-sm text-slate-500">
+                        لا توجد اجتماعات مجدولة قادمة لك.
+                    </p>
+                </div>
+            </section>
+        </div>
+
+        <div
+            v-else
+            class="home-dashboard mx-auto max-w-7xl space-y-5 pb-4 md:space-y-6 md:pb-6 lg:max-w-6xl lg:space-y-4 lg:pb-5"
+        >
             <!-- نبض تنفيذي -->
             <section
                 class="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50/90 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.12)] ring-1 ring-slate-900/[0.04] lg:rounded-2xl"

@@ -28,9 +28,7 @@ Route::get('/', function () {
         return redirect()->route('login');
     }
 
-    return auth()->user()?->isAdmin()
-        ? redirect()->route('home.index')
-        : redirect()->route('tasks.index');
+    return redirect()->route('home.index');
 });
 
 Route::get('/book', [PublicBookingController::class, 'index'])->name('book.index');
@@ -59,15 +57,11 @@ Route::post('/outside/webhook', [OutsideWebhookController::class, 'receive'])
     ->withoutMiddleware([ValidateCsrfToken::class]);
 
 Route::get('/dashboard', function () {
-    return auth()->user()?->isAdmin()
-        ? redirect()->route('home.index')
-        : redirect()->route('tasks.index');
+    return redirect()->route('home.index');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::middleware('can:view-admin-home')->group(function () {
-        Route::get('/home', [HomeController::class, 'index'])->name('home.index');
-    });
+    Route::get('/home', [HomeController::class, 'index'])->name('home.index');
 
     Route::get('/tasks', [TaskController::class, 'index'])->name('tasks.index');
     Route::get('/tasks/{task}/details', [TaskController::class, 'details'])->name('tasks.details');
