@@ -1,6 +1,7 @@
 <script setup>
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
+import TeamNotebookDock from '@/Components/TeamNotebookDock.vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
@@ -16,6 +17,21 @@ const browserNotificationsEnabled = ref(false);
 let lastUnreadCount = Number(page.props.notifications?.unread_count || 0);
 const vapidPublicKey = computed(() => String(page.props.notifications?.webpush_public_key || ''));
 const avatarUrl = computed(() => page.props.auth?.user?.avatar_url || '/images/mobile-logo.png');
+
+const teamNotebook = computed(() => {
+    const nb = page.props.team_notebook;
+    if (!nb?.team_id) {
+        return null;
+    }
+    const path = String(page.url?.split('?')[0] || '');
+    const onTasks = path === '/tasks' || path.startsWith('/tasks/');
+    const onChat = path === '/chat' || path.startsWith('/chat/');
+    if (!onTasks && !onChat) {
+        return null;
+    }
+
+    return nb;
+});
 
 const nav = [
     ...(page.props.auth?.can?.viewAdminHome
@@ -414,6 +430,8 @@ async function openNotification(note) {
                 <main class="relative z-10 flex min-h-0 flex-1 flex-col overflow-auto p-3 pb-20 md:p-6 md:pb-6">
                     <slot />
                 </main>
+
+                <TeamNotebookDock v-if="teamNotebook" :key="teamNotebook.team_id" :notebook="teamNotebook" />
                 <nav class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 py-1.5 backdrop-blur-xl md:hidden">
                     <div class="grid gap-1" :style="{ gridTemplateColumns: `repeat(${Math.max(mobileBottomNav.length, 1)}, minmax(0, 1fr))` }">
                         <Link

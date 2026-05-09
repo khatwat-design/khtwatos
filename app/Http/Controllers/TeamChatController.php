@@ -49,6 +49,7 @@ class TeamChatController extends Controller
             ],
             'messages' => $messages->map(fn (TeamChatMessage $msg) => $this->mapMessage($msg)),
             'unreadCounts' => $unreadCounts,
+            'team_notebook' => TeamNotebookController::payloadForTeam($selectedTeam, $request),
         ]);
     }
 

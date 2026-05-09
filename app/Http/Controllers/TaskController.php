@@ -143,6 +143,7 @@ class TaskController extends Controller
                 'id' => $filterClient->id,
                 'name' => $filterClient->name,
             ] : null,
+            'team_notebook' => TeamNotebookController::payloadForTeam($team, $request),
         ]);
     }
 

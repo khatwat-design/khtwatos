@@ -15,6 +15,7 @@ use App\Http\Controllers\PublicBookingController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TeamChatController;
+use App\Http\Controllers\TeamNotebookController;
 use App\Http\Controllers\WarehouseController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
@@ -77,6 +78,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/tasks/{task}/checklist-items', [TaskController::class, 'addChecklistItem'])->name('tasks.checklist-items.store');
     Route::patch('/task-checklist-items/{taskChecklistItem}', [TaskController::class, 'toggleChecklistItem'])->name('tasks.checklist-items.toggle');
     Route::patch('/task-boards/{taskBoard}/sync', [TaskController::class, 'sync'])->name('task-boards.sync');
+    Route::patch('/teams/{team}/notebook/personal', [TeamNotebookController::class, 'updatePersonal'])
+        ->name('teams.notebook.personal.update');
+    Route::patch('/teams/{team}/notebook/shared', [TeamNotebookController::class, 'updateShared'])
+        ->name('teams.notebook.shared.update');
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
