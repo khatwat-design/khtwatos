@@ -4,7 +4,7 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
-  "theme_color": "#B2342E",
+  "theme_color": "#000000",
   "lang": "ar",
   "dir": "rtl",
   "icons": [

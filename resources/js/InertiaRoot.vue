@@ -1,5 +1,7 @@
 <script setup>
+import CapacitorOfflineBanner from '@/Components/CapacitorOfflineBanner.vue';
 import GlobalPageLoader from '@/Components/GlobalPageLoader.vue';
+import { Capacitor } from '@capacitor/core';
 import { router } from '@inertiajs/vue3';
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 
@@ -8,6 +10,13 @@ let showTimer = null;
 const removeFns = [];
 
 onMounted(() => {
+    document.documentElement.removeAttribute('data-app-shell');
+
+    if (Capacitor.isNativePlatform()) {
+        import('@capacitor/splash-screen').then(({ SplashScreen }) =>
+            SplashScreen.hide({ fadeOutDuration: 280 }).catch(() => {}),
+        );
+    }
     removeFns.push(
         router.on('start', (event) => {
             // لا تعرض لودر الشعار لزيارات الخلفية (مثل reload جزئي async في قسم الخارج كل ثانية)
@@ -43,6 +52,7 @@ onBeforeUnmount(() => {
 
 <template>
     <div class="contents">
+        <CapacitorOfflineBanner />
         <GlobalPageLoader :show="showLoader" />
         <slot />
     </div>

@@ -1,4 +1,5 @@
 <script setup>
+import { initNativePushForAuthenticatedSession } from '@/capacitor/native-push';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import TeamNotebookDock from '@/Components/TeamNotebookDock.vue';
@@ -94,6 +95,10 @@ onMounted(() => {
         'Notification' in window &&
         Notification.permission === 'granted';
     registerServiceWorker();
+    void initNativePushForAuthenticatedSession({
+        deviceStoreUrl: route('device-push-tokens.store'),
+        onSilentRefresh: () => fetchNotifications({ silent: true }),
+    });
 });
 
 onBeforeUnmount(() => {

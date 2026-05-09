@@ -1,5 +1,6 @@
 import defaultTheme from 'tailwindcss/defaultTheme';
 import forms from '@tailwindcss/forms';
+import plugin from 'tailwindcss/plugin';
 
 const withOpacity = (cssVar) => ({ opacityValue }) =>
     opacityValue === undefined
@@ -69,5 +70,11 @@ export default {
         },
     },
 
-    plugins: [forms],
+    plugins: [
+        forms,
+        plugin(({ addVariant }) => {
+            /** يطبّق فقط داخل تطبيق Capacitor (يُضاف class على html من init-native) */
+            addVariant('native', 'html.capacitor-native &');
+        }),
+    ],
 };

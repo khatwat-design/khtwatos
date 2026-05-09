@@ -260,7 +260,7 @@ function deleteClient(clientId) {
             @click.self="showFilterModal = false"
         >
             <div
-                class="max-h-[85dvh] w-full overflow-y-auto rounded-t-2xl border border-gray-200 bg-white p-4 shadow-xl sm:mx-auto sm:max-h-[90vh] sm:max-w-md sm:rounded-2xl sm:p-5"
+                class="max-h-[85dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-gray-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl sm:mx-auto sm:max-h-[90vh] sm:max-w-md sm:rounded-2xl sm:p-5 sm:pb-5 native:max-h-[88dvh]"
             >
                 <div class="mb-3 flex items-center justify-between">
                     <h3 class="text-lg font-semibold text-gray-900">فلترة العملاء</h3>
@@ -295,7 +295,7 @@ function deleteClient(clientId) {
             @click.self="showCreateModal = false"
         >
             <div
-                class="max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-2xl border border-gray-200 bg-white shadow-xl sm:mx-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-2xl"
+                class="max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-gray-200 bg-white shadow-xl sm:mx-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-2xl native:max-h-[min(93dvh,100dvh)]"
             >
                 <div class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3 sm:px-5 sm:pt-5">
                     <h3 class="text-base font-bold text-gray-900 sm:text-lg">إضافة عميل</h3>
@@ -307,7 +307,10 @@ function deleteClient(clientId) {
                         إغلاق
                     </button>
                 </div>
-                <form class="grid grid-cols-1 gap-3 px-4 pb-6 pt-3 sm:gap-4 sm:px-5 sm:pb-5 md:grid-cols-2" @submit.prevent="submitCreateClient">
+                <form
+                    class="grid grid-cols-1 gap-3 px-4 pb-6 pt-3 sm:gap-4 sm:px-5 sm:pb-5 md:grid-cols-2 native:pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+                    @submit.prevent="submitCreateClient"
+                >
                     <div class="md:col-span-2">
                         <InputLabel for="new_client_name" value="الاسم" />
                         <TextInput id="new_client_name" v-model="createForm.name" class="mt-1 block w-full" required />

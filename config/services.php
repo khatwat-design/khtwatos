@@ -45,6 +45,19 @@ return [
         'subject' => env('VAPID_SUBJECT', 'mailto:admin@os.kharijm.com'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Firebase Cloud Messaging (تطبيقات أندرويد / آيفون عبر Capacitor)
+    |--------------------------------------------------------------------------
+    |
+    | ضع مسار ملف JSON لحساب الخدمة (Firebase Console → Project settings → Service accounts).
+    | يُستخدم لإرسال إشعارات FCM v1 جنبًا إلى جنب مع Web Push (VAPID).
+    |
+    */
+    'firebase' => [
+        'credentials' => env('FIREBASE_CREDENTIALS'),
+    ],
+
     'meta_ads' => [
         'app_id' => env('META_ADS_APP_ID'),
         'app_secret' => env('META_ADS_APP_SECRET'),

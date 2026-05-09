@@ -1336,10 +1336,12 @@ function outsideMessengerUrl(channel) {
 
         <div
             v-if="showSubscriptionModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            class="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:bg-black/50 sm:p-4"
             @click.self="showSubscriptionModal = false"
         >
-            <div class="glass-modal w-full max-w-lg p-5">
+            <div
+                class="glass-modal w-full max-w-lg max-h-[min(92dvh,90vh)] overflow-y-auto overscroll-contain !rounded-t-3xl !rounded-b-none p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:mx-auto sm:max-h-[90vh] sm:!rounded-2xl sm:p-5"
+            >
                 <div class="flex items-center justify-between gap-2">
                     <h3 class="text-lg font-semibold text-gray-900">إدارة اشتراك العميل</h3>
                     <button
@@ -1397,10 +1399,12 @@ function outsideMessengerUrl(channel) {
 
         <div
             v-if="showUploadAttachmentModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            class="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:bg-black/50 sm:p-4"
             @click.self="showUploadAttachmentModal = false"
         >
-            <div class="glass-modal w-full max-w-md p-5">
+            <div
+                class="glass-modal w-full max-w-md max-h-[min(92dvh,90vh)] overflow-y-auto overscroll-contain !rounded-t-3xl !rounded-b-none p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:mx-auto sm:max-h-[90vh] sm:!rounded-2xl sm:p-5"
+            >
                 <div class="flex items-center justify-between gap-2">
                     <h3 class="text-lg font-semibold text-gray-900">رفع ملف مرجعي</h3>
                     <button
@@ -1440,10 +1444,12 @@ function outsideMessengerUrl(channel) {
 
         <div
             v-if="showReferenceLinkModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            class="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:bg-black/50 sm:p-4"
             @click.self="showReferenceLinkModal = false"
         >
-            <div class="glass-modal w-full max-w-md p-5">
+            <div
+                class="glass-modal w-full max-w-md max-h-[min(92dvh,90vh)] overflow-y-auto overscroll-contain !rounded-t-3xl !rounded-b-none p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:mx-auto sm:max-h-[90vh] sm:!rounded-2xl sm:p-5"
+            >
                 <div class="flex items-center justify-between gap-2">
                     <h3 class="text-lg font-semibold text-gray-900">إضافة رابط مرجعي</h3>
                     <button
@@ -1490,10 +1496,12 @@ function outsideMessengerUrl(channel) {
 
         <div
             v-if="showProductModal"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            class="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:bg-black/50 sm:p-4"
             @click.self="showProductModal = false"
         >
-            <div class="glass-modal w-full max-w-lg p-5">
+            <div
+                class="glass-modal w-full max-w-lg max-h-[min(92dvh,90vh)] overflow-y-auto overscroll-contain !rounded-t-3xl !rounded-b-none p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:mx-auto sm:max-h-[90vh] sm:!rounded-2xl sm:p-5"
+            >
                 <div class="flex items-center justify-between gap-2">
                     <h3 class="text-lg font-semibold text-gray-900">إضافة منتج للعميل</h3>
                     <button

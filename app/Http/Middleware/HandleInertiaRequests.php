@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Http\Controllers\TeamNotebookController;
 use App\Services\ChatNotificationReadService;
 use App\Services\ChatUnreadService;
+use App\Services\NativePushService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
@@ -71,6 +72,7 @@ class HandleInertiaRequests extends Middleware
                 'chat_notifications_unread' => $chatNotificationsUnread,
                 'chat_messages_unread_total' => $chatMessagesUnreadTotal,
                 'webpush_public_key' => config('services.webpush.public_key'),
+                'native_fcm_configured' => NativePushService::isConfigured(),
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

@@ -4,6 +4,7 @@ use App\Http\Controllers\AcademyController;
 use App\Http\Controllers\ChatNotificationsController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientPortalController;
+use App\Http\Controllers\DevicePushTokenController;
 use App\Http\Controllers\DirectChatController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\GoodsCustomerController;
@@ -84,6 +85,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
     Route::post('/push-subscriptions', [PushSubscriptionController::class, 'store'])->name('push-subscriptions.store');
     Route::delete('/push-subscriptions', [PushSubscriptionController::class, 'destroy'])->name('push-subscriptions.destroy');
+    Route::post('/device-push-tokens', [DevicePushTokenController::class, 'store'])->name('device-push-tokens.store');
+    Route::delete('/device-push-tokens', [DevicePushTokenController::class, 'destroy'])->name('device-push-tokens.destroy');
     Route::get('/chat', [TeamChatController::class, 'index'])->name('chat.index');
     Route::post('/chat', [TeamChatController::class, 'store'])->name('chat.store');
     Route::get('/chat/messages', [TeamChatController::class, 'messages'])->name('chat.messages.index');

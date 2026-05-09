@@ -82,6 +82,11 @@ class User extends Authenticatable
         return $this->hasMany(PushSubscription::class);
     }
 
+    public function devicePushTokens(): HasMany
+    {
+        return $this->hasMany(DevicePushToken::class);
+    }
+
     public function metaOAuthTokens(): HasMany
     {
         return $this->hasMany(MetaOAuthToken::class);

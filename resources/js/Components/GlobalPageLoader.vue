@@ -22,7 +22,7 @@ defineProps({
                 aria-busy="true"
             >
                 <div
-                    class="absolute inset-0 bg-gradient-to-b from-slate-900/25 via-slate-900/15 to-white/30 backdrop-blur-[3px] motion-reduce:from-slate-900/20 motion-reduce:backdrop-blur-none"
+                    class="absolute inset-0 bg-gradient-to-b from-slate-900/25 via-slate-900/15 to-white/30 backdrop-blur-[3px] motion-reduce:from-slate-900/20 motion-reduce:backdrop-blur-none native:!bg-black native:!bg-none native:!backdrop-blur-none"
                     aria-hidden="true"
                 />
                 <div

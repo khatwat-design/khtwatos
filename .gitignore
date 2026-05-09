@@ -6,6 +6,7 @@
 .phpactor.json
 .phpunit.result.cache
 /.cursor/
+/.venv-icons
 /.idea
 /.nova
 /.phpunit.cache
@@ -23,3 +24,18 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Capacitor — ملفات بناء محلية (لا تُرفع)
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/captures/
+android/*.iml
+ios/App/build/
+ios/Pods/
+ios/App/Pods/
+DerivedData/
+
+# حزم APK محلية للاختبار
+/dist/
