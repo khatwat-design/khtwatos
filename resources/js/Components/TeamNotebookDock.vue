@@ -9,7 +9,8 @@ const props = defineProps({
     },
 });
 
-const hoveredPeek = ref(false);
+/** مرّ على العمود أو مفتوح */
+const peekExpanded = ref(false);
 const panelOpen = ref(false);
 const activeSheet = ref('personal'); // personal | shared
 
@@ -81,18 +82,38 @@ watch(
     { deep: true },
 );
 
-/** لو انتقل المستخدم لفريق آخر أثناء الدفتر مفتوح */
 watch(
     () => props.notebook?.team_id,
     () => {
         panelOpen.value = false;
-        hoveredPeek.value = false;
+        peekExpanded.value = false;
     },
 );
 
 watch(panelOpen, (open) => {
-    hoveredPeek.value = open;
+    if (!open) {
+        peekExpanded.value = false;
+    }
 });
+
+function onSpineEnter() {
+    if (!panelOpen.value) {
+        peekExpanded.value = true;
+    }
+}
+
+function onSpineLeave() {
+    if (!panelOpen.value) {
+        peekExpanded.value = false;
+    }
+}
+
+function togglePanel() {
+    panelOpen.value = !panelOpen.value;
+    if (panelOpen.value) {
+        peekExpanded.value = true;
+    }
+}
 
 function onKeydown(e) {
     if (e.key === 'Escape') {
@@ -108,6 +129,20 @@ onBeforeUnmount(() => {
     window.removeEventListener('keydown', onKeydown);
     window.clearTimeout(personalTimer);
     window.clearTimeout(sharedTimer);
+});
+
+/**
+ * حركة الانزلاق: النسبة من عرض الحاوية (عمود + ورق).
+ * مرتاح: يظهر العمود (~56px) دائمًا؛ المرّ يُخرج جزءًا من الورق.
+ */
+const slideClass = computed(() => {
+    if (panelOpen.value) {
+        return 'notebook-slide--open';
+    }
+    if (peekExpanded.value) {
+        return 'notebook-slide--peek';
+    }
+    return 'notebook-slide--collapsed';
 });
 
 const sharedHint = computed(() => {
@@ -133,162 +168,169 @@ const sharedHint = computed(() => {
 
 <template>
     <Teleport to="body">
-        <!-- خلفية عند الفتح الكامل -->
-        <Transition
-            enter-active-class="transition-opacity duration-200 ease-out"
-            leave-active-class="transition-opacity duration-150 ease-in"
-            enter-from-class="opacity-0"
-            leave-to-class="opacity-0"
-        >
-            <div
-                v-if="panelOpen"
-                class="fixed inset-0 z-[65] bg-slate-900/35 backdrop-blur-[2px] md:bg-slate-900/25"
-                aria-hidden="true"
-                @click="panelOpen = false"
-            />
-        </Transition>
-
-        <!-- الدفتر — ثابت من جهة اليسار مع إخراج جزئي -->
-        <div
-            class="team-notebook-dock pointer-events-none fixed left-0 z-[70] max-md:bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] max-md:top-auto md:top-1/2 md:-translate-y-1/2"
-        >
-            <div
-                class="relative flex flex-row-reverse transition-[transform,filter] duration-300 ease-out motion-reduce:transition-none"
-                :style="
-                    panelOpen
-                        ? { transform: 'translateX(0)' }
-                        : hoveredPeek
-                          ? { transform: 'translateX(calc(-100% + 5.25rem))' }
-                          : { transform: 'translateX(calc(-100% + 1.35rem))' }
-                "
+        <!-- اتجاه LTR ثابت حتى لا يعكس flex تحت dir=rtl للصفحة -->
+        <div class="team-notebook-root pointer-events-none fixed inset-x-0 bottom-0 top-0 z-[70] md:inset-x-auto md:left-0 md:right-auto" dir="ltr">
+            <Transition
+                enter-active-class="transition-opacity duration-300 ease-out"
+                leave-active-class="transition-opacity duration-200 ease-in"
+                enter-from-class="opacity-0"
+                leave-to-class="opacity-0"
             >
-                <!-- غلاف / عمود الكتاب -->
-                <button
-                    type="button"
-                    class="pointer-events-auto relative flex h-[min(22rem,55vh)] w-14 shrink-0 cursor-pointer flex-col items-center justify-between rounded-r-2xl border border-amber-900/35 bg-gradient-to-b from-[#3d2918] via-[#5c3d26] to-[#2a1b11] py-5 shadow-[0_18px_50px_-14px_rgba(0,0,0,0.55)] ring-2 ring-amber-200/25 md:h-[min(26rem,62vh)]"
-                    aria-label="دفتر الفريق"
-                    @mouseenter="hoveredPeek = true"
-                    @mouseleave="hoveredPeek = panelOpen"
-                    @click="panelOpen = true"
-                >
-                    <span
-                        class="pointer-events-none absolute inset-x-1 top-3 h-px bg-gradient-to-r from-transparent via-amber-200/35 to-transparent"
-                    />
-                    <div class="flex flex-col items-center gap-2">
-                        <span class="text-[10px] font-black uppercase tracking-[0.35em] text-amber-100/75">Notes</span>
-                        <svg
-                            class="h-9 w-9 text-amber-100/90 drop-shadow"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.6"
-                            aria-hidden="true"
-                        >
-                            <path d="M6 4h9l3 3v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
-                            <path d="M14 4v4h4M8 11h8M8 15h6" />
-                        </svg>
-                    </div>
-                    <span class="rotate-180 text-[11px] font-bold tracking-wide text-amber-50/85 [writing-mode:vertical-rl]">
-                        دفتر الفريق
-                    </span>
-                    <span
-                        class="pointer-events-none absolute inset-x-1 bottom-3 h-px bg-gradient-to-r from-transparent via-amber-200/25 to-transparent"
-                    />
-                </button>
-
-                <!-- الصفحات — ظهر الكتاب -->
                 <div
-                    class="relative flex h-[min(22rem,55vh)] flex-col rounded-l-2xl border-y border-l border-amber-200/35 bg-[linear-gradient(115deg,#fffdf8_0%,#f8f4ec_42%,#fdfbf7_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.85),12px_0_34px_-16px_rgba(41,37,36,0.35)] transition-[width] duration-300 ease-out motion-reduce:transition-none md:h-[min(26rem,62vh)]"
-                    :class="[
-                        panelOpen ? 'pointer-events-auto w-[min(92vw,34rem)]' : 'pointer-events-none w-[min(18rem,calc(100vw-4rem))]',
-                    ]"
-                    role="dialog"
-                    :aria-modal="panelOpen"
-                    :aria-hidden="!panelOpen"
+                    v-if="panelOpen"
+                    class="pointer-events-auto fixed inset-0 z-[65] bg-slate-950/40 backdrop-blur-[3px]"
+                    aria-hidden="true"
+                    @click="panelOpen = false"
+                />
+            </Transition>
+
+            <!-- موضع: أسفل اليسار على الجوال فوق شريط التنقل، وسط الجانب الأيسر على الشاشات الكبيرة -->
+            <div
+                class="pointer-events-none absolute left-3 z-[72] max-md:bottom-[calc(4.85rem+env(safe-area-inset-bottom,0px))] md:left-0 md:top-1/2 md:-translate-y-1/2"
+            >
+                <div
+                    class="notebook-slide pointer-events-auto flex w-max max-w-[calc(100vw-1.25rem)] flex-row items-stretch shadow-2xl shadow-black/25 will-change-transform md:max-w-none"
+                    :class="slideClass"
                 >
-                    <div class="pointer-events-none absolute inset-0 opacity-[0.07] [background-image:linear-gradient(#78716c_1px,transparent_1px)] [background-size:100%_1.35rem]" />
-                    <!-- حافة ورق -->
+                    <!-- عمود الدفتر — دائمًا ظاهر بوضوح -->
+                    <button
+                        type="button"
+                        class="notebook-spine relative z-[2] flex w-14 shrink-0 cursor-pointer flex-col items-center justify-between rounded-r-xl border border-amber-950/40 bg-gradient-to-b from-[#4a3220] via-[#6b472e] to-[#2e1f14] py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ring-2 ring-amber-100/30 md:w-[3.75rem] md:rounded-r-2xl md:py-5"
+                        aria-label="فتح دفتر الفريق"
+                        :aria-expanded="panelOpen"
+                        @mouseenter="onSpineEnter"
+                        @mouseleave="onSpineLeave"
+                        @click="togglePanel"
+                    >
+                        <!-- شريط مرجعي (bookmark) -->
+                        <span
+                            class="pointer-events-none absolute -right-1 top-[18%] h-10 w-3 rounded-sm bg-gradient-to-b from-rose-400 to-rose-700 shadow-md ring-1 ring-rose-950/20"
+                            aria-hidden="true"
+                        />
+                        <span
+                            class="pointer-events-none absolute inset-x-2 top-3 h-px bg-gradient-to-r from-transparent via-amber-100/40 to-transparent"
+                        />
+                        <div class="flex flex-col items-center gap-1.5 pt-1">
+                            <svg
+                                class="h-8 w-8 text-amber-50 drop-shadow md:h-9 md:w-9"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.65"
+                                aria-hidden="true"
+                            >
+                                <path d="M6 4h9l3 3v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+                                <path d="M14 4v4h4M8 11h8M8 15h6" />
+                            </svg>
+                            <span class="text-[9px] font-black uppercase tracking-[0.28em] text-amber-100/80">Notes</span>
+                        </div>
+                        <span
+                            class="mb-2 rotate-180 px-1 text-center text-[11px] font-bold leading-tight text-amber-50/95 [writing-mode:vertical-rl]"
+                        >
+                            دفتر الفريق
+                        </span>
+                        <span
+                            class="pointer-events-none absolute inset-x-2 bottom-3 h-px bg-gradient-to-r from-transparent via-amber-100/25 to-transparent"
+                        />
+                    </button>
+
+                    <!-- صفحات الورق -->
                     <div
-                        class="pointer-events-none absolute inset-y-4 left-6 w-px bg-red-300/35 motion-reduce:opacity-0"
-                        aria-hidden="true"
-                    />
+                        class="notebook-paper relative z-[1] flex min-h-[min(22rem,52vh)] w-[min(17.5rem,calc(100vw-5.5rem))] flex-col rounded-l-xl border border-r-0 border-amber-900/20 bg-[linear-gradient(105deg,#fffef9_0%,#f7f0e4_45%,#fdfbf6_100%)] md:min-h-[min(26rem,62vh)] md:w-[22rem]"
+                        :class="panelOpen ? 'md:!w-[min(34rem,calc(100vw-2rem))]' : ''"
+                        role="dialog"
+                        :aria-modal="panelOpen"
+                        :aria-hidden="!panelOpen"
+                        @mouseenter="panelOpen ? null : onSpineEnter()"
+                        @mouseleave="panelOpen ? null : onSpineLeave()"
+                    >
+                        <div
+                            class="pointer-events-none absolute inset-0 opacity-[0.055] [background-image:linear-gradient(#78716c_1px,transparent_1px)] [background-size:100%_1.35rem]"
+                        />
+                        <div
+                            class="pointer-events-none absolute inset-y-5 left-5 w-px bg-rose-400/40"
+                            aria-hidden="true"
+                        />
 
-                    <div class="relative flex min-h-0 flex-1 flex-col px-4 pb-3 pt-4 md:px-5 md:pb-4 md:pt-5">
-                        <div class="flex items-start justify-between gap-2 border-b border-amber-900/10 pb-3">
-                            <div>
-                                <p class="text-[13px] font-black text-slate-900">دفتر المهام</p>
-                                <p class="mt-0.5 text-[11px] leading-snug text-slate-600">ملاحظات خاصة + ورقة عامة للفريق</p>
-                            </div>
-                            <button
-                                type="button"
-                                class="rounded-xl bg-slate-900/[0.05] px-2 py-1 text-[11px] font-bold text-slate-600 ring-1 ring-slate-900/10 hover:bg-white"
-                                @click="panelOpen = false"
-                            >
-                                إغلاق
-                            </button>
-                        </div>
-
-                        <!-- تبويب الورقتين -->
-                        <div class="mt-3 grid grid-cols-2 gap-1 rounded-xl bg-slate-900/[0.04] p-1 ring-1 ring-slate-900/[0.06]">
-                            <button
-                                type="button"
-                                class="rounded-lg px-2 py-2 text-[11px] font-bold transition-colors duration-150"
-                                :class="
-                                    activeSheet === 'personal'
-                                        ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/10'
-                                        : 'text-slate-600 hover:bg-white/70'
-                                "
-                                @click="activeSheet = 'personal'"
-                            >
-                                خاصّتي
-                            </button>
-                            <button
-                                type="button"
-                                class="rounded-lg px-2 py-2 text-[11px] font-bold transition-colors duration-150"
-                                :class="
-                                    activeSheet === 'shared'
-                                        ? 'bg-emerald-50 text-emerald-950 shadow-sm ring-1 ring-emerald-800/15'
-                                        : 'text-slate-600 hover:bg-white/70'
-                                "
-                                @click="activeSheet = 'shared'"
-                            >
-                                عامّة للفريق
-                            </button>
-                        </div>
-
-                        <div class="mt-3 flex min-h-0 flex-1 flex-col">
-                            <div v-if="activeSheet === 'personal'" class="flex min-h-0 flex-1 flex-col gap-2">
-                                <p class="text-[10px] text-slate-500">لا يراها أحد سواك داخل هذا الفريق.</p>
-                                <textarea
-                                    v-model="personalBody"
-                                    rows="8"
-                                    class="min-h-[11rem] w-full flex-1 resize-none rounded-xl border border-slate-200/90 bg-white/85 px-3 py-2 text-[13px] leading-relaxed text-slate-900 shadow-inner outline-none ring-1 ring-slate-900/[0.04] placeholder:text-slate-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-200"
-                                    placeholder="اكتب ملاحظاتك الشخصية…"
-                                    @input="schedulePersonalSave"
-                                    @blur="flushPersonalSave"
-                                />
-                                <p class="text-[10px] text-slate-400 tabular-nums">
-                                    {{ savingPersonal ? 'جاري الحفظ…' : 'يُحفظ تلقائيًا' }}
-                                </p>
-                            </div>
-
-                            <div v-else class="flex min-h-0 flex-1 flex-col gap-2">
-                                <p class="text-[10px] text-slate-500">
-                                    يقرؤها كل أعضاء الفريق في لوحة المهام والدردشة.
-                                </p>
-                                <textarea
-                                    v-model="sharedBody"
-                                    rows="8"
-                                    class="min-h-[11rem] w-full flex-1 resize-none rounded-xl border border-emerald-900/15 bg-emerald-50/40 px-3 py-2 text-[13px] leading-relaxed text-slate-900 shadow-inner outline-none ring-1 ring-emerald-900/10 placeholder:text-slate-500 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200"
-                                    placeholder="ملاحظات ومتابعات عامة للفريق…"
-                                    @input="scheduleSharedSave"
-                                    @blur="flushSharedSave"
-                                />
-                                <div class="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500">
-                                    <span>{{ savingShared ? 'جاري الحفظ…' : 'يُحفظ تلقائيًا' }}</span>
-                                    <span v-if="sharedHint" class="max-w-full truncate text-slate-400">{{ sharedHint }}</span>
+                        <div class="relative flex min-h-0 flex-1 flex-col px-3.5 pb-3 pt-3.5 md:px-5 md:pb-4 md:pt-5">
+                            <div class="flex items-start justify-between gap-2 border-b border-amber-900/12 pb-2.5">
+                                <div>
+                                    <p class="text-sm font-black text-slate-900">دفتر الملاحظات</p>
+                                    <p class="mt-0.5 text-[11px] leading-snug text-slate-600">خاصّة لك + ورقة عامة للفريق</p>
                                 </div>
+                                <button
+                                    type="button"
+                                    class="rounded-xl bg-white/90 px-2.5 py-1 text-[11px] font-bold text-slate-700 shadow-sm ring-1 ring-slate-900/10 hover:bg-white"
+                                    @click.stop="panelOpen = false"
+                                >
+                                    إغلاق
+                                </button>
                             </div>
+
+                            <div class="mt-2.5 grid grid-cols-2 gap-1 rounded-xl bg-slate-900/[0.05] p-1 ring-1 ring-slate-900/[0.06]">
+                                <button
+                                    type="button"
+                                    class="rounded-lg px-2 py-2 text-[11px] font-bold transition-colors duration-150"
+                                    :class="
+                                        activeSheet === 'personal'
+                                            ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-900/10'
+                                            : 'text-slate-600 hover:bg-white/80'
+                                    "
+                                    @click.stop="activeSheet = 'personal'"
+                                >
+                                    خاصّتي
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-lg px-2 py-2 text-[11px] font-bold transition-colors duration-150"
+                                    :class="
+                                        activeSheet === 'shared'
+                                            ? 'bg-emerald-50 text-emerald-950 shadow-sm ring-1 ring-emerald-800/15'
+                                            : 'text-slate-600 hover:bg-white/80'
+                                    "
+                                    @click.stop="activeSheet = 'shared'"
+                                >
+                                    عامّة للفريق
+                                </button>
+                            </div>
+
+                            <div class="mt-2.5 flex min-h-0 flex-1 flex-col">
+                                <template v-if="activeSheet === 'personal'">
+                                    <p class="mb-1 text-[10px] text-slate-500">لا تظهر إلا لك.</p>
+                                    <textarea
+                                        v-model="personalBody"
+                                        rows="8"
+                                        class="min-h-[10rem] w-full flex-1 resize-none rounded-xl border border-slate-200/95 bg-white/90 px-3 py-2 text-[13px] leading-relaxed text-slate-900 shadow-inner outline-none placeholder:text-slate-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-200/80"
+                                        placeholder="اكتب ملاحظاتك…"
+                                        :disabled="!panelOpen"
+                                        @input="schedulePersonalSave"
+                                        @blur="flushPersonalSave"
+                                    />
+                                    <p class="mt-1 text-[10px] text-slate-400 tabular-nums">
+                                        {{ savingPersonal ? 'جاري الحفظ…' : 'يُحفظ تلقائيًا' }}
+                                    </p>
+                                </template>
+                                <template v-else>
+                                    <p class="mb-1 text-[10px] text-slate-500">يراها كل الفريق.</p>
+                                    <textarea
+                                        v-model="sharedBody"
+                                        rows="8"
+                                        class="min-h-[10rem] w-full flex-1 resize-none rounded-xl border border-emerald-900/20 bg-emerald-50/50 px-3 py-2 text-[13px] leading-relaxed text-slate-900 shadow-inner outline-none placeholder:text-slate-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200/80"
+                                        placeholder="ملاحظات عامة للفريق…"
+                                        :disabled="!panelOpen"
+                                        @input="scheduleSharedSave"
+                                        @blur="flushSharedSave"
+                                    />
+                                    <div class="mt-1 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500">
+                                        <span>{{ savingShared ? 'جاري الحفظ…' : 'يُحفظ تلقائيًا' }}</span>
+                                        <span v-if="sharedHint" class="max-w-full truncate text-slate-400">{{ sharedHint }}</span>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <p v-if="!panelOpen" class="mt-2 text-center text-[10px] font-semibold text-slate-500">
+                                اضغط العمود لفتح الدفتر بالكامل
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -298,9 +340,40 @@ const sharedHint = computed(() => {
 </template>
 
 <style scoped>
+.notebook-slide {
+    transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* مطوي: يظهر تقريبًا عمود الكتاب فقط (~56–60px) */
+.notebook-slide--collapsed {
+    transform: translateX(calc(-100% + 3.75rem));
+}
+
+@media (min-width: 768px) {
+    .notebook-slide--collapsed {
+        transform: translateX(calc(-100% + 4.25rem));
+    }
+}
+
+/* مرّ الماوس: يخرج جزء واضح من الورق */
+.notebook-slide--peek {
+    transform: translateX(calc(-100% + 10.5rem));
+}
+
+@media (min-width: 768px) {
+    .notebook-slide--peek {
+        transform: translateX(calc(-100% + 12rem));
+    }
+}
+
+/* مفتوح بالكامل */
+.notebook-slide--open {
+    transform: translateX(0);
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .team-notebook-dock * {
-        transition-duration: 0.01ms !important;
+    .notebook-slide {
+        transition-duration: 0.22s;
     }
 }
 </style>
