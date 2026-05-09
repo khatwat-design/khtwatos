@@ -91,6 +91,89 @@ Gradle يطبّق إضافة Google Services **فقط** إذا وُجد المل
 2. حمّل **`google-services.json`** وضعه في **`android/app/`** ثم أعد `npm run cap:sync` وبناء APK من جديد.
 3. على الخادم: **`FIREBASE_MOBILE_PUSH_ENABLED=true`** بعد توفر ملف العميل في الـ APK، مع **`FIREBASE_CREDENTIALS`** لإرسال الرسائل من Laravel عبر `NativePushService`.
 
+### دليل خطوة بخطوة: شنو تسوي أنت وشنو بـ Firebase؟
+
+نظام «خارج المخزون» يحتاج **شغلتين منفصلتين** من Firebase:
+
+| الملف / الإعداد | وين يستخدم؟ | الغرض |
+|-----------------|-------------|--------|
+| **`google-services.json`** | داخل مشروع أندرويد على جهازك: **`android/app/google-services.json`** | يهيّئ Firebase داخل **التطبيق على الهاتف** ويمنع التعطّل عند طلب التسجيل، ويولّد **رمز الجهاز (FCM token)** |
+| **ملف حساب الخدمة (JSON)** | على **السيرفر** فقط؛ مساره في `.env` كـ **`FIREBASE_CREDENTIALS`** | يخوّل **Laravel** إرسال إشعارات FCM إلى الأجهزة المسجّلة |
+
+بدون الاثنين معًا: إما التطبيق يتعطّل أو ما توصل إشعارات للهاتف.
+
+---
+
+#### المرحلة ١ — حساب Google و Firebase (من المتصفح)
+
+1. ادخل [Firebase Console](https://console.firebase.google.com/) بحساب Google (نفس الفريق أو حساب الشركة).
+2. **إنشاء مشروع** أو اختيار مشروع موجود: «Add project» / اختَر الاسم، أكمل المعالج (تحليلات Google اختيارية).
+3. من لوحة المشروع، اضغط أيقونة **أندرويد** «Add app» → **Android**.
+4. **Android package name** لازم يكون **بالضبط** نفس `applicationId` في المشروع:
+   - افتح عندك الملف `android/app/build.gradle` وتأكد من السطر `applicationId "..."`.
+   - حاليًا المتوقع: **`design.khatwat.erp`** (إذا غيّرتوه بالمستقبل، لازم نفس القيمة هنا وبـ Firebase).
+5. اسم التطبيق الاختياري (مثل «خارج المخزون») ثم **Register app**.
+6. **حمّل ملف `google-services.json`** (زر Download). لا تشارك هذا الملف علنًا؛ هو مرتبط بالمشروع لكنه للعميل داخل التطبيق.
+7. بعد التسجيل، من القائمة: **Project settings** (ترس) → تبويب **Cloud Messaging**. تأكد أن **Firebase Cloud Messaging API** مفعّلة للمشروع (في مشاريع جديدة غالبًا جاهزة؛ إذا طلب تفعيل من Google Cloud، اتبع الرابط وأكمل التفعيل).
+
+---
+
+#### المرحلة ٢ — حساب الخدمة لإرسال الإشعارات من السيرفر (Laravel)
+
+1. في نفس **Firebase Console**: **Project settings** → تبويب **Service accounts**.
+2. اضغط **Generate new private key** → يحمّل ملف JSON (حساب خدمة).
+3. هذا الملف **سري جدًا**: لا ترفعه إلى GitHub ولا ترسله بالواتساب. ضعه على السيرفر في مسار آمن، مثل:
+   - `/home/YOUR_USER/.secrets/firebase-adminsdk.json`
+   - صلاحيات الملف: قراءة للمستخدم الذي يشغّل PHP فقط (`chmod 600`).
+
+---
+
+#### المرحلة ٣ — على جهازك (حيث تبني الـ APK)
+
+1. انسخ **`google-services.json`** إلى:
+   - **`android/app/google-services.json`**
+2. من جذر المشروع:
+   ```bash
+   npm run build
+   CAPACITOR_SERVER_URL=https://os.kharijm.com npm run cap:sync
+   ```
+   (عدّل الرابط إذا نطاق الإنتاج مختلف.)
+3. ابنِ الـ APK كالمعتاد (`npm run cap:apk:debug` أو `./gradlew assembleDebug` من مجلد `android`).
+4. ثبّت الـ APK الجديد على الهاتف.
+
+---
+
+#### المرحلة ٤ — على السيرفر (`.env` و Laravel)
+
+1. ارفع ملف **حساب الخدمة** إلى السيرفر (SFTP/SCP) في مسار آمن.
+2. في `.env`:
+   ```env
+   FIREBASE_CREDENTIALS=/المسار/الكامل/إلى/firebase-adminsdk-xxxxx.json
+   FIREBASE_MOBILE_PUSH_ENABLED=true
+   ```
+3. نفّذ:
+   ```bash
+   php artisan config:clear
+   php artisan config:cache
+   ```
+4. تأكد أن جدول **`device_push_tokens`** موجود (`php artisan migrate` إذا لم يكن مطبّقًا بعد).
+
+---
+
+#### المرحلة ٥ — التحقق السريع
+
+1. افتح التطبيق وسجّل الدخول؛ يفترض أن يظهر طلب إذن الإشعارات (أو فعّله من إعدادات النظام).
+2. من قاعدة البيانات أو لوحة الإدارة إن وُجدت: تأكد أنه صار في جدول **`device_push_tokens`** صف لـ `user_id` تبعك مع **token** غير فارغ.
+3. جرّب إشعار من حساب ثاني أو مهمة؛ إذا ما وصل، راجع سجلات Laravel ومتغير **`FIREBASE_CREDENTIALS`** ومسار الملف.
+
+---
+
+#### ملاحظات مهمة
+
+- **`FIREBASE_MOBILE_PUSH_ENABLED=true`** لا تضعه على السيرفر **قبل** ما يكون في الـ APK **`google-services.json`**؛ وإلا رجع خطر التعطّل أو عدم التسجيل بشكل صحيح.
+- ملف **`google-services.json`** مُستثنى من Git في `android/.gitignore`؛ كل مطوّر أو خادم بناء يضعه محليًا على جهاز البناء.
+- **آيفون** لاحقًا يحتاج **`GoogleService-Info.plist`** وخطوات Apple مطابقة؛ الدليل أعلاه يركّز على أندرويد كما في مشروعك الحالي.
+
 ### إذا لم يُطلب الإذن أو لا يصل التوكن للخادم
 
 - من إعدادات النظام على الهاتف: تحقق من إذن الإشعارات لتطبيق «خارج المخزون».

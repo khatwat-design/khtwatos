@@ -1,4 +1,5 @@
 <script setup>
+import { Capacitor } from '@capacitor/core';
 import { initNativePushForAuthenticatedSession } from '@/capacitor/native-push';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
@@ -18,6 +19,30 @@ const browserNotificationsEnabled = ref(false);
 let lastUnreadCount = Number(page.props.notifications?.unread_count || 0);
 const vapidPublicKey = computed(() => String(page.props.notifications?.webpush_public_key || ''));
 const avatarUrl = computed(() => page.props.auth?.user?.avatar_url || '/images/mobile-logo.png');
+
+const nativePushHintDismissed = ref(false);
+
+const showNativePushSetupBanner = computed(() => {
+    if (nativePushHintDismissed.value) {
+        return false;
+    }
+    if (!Capacitor.isNativePlatform()) {
+        return false;
+    }
+    if (page.props.notifications?.firebase_mobile_push_enabled) {
+        return false;
+    }
+    return true;
+});
+
+function dismissNativePushHint() {
+    nativePushHintDismissed.value = true;
+    try {
+        sessionStorage.setItem('kharij-dismiss-push-hint', '1');
+    } catch {
+        /* تجاهل */
+    }
+}
 
 const teamNotebook = computed(() => {
     const nb = page.props.team_notebook;
@@ -79,6 +104,11 @@ function navIcon(item) {
 }
 
 onMounted(() => {
+    try {
+        nativePushHintDismissed.value = sessionStorage.getItem('kharij-dismiss-push-hint') === '1';
+    } catch {
+        nativePushHintDismissed.value = false;
+    }
     removeFinishListener = router.on('finish', () => {
         unreadCount.value = Number(page.props.notifications?.unread_count || unreadCount.value || 0);
     });
@@ -432,6 +462,24 @@ async function openNotification(note) {
                         </Dropdown>
                     </div>
                 </header>
+
+                <div
+                    v-if="showNativePushSetupBanner"
+                    class="relative z-10 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 px-3 py-2.5 text-center text-[11px] leading-snug text-amber-950 md:justify-between md:px-6 md:text-start md:text-xs"
+                    role="status"
+                >
+                    <p class="max-w-3xl">
+                        إشعارات شريط الهاتف (خارج التطبيق) غير مفعّلة بعد؛ الخادم يوقف تسجيل الجهاز حتى يكتمل إعداد Firebase وملف
+                        google-services في بناء التطبيق. الإشعارات ما زالت تظهر من زر الجرس داخل التطبيق بعد تحديث الصفحة.
+                    </p>
+                    <button
+                        type="button"
+                        class="shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold text-amber-900 underline decoration-amber-600 underline-offset-2 hover:bg-amber-100/80 md:text-xs"
+                        @click="dismissNativePushHint"
+                    >
+                        إخفاء
+                    </button>
+                </div>
 
                 <main class="relative z-10 flex min-h-0 flex-1 flex-col overflow-auto p-3 pb-20 md:p-6 md:pb-6">
                     <slot />
