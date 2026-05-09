@@ -108,9 +108,38 @@ function onSpineLeave() {
     }
 }
 
-function togglePanel() {
-    panelOpen.value = !panelOpen.value;
-    if (panelOpen.value) {
+function onPaperPeekEnter() {
+    if (!panelOpen.value) {
+        onSpineEnter();
+    }
+}
+
+function onPaperPeekLeave() {
+    if (!panelOpen.value) {
+        onSpineLeave();
+    }
+}
+
+/**
+ * نستخدم pointerdown بدل click حتى لا يُلغَى النقر إذا تحرّك العنصر بعد hover،
+ * ونفتح عند الضغط على الورقة الظاهرة في وضع peek وليس على العمود فقط.
+ */
+function onDockPointerDownCapture(e) {
+    if (e.button !== 0) {
+        return;
+    }
+    const spine = typeof e.target?.closest === 'function' ? e.target.closest('.notebook-spine') : null;
+    if (spine) {
+        e.preventDefault();
+        panelOpen.value = !panelOpen.value;
+        if (panelOpen.value) {
+            peekExpanded.value = true;
+        }
+        return;
+    }
+    if (!panelOpen.value) {
+        e.preventDefault();
+        panelOpen.value = true;
         peekExpanded.value = true;
     }
 }
@@ -178,7 +207,7 @@ const sharedHint = computed(() => {
             >
                 <div
                     v-if="panelOpen"
-                    class="pointer-events-auto fixed inset-0 z-[65] bg-slate-950/40 backdrop-blur-[3px]"
+                    class="pointer-events-auto fixed inset-0 z-[60] bg-slate-950/40 backdrop-blur-[3px]"
                     aria-hidden="true"
                     @click="panelOpen = false"
                 />
@@ -186,11 +215,12 @@ const sharedHint = computed(() => {
 
             <!-- موضع: أسفل اليسار على الجوال فوق شريط التنقل، وسط الجانب الأيسر على الشاشات الكبيرة -->
             <div
-                class="pointer-events-none absolute left-3 z-[72] max-md:bottom-[calc(4.85rem+env(safe-area-inset-bottom,0px))] md:left-0 md:top-1/2 md:-translate-y-1/2"
+                class="pointer-events-none absolute left-3 z-[80] max-md:bottom-[calc(4.85rem+env(safe-area-inset-bottom,0px))] md:left-0 md:top-1/2 md:-translate-y-1/2"
             >
                 <div
                     class="notebook-slide pointer-events-auto flex w-max max-w-[calc(100vw-1.25rem)] flex-row items-stretch shadow-2xl shadow-black/25 will-change-transform md:max-w-none"
                     :class="slideClass"
+                    @pointerdown.capture="onDockPointerDownCapture"
                 >
                     <!-- عمود الدفتر — دائمًا ظاهر بوضوح -->
                     <button
@@ -200,7 +230,6 @@ const sharedHint = computed(() => {
                         :aria-expanded="panelOpen"
                         @mouseenter="onSpineEnter"
                         @mouseleave="onSpineLeave"
-                        @click="togglePanel"
                     >
                         <!-- شريط مرجعي (bookmark) -->
                         <span
@@ -241,8 +270,8 @@ const sharedHint = computed(() => {
                         role="dialog"
                         :aria-modal="panelOpen"
                         :aria-hidden="!panelOpen"
-                        @mouseenter="panelOpen ? null : onSpineEnter()"
-                        @mouseleave="panelOpen ? null : onSpineLeave()"
+                        @mouseenter="onPaperPeekEnter"
+                        @mouseleave="onPaperPeekLeave"
                     >
                         <div
                             class="pointer-events-none absolute inset-0 opacity-[0.055] [background-image:linear-gradient(#78716c_1px,transparent_1px)] [background-size:100%_1.35rem]"
@@ -329,7 +358,7 @@ const sharedHint = computed(() => {
                             </div>
 
                             <p v-if="!panelOpen" class="mt-2 text-center text-[10px] font-semibold text-slate-500">
-                                اضغط العمود لفتح الدفتر بالكامل
+                                اضغط الورقة أو العمود لفتح الدفتر بالكامل
                             </p>
                         </div>
                     </div>
