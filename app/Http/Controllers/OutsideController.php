@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\ClientMetaConnectionService;
 use App\Services\InstagramGraphMessagingService;
 use App\Services\MessagingIntelligenceService;
+use App\Services\MessengerGraphMessagingService;
 use App\Services\OutsideGoodsClientBridgeService;
 use App\Services\WhatsAppCloudService;
 use Illuminate\Http\RedirectResponse;
@@ -24,6 +25,7 @@ class OutsideController extends Controller
     public function __construct(
         private readonly WhatsAppCloudService $whatsAppCloudService,
         private readonly InstagramGraphMessagingService $instagramMessaging,
+        private readonly MessengerGraphMessagingService $messengerMessaging,
         private readonly OutsideGoodsClientBridgeService $outsideGoodsBridge,
         private readonly ClientMetaConnectionService $clientMetaConnection,
         private readonly MessagingIntelligenceService $messagingIntelligence,
@@ -36,7 +38,7 @@ class OutsideController extends Controller
     {
         $conversations = OutsideConversation::query()
             ->with([
-                'contact:id,name,phone,channel,instagram_psid,client_id,last_message_at,assigned_user_id',
+                'contact:id,name,phone,channel,instagram_psid,messenger_psid,client_id,last_message_at,assigned_user_id',
                 'contact.assignedUser:id,name',
                 'messages' => fn ($query) => $query->limit(80),
             ])
@@ -59,6 +61,7 @@ class OutsideController extends Controller
                     'phone' => $conversation->contact?->phone,
                     'channel' => $this->normalizedOutsideChannel($conversation->contact?->channel),
                     'instagram_psid' => $conversation->contact?->instagram_psid,
+                    'messenger_psid' => $conversation->contact?->messenger_psid,
                     'client_id' => $conversation->contact?->client_id,
                     'assigned_user_id' => $conversation->contact?->assigned_user_id,
                     'assigned_user' => $conversation->contact?->assignedUser ? [
@@ -157,7 +160,7 @@ class OutsideController extends Controller
         $body = trim((string) $data['body']);
 
         $contact = $outsideConversation->contact;
-        $channel = $contact?->channel ?? 'whatsapp';
+        $channel = $this->normalizedOutsideChannel($contact?->channel ?? 'whatsapp');
 
         $message = $outsideConversation->messages()->create([
             'channel' => $channel,
@@ -172,6 +175,15 @@ class OutsideController extends Controller
             if ($channel === 'instagram') {
                 [$igBiz, $token, $psid] = $this->instagramSendContext($contact);
                 $response = $this->instagramMessaging->sendText($igBiz, $token, $psid, $body);
+                $message->update([
+                    'external_message_id' => (string) data_get($response, 'message_id', ''),
+                    'provider_status' => 'sent',
+                    'provider_error' => null,
+                    'sent_at' => now(),
+                ]);
+            } elseif ($channel === 'messenger') {
+                [$pageId, $token, $psid] = $this->messengerSendContext($contact);
+                $response = $this->messengerMessaging->sendText($pageId, $token, $psid, $body);
                 $message->update([
                     'external_message_id' => (string) data_get($response, 'message_id', ''),
                     'provider_status' => 'sent',
@@ -245,13 +257,28 @@ class OutsideController extends Controller
         }
 
         $contact = $outsideMessage->conversation?->contact;
-        $channel = $outsideMessage->channel ?? $contact?->channel ?? 'whatsapp';
+        $channel = $this->normalizedOutsideChannel($outsideMessage->channel ?? $contact?->channel ?? 'whatsapp');
 
         try {
             if ($channel === 'instagram') {
                 [$igBiz, $token, $psid] = $this->instagramSendContext($contact);
                 $response = $this->instagramMessaging->sendText(
                     $igBiz,
+                    $token,
+                    $psid,
+                    (string) $outsideMessage->body
+                );
+                $outsideMessage->update([
+                    'external_message_id' => (string) data_get($response, 'message_id', $outsideMessage->external_message_id),
+                    'provider_status' => 'sent',
+                    'provider_error' => null,
+                    'retry_count' => (int) $outsideMessage->retry_count + 1,
+                    'sent_at' => now(),
+                ]);
+            } elseif ($channel === 'messenger') {
+                [$pageId, $token, $psid] = $this->messengerSendContext($contact);
+                $response = $this->messengerMessaging->sendText(
+                    $pageId,
                     $token,
                     $psid,
                     (string) $outsideMessage->body
@@ -294,7 +321,13 @@ class OutsideController extends Controller
 
     private function normalizedOutsideChannel(?string $channel): string
     {
-        return strtolower(trim((string) ($channel ?? 'whatsapp'))) === 'instagram' ? 'instagram' : 'whatsapp';
+        $c = strtolower(trim((string) ($channel ?? 'whatsapp')));
+
+        return match ($c) {
+            'instagram' => 'instagram',
+            'messenger' => 'messenger',
+            default => 'whatsapp',
+        };
     }
 
     /**
@@ -349,6 +382,58 @@ class OutsideController extends Controller
         }
 
         return [$igBiz, $token, $psid];
+    }
+
+    /**
+     * @return array{0: string, 1: string, 2: string}
+     */
+    private function messengerSendContext(?OutsideContact $contact): array
+    {
+        if (! $contact) {
+            throw new \RuntimeException('لا توجد جهة مرتبطة بالمحادثة.');
+        }
+
+        $psid = (string) ($contact->messenger_psid ?? '');
+        if ($psid === '') {
+            throw new \RuntimeException('جهة ماسنجر بدون معرف مراسلة (PSID).');
+        }
+
+        $systemToken = trim((string) config('services.messenger.access_token', ''));
+        $pageFromEnv = trim((string) config('services.messenger.page_id', ''));
+
+        if ($systemToken !== '') {
+            $pageId = $pageFromEnv;
+            if ($pageId === '') {
+                $clientId = (int) ($contact->client_id ?? 0);
+                if ($clientId !== 0) {
+                    $integration = ClientMetaIntegration::query()->where('client_id', $clientId)->first();
+                    $pageId = (string) ($integration?->meta_page_id ?? '');
+                }
+            }
+            if ($pageId === '') {
+                throw new \RuntimeException('ضبط MESSENGER_PAGE_ID في .env أو اربط الجهة بعميل وحدّد meta_page_id في تكامل ميتا.');
+            }
+
+            return [$pageId, $systemToken, $psid];
+        }
+
+        $clientId = (int) ($contact->client_id ?? 0);
+        if ($clientId === 0) {
+            throw new \RuntimeException('الجهة غير مربوطة بعميل؛ ضبط MESSENGER_PAGE_ACCESS_TOKEN وMESSENGER_PAGE_ID أو اربط جهة ماسنجر بعميل له تكامل ميتا.');
+        }
+
+        $integration = ClientMetaIntegration::query()->where('client_id', $clientId)->first();
+        $pageId = (string) ($integration?->meta_page_id ?? '');
+        if ($pageId === '') {
+            throw new \RuntimeException('لا يوجد meta_page_id في تكامل ميتا لهذا العميل.');
+        }
+
+        $token = (string) ($this->clientMetaConnection->getAccessTokenForClient($clientId) ?? '');
+        if ($token === '') {
+            throw new \RuntimeException('لا يوجد رمز وصول ميتا صالح للعميل؛ أعد الربط من بوابة العميل أو ضبط MESSENGER_PAGE_ACCESS_TOKEN.');
+        }
+
+        return [$pageId, $token, $psid];
     }
 
     /**

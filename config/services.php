@@ -83,6 +83,22 @@ return [
         'business_account_id' => env('INSTAGRAM_BUSINESS_ACCOUNT_ID'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Messenger (قسم الخارج — Webhook object: page + Send API)
+    |--------------------------------------------------------------------------
+    |
+    | نفس مسار التحقق /outside/webhook — في Meta اشترك في Page + subscriptions للرسائل.
+    | الإرسال: POST /{page-id}/messages برمز صفحة يملك pages_messaging.
+    |
+    */
+    'messenger' => [
+        'webhook_verify_token' => env('MESSENGER_WEBHOOK_VERIFY_TOKEN', env('WHATSAPP_WEBHOOK_VERIFY_TOKEN')),
+        'graph_version' => env('MESSENGER_GRAPH_VERSION', env('META_ADS_GRAPH_VERSION', 'v22.0')),
+        'page_id' => env('MESSENGER_PAGE_ID'),
+        'access_token' => env('MESSENGER_PAGE_ACCESS_TOKEN'),
+    ],
+
     'whatsapp' => [
         'token' => env('WHATSAPP_TOKEN'),
         'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),

@@ -162,6 +162,7 @@ class ClientController extends Controller
         $outsideThreadsPayload = [
             'whatsapp' => null,
             'instagram' => null,
+            'messenger' => null,
         ];
         if (Schema::hasTable('outside_contacts') && Schema::hasTable('outside_conversations')) {
             $outsideContacts = OutsideContact::query()
@@ -170,7 +171,11 @@ class ClientController extends Controller
                 ->get(['id', 'channel', 'last_message_at']);
 
             foreach ($outsideContacts as $contact) {
-                $channel = ($contact->channel === 'instagram') ? 'instagram' : 'whatsapp';
+                $channel = match ($contact->channel) {
+                    'instagram' => 'instagram',
+                    'messenger' => 'messenger',
+                    default => 'whatsapp',
+                };
                 if ($outsideThreadsPayload[$channel] !== null) {
                     continue;
                 }
@@ -340,6 +345,12 @@ class ClientController extends Controller
                         ? OutsideContact::query()
                             ->where('client_id', $client->id)
                             ->where('channel', 'instagram')
+                            ->count()
+                        : 0,
+                    'outside_messenger_threads' => Schema::hasTable('outside_contacts')
+                        ? OutsideContact::query()
+                            ->where('client_id', $client->id)
+                            ->where('channel', 'messenger')
                             ->count()
                         : 0,
                 ],

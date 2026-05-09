@@ -61,7 +61,7 @@ class GoodsCustomerController extends Controller
             ])->values(),
             'owners' => User::query()->orderBy('name')->get(['id', 'name']),
             'contacts' => OutsideContact::query()
-                ->whereIn('channel', ['whatsapp', 'instagram'])
+                ->whereIn('channel', ['whatsapp', 'instagram', 'messenger'])
                 ->orderByDesc('updated_at')
                 ->limit(200)
                 ->get(['id', 'name', 'phone']),
@@ -157,9 +157,12 @@ class GoodsCustomerController extends Controller
 
         $goodsCustomer->load('contact:id,phone,channel');
 
-        if ($goodsCustomer->contact && ($goodsCustomer->contact->channel ?? 'whatsapp') === 'instagram') {
+        if (
+            $goodsCustomer->contact
+            && in_array($goodsCustomer->contact->channel ?? 'whatsapp', ['instagram', 'messenger'], true)
+        ) {
             return redirect()->route('goods.index')->withErrors([
-                'goods_reminder' => 'تذكيرات البضاعة تُرسل عبر واتساب فقط؛ جهة هذا العميل من إنستغرام.',
+                'goods_reminder' => 'تذكيرات البضاعة تُرسل عبر واتساب فقط؛ جهة هذا العميل من إنستغرام أو ماسنجر.',
             ]);
         }
 
@@ -234,7 +237,10 @@ class GoodsCustomerController extends Controller
 
         $goodsCustomer->load('contact:id,phone,channel');
 
-        if ($goodsCustomer->contact && ($goodsCustomer->contact->channel ?? 'whatsapp') === 'instagram') {
+        if (
+            $goodsCustomer->contact
+            && in_array($goodsCustomer->contact->channel ?? 'whatsapp', ['instagram', 'messenger'], true)
+        ) {
             return redirect()->route('goods.index')->withErrors([
                 'goods_reminder' => 'الاستبيان يُرسل عبر واتساب فقط.',
             ]);

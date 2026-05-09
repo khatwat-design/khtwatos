@@ -99,7 +99,11 @@ class MessagingIntelligenceService
     {
         $c = strtolower(trim((string) $channel));
 
-        return $c === 'instagram' ? 'instagram' : 'whatsapp';
+        return match ($c) {
+            'instagram' => 'instagram',
+            'messenger' => 'messenger',
+            default => 'whatsapp',
+        };
     }
 
     private function collectInboundText(OutsideConversation $conversation): string
@@ -288,7 +292,11 @@ class MessagingIntelligenceService
      */
     private function buildSuggestedReplies(string $classification, string $channel, string $textBlob, ?array $clientContext): array
     {
-        $chLabel = $channel === 'instagram' ? 'إنستغرام' : 'واتساب';
+        $chLabel = match ($channel) {
+            'instagram' => 'إنستغرام',
+            'messenger' => 'ماسنجر',
+            default => 'واتساب',
+        };
 
         $base = match ($classification) {
             self::CLASS_SUPPORT => [

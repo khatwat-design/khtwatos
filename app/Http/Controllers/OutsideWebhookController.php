@@ -29,7 +29,8 @@ class OutsideWebhookController extends Controller
         $token = (string) $request->query('hub_verify_token', $request->query('hub.verify_token', ''));
         $challenge = (string) $request->query('hub_challenge', $request->query('hub.challenge', ''));
         $verifyToken = (string) (
-            config('services.instagram.webhook_verify_token')
+            config('services.messenger.webhook_verify_token')
+            ?: config('services.instagram.webhook_verify_token')
             ?: config('services.whatsapp.webhook_verify_token')
         );
 
@@ -46,6 +47,9 @@ class OutsideWebhookController extends Controller
             $object = (string) $request->input('object', '');
             if ($object === 'instagram') {
                 return $this->receiveInstagram($request);
+            }
+            if ($object === 'page') {
+                return $this->receiveMessenger($request);
             }
 
             $entries = Arr::wrap($request->input('entry', []));
@@ -138,6 +142,180 @@ class OutsideWebhookController extends Controller
         }
 
         return response()->json(['ok' => true], Response::HTTP_OK);
+    }
+
+    private function receiveMessenger(Request $request): JsonResponse
+    {
+        try {
+            $entries = Arr::wrap($request->input('entry', []));
+            Log::info('messenger.webhook.payload', [
+                'object' => $request->input('object'),
+                'entries' => count($entries),
+            ]);
+
+            foreach ($entries as $entry) {
+                if (! is_array($entry)) {
+                    continue;
+                }
+
+                $pageId = (string) data_get($entry, 'id', '');
+                $clientId = null;
+                if ($pageId !== '' && Schema::hasTable('client_meta_integrations')) {
+                    $clientId = ClientMetaIntegration::query()
+                        ->where('meta_page_id', $pageId)
+                        ->value('client_id');
+                }
+
+                foreach (Arr::wrap(data_get($entry, 'messaging', [])) as $messaging) {
+                    if (! is_array($messaging)) {
+                        continue;
+                    }
+                    $this->storeInboundMessengerMessage($messaging, $clientId, $pageId);
+                }
+            }
+        } catch (Throwable $e) {
+            Log::error('messenger.webhook.failed', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json(['ok' => false, 'error' => 'internal'], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        return response()->json(['ok' => true], Response::HTTP_OK);
+    }
+
+    /**
+     * @param  array<string, mixed>  $messaging
+     */
+    private function storeInboundMessengerMessage(array $messaging, ?int $clientId, string $pageId): void
+    {
+        $msg = data_get($messaging, 'message');
+        if (! is_array($msg)) {
+            return;
+        }
+
+        if (data_get($msg, 'is_echo')) {
+            return;
+        }
+
+        $psid = (string) data_get($messaging, 'sender.id', '');
+        if ($psid === '') {
+            Log::warning('messenger.webhook.inbound_skip', ['reason' => 'empty_sender']);
+
+            return;
+        }
+
+        $mid = (string) data_get($msg, 'mid', '');
+        if ($mid === '') {
+            $mid = 'messenger-synthetic-'.bin2hex(random_bytes(8));
+        }
+        $externalId = 'msgr:'.$mid;
+
+        [$body, $type] = $this->extractMessengerInboundBody($msg);
+        $now = now();
+
+        $syntheticPhone = 'msgr:'.$psid;
+
+        /** @var OutsideContact $contact */
+        $contact = OutsideContact::query()->firstOrCreate(
+            ['messenger_psid' => $psid],
+            [
+                'channel' => 'messenger',
+                'phone' => $syntheticPhone,
+                'client_id' => $clientId,
+                'name' => null,
+            ]
+        );
+
+        if ($clientId && (int) $contact->client_id !== (int) $clientId) {
+            $contact->update(['client_id' => $clientId]);
+        }
+
+        if ($contact->channel !== 'messenger') {
+            $contact->update([
+                'channel' => 'messenger',
+                'messenger_psid' => $psid,
+            ]);
+        }
+
+        $meta = array_merge(is_array($contact->meta) ? $contact->meta : [], [
+            'messenger_page_id' => $pageId,
+            'messenger_last_inbound_at' => $now->toIso8601String(),
+        ]);
+        $contact->update(['meta' => $meta]);
+
+        $conversation = OutsideConversation::query()->firstOrCreate([
+            'outside_contact_id' => $contact->id,
+        ]);
+        $markConversationFresh = $conversation->wasRecentlyCreated || $conversation->status === 'closed';
+
+        /** @var OutsideMessage $message */
+        $message = OutsideMessage::query()->firstOrCreate(
+            ['external_message_id' => $externalId],
+            [
+                'outside_conversation_id' => $conversation->id,
+                'channel' => 'messenger',
+                'direction' => 'inbound',
+                'message_type' => $type,
+                'body' => $body,
+                'payload' => array_merge($messaging, ['_messenger_page_id' => $pageId]),
+                'provider_status' => 'received',
+                'sent_at' => $now,
+                'delivered_at' => $now,
+            ]
+        );
+
+        if (! $message->wasRecentlyCreated) {
+            Log::info('messenger.webhook.duplicate_delivery', ['external_message_id' => $externalId]);
+
+            return;
+        }
+
+        $preview = $body !== '' ? $body : '[رسالة ماسنجر]';
+
+        $conversationPatch = [
+            'latest_message_preview' => mb_substr($preview, 0, 120),
+            'unread_count' => (int) $conversation->unread_count + 1,
+            'last_inbound_at' => $now,
+            'updated_at' => $now,
+        ];
+        if ($markConversationFresh) {
+            $conversationPatch['status'] = 'new';
+        }
+        $conversation->update($conversationPatch);
+
+        $contact->update([
+            'last_message_at' => $now,
+        ]);
+
+        $this->inboundService->ensureGoodsCustomerForNewInbound($contact, null, $preview);
+
+        Log::info('messenger.webhook.inbound_stored', [
+            'psid' => $psid,
+            'type' => $type,
+            'conversation_id' => $conversation->id,
+        ]);
+
+        $this->messagingIntelligence->refreshAfterInbound($conversation->fresh());
+    }
+
+    /**
+     * @param  array<string, mixed>  $msg
+     * @return array{0: string, 1: string}
+     */
+    private function extractMessengerInboundBody(array $msg): array
+    {
+        $text = data_get($msg, 'text');
+        if (is_string($text) && trim($text) !== '') {
+            return [trim($text), 'text'];
+        }
+
+        if (data_get($msg, 'attachments')) {
+            return ['[مرفق]', 'attachment'];
+        }
+
+        return ['[رسالة ماسنجر]', 'unknown'];
     }
 
     /**
@@ -414,7 +592,7 @@ class OutsideWebhookController extends Controller
             return;
         }
 
-        if (str_starts_with($externalId, 'ig:')) {
+        if (str_starts_with($externalId, 'ig:') || str_starts_with($externalId, 'msgr:')) {
             return;
         }
 

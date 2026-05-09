@@ -12,6 +12,7 @@ class OutsideContact extends Model
         'name',
         'phone',
         'instagram_psid',
+        'messenger_psid',
         'channel',
         'client_id',
         'assigned_user_id',

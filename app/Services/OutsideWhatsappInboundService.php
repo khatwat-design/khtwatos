@@ -66,7 +66,7 @@ class OutsideWhatsappInboundService
         string $messageBodyPreview
     ): void {
         $channel = (string) ($contact->channel ?? 'whatsapp');
-        if (! in_array($channel, ['whatsapp', 'instagram'], true)) {
+        if (! in_array($channel, ['whatsapp', 'instagram', 'messenger'], true)) {
             return;
         }
 
@@ -105,7 +105,11 @@ class OutsideWhatsappInboundService
 
         $ownerId = User::query()->where('role', 'admin')->orderBy('id')->value('id');
 
-        $sourceLabel = $channel === 'instagram' ? 'إنستغرام' : 'واتساب';
+        $sourceLabel = match ($channel) {
+            'instagram' => 'إنستغرام',
+            'messenger' => 'ماسنجر',
+            default => 'واتساب',
+        };
 
         $customer = GoodsCustomer::query()->create([
             'outside_contact_id' => $contact->id,
