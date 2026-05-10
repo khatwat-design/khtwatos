@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\ClientStageHistory;
 use App\Models\ClientWhatsappMilestoneLog;
 use App\Models\OutsideContact;
+use App\Support\EffectiveSettings;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
@@ -100,7 +101,7 @@ class ClientMilestoneWhatsAppService
 
     private function isEnabled(): bool
     {
-        return (bool) config('services.whatsapp.milestone_notifications_enabled', true);
+        return EffectiveSettings::whatsappMilestoneNotificationsEnabled();
     }
 
     private function milestoneKeyForStage(string $pipelineStageKey): ?string

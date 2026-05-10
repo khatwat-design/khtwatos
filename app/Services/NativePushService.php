@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\DevicePushToken;
+use App\Support\EffectiveSettings;
 use Google\Auth\Credentials\ServiceAccountCredentials;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -29,6 +30,10 @@ class NativePushService
      */
     public function sendToUsers(array $userIds, array $payload): void
     {
+        if (! EffectiveSettings::firebaseMobilePushEnabled()) {
+            return;
+        }
+
         $path = self::credentialsPath();
         $projectId = self::projectId();
 

@@ -79,14 +79,17 @@ const nav = [
     ...(page.props.auth?.can?.manageEmployees
         ? [{ label: 'الموظفين', routeName: 'employees.index', match: 'employees.*' }]
         : []),
+    ...(page.props.auth?.can?.manageSystemSettings
+        ? [{ label: 'الإعدادات', routeName: 'settings.index', match: 'settings.*' }]
+        : []),
 ];
 
 const mobileBottomNav = computed(() =>
-    nav.filter((item) => !['academy.index', 'employees.index'].includes(item.routeName)),
+    nav.filter((item) => !['academy.index', 'employees.index', 'settings.index'].includes(item.routeName)),
 );
 
 const mobileDropdownNav = computed(() =>
-    nav.filter((item) => ['academy.index', 'employees.index'].includes(item.routeName)),
+    nav.filter((item) => ['academy.index', 'employees.index', 'settings.index'].includes(item.routeName)),
 );
 
 function active(match) {
@@ -104,6 +107,7 @@ function navIcon(item) {
     if (item.routeName === 'warehouse.index') return 'warehouse';
     if (item.routeName === 'academy.index') return 'academy';
     if (item.routeName === 'employees.index') return 'employees';
+    if (item.routeName === 'settings.index') return 'settings';
     return 'dot';
 }
 
@@ -452,6 +456,12 @@ async function openNotification(note) {
                                 >
                                     {{ item.label }}
                                 </DropdownLink>
+                                <DropdownLink
+                                    v-if="page.props.auth?.can?.manageSystemSettings"
+                                    :href="route('settings.index')"
+                                >
+                                    إعدادات النظام
+                                </DropdownLink>
                                 <DropdownLink :href="route('profile.edit')">
                                     الملف الشخصي
                                 </DropdownLink>
@@ -545,6 +555,10 @@ async function openNotification(note) {
                                 <circle cx="9" cy="7" r="3" />
                                 <circle cx="17" cy="8" r="2.5" />
                                 <path d="M3 20a6 6 0 0 1 12 0M14 20a4.5 4.5 0 0 1 7 0" />
+                            </svg>
+                            <svg v-else-if="navIcon(item) === 'settings'" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <circle cx="12" cy="12" r="3" />
+                                <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
                             </svg>
                             <span v-else class="h-2 w-2 rounded-full bg-current" />
                             <span

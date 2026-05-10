@@ -6,6 +6,7 @@ use App\Models\Client;
 use App\Models\ClientAutomatedReportLog;
 use App\Models\ClientPortalNote;
 use App\Models\OutsideContact;
+use App\Support\EffectiveSettings;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Throwable;
@@ -19,7 +20,7 @@ class ClientAutomatedReportDeliveryService
 
     public function deliverDaily(Client $client): void
     {
-        if (! (bool) config('services.client_reports.enabled_daily', true)) {
+        if (! EffectiveSettings::clientDailyReportsEnabled()) {
             return;
         }
 
@@ -33,7 +34,7 @@ class ClientAutomatedReportDeliveryService
 
     public function deliverWeekly(Client $client): void
     {
-        if (! (bool) config('services.client_reports.enabled_weekly', true)) {
+        if (! EffectiveSettings::clientWeeklyReportsEnabled()) {
             return;
         }
 

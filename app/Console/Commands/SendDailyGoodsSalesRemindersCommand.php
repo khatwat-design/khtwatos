@@ -6,6 +6,7 @@ use App\Models\GoodsCustomer;
 use App\Models\OutsideConversation;
 use App\Models\OutsideMessage;
 use App\Services\WhatsAppCloudService;
+use App\Support\EffectiveSettings;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -23,6 +24,12 @@ class SendDailyGoodsSalesRemindersCommand extends Command
 
     public function handle(): int
     {
+        if (! EffectiveSettings::goodsDailySalesRemindersEnabled()) {
+            $this->info('Goods daily sales reminders are disabled.');
+
+            return self::SUCCESS;
+        }
+
         $limit = max(1, (int) $this->option('limit'));
         $today = now()->toDateString();
 

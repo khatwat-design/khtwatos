@@ -9,6 +9,7 @@ use App\Models\OutsideContact;
 use App\Models\OutsideConversation;
 use App\Models\OutsideMessage;
 use App\Services\WhatsAppCloudService;
+use App\Support\EffectiveSettings;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
@@ -27,7 +28,7 @@ class SendClientPortalDailySalesRemindersCommand extends Command
 
     public function handle(): int
     {
-        if (! (bool) config('services.portal.daily_sales_reminder_enabled', true)) {
+        if (! EffectiveSettings::portalDailySalesReminderEnabled()) {
             $this->info('Client portal daily sales reminders are disabled.');
 
             return self::SUCCESS;

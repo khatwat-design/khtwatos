@@ -39,6 +39,10 @@ class AppServiceProvider extends ServiceProvider
             return $user->isAdmin();
         });
 
+        Gate::define('manage-system-settings', function (User $user): bool {
+            return $user->isAdmin();
+        });
+
         Gate::define('view-warehouse', function (User $user): bool {
             return (bool) $user->id;
         });

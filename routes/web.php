@@ -17,6 +17,7 @@ use App\Http\Controllers\PrivateChatRoomController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicBookingController;
 use App\Http\Controllers\PushSubscriptionController;
+use App\Http\Controllers\SystemSettingsController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TeamChatController;
 use App\Http\Controllers\TeamNotebookController;
@@ -167,6 +168,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/warehouse/meta/oauth/disconnect', [WarehouseController::class, 'disconnectMetaOAuth'])
             ->middleware('can:manage-campaign-updates')
             ->name('warehouse.meta.oauth.disconnect');
+    });
+
+    Route::middleware('can:manage-system-settings')->group(function () {
+        Route::get('/settings', [SystemSettingsController::class, 'edit'])->name('settings.index');
+        Route::patch('/settings', [SystemSettingsController::class, 'update'])->name('settings.update');
     });
 
     Route::middleware('can:manage-employees')->group(function () {

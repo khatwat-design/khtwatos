@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\DevicePushToken;
+use App\Support\EffectiveSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -13,6 +14,10 @@ class DevicePushTokenController extends Controller
         $user = $request->user();
         if (! $user) {
             abort(401);
+        }
+
+        if (! EffectiveSettings::firebaseMobilePushEnabled()) {
+            return response()->json(['ok' => false, 'reason' => 'firebase_mobile_push_disabled'], 422);
         }
 
         $data = $request->validate([

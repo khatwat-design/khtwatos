@@ -6,6 +6,7 @@ use App\Http\Controllers\TeamNotebookController;
 use App\Services\ChatNotificationReadService;
 use App\Services\ChatUnreadService;
 use App\Services\NativePushService;
+use App\Support\EffectiveSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
@@ -65,6 +66,7 @@ class HandleInertiaRequests extends Middleware
                     'viewWarehouse' => $user ? Gate::forUser($user)->allows('view-warehouse') : false,
                     'manageCampaignUpdates' => $user ? Gate::forUser($user)->allows('manage-campaign-updates') : false,
                     'viewClientPortalLink' => $user ? Gate::forUser($user)->allows('view-client-portal-link') : false,
+                    'manageSystemSettings' => $user ? Gate::forUser($user)->allows('manage-system-settings') : false,
                 ],
             ],
             'notifications' => [
@@ -73,7 +75,7 @@ class HandleInertiaRequests extends Middleware
                 'chat_messages_unread_total' => $chatMessagesUnreadTotal,
                 'webpush_public_key' => config('services.webpush.public_key'),
                 'native_fcm_configured' => NativePushService::isConfigured(),
-                'firebase_mobile_push_enabled' => (bool) config('services.firebase.mobile_push_enabled'),
+                'firebase_mobile_push_enabled' => EffectiveSettings::firebaseMobilePushEnabled(),
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
