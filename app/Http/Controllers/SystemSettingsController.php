@@ -10,6 +10,7 @@ use App\Support\NavigationCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -21,7 +22,7 @@ class SystemSettingsController extends Controller
         abort_unless($request->user()?->can('manage-system-settings'), 403);
 
         $definitions = EffectiveSettings::definitions();
-        $items = [];
+        $flatItems = [];
 
         foreach ($definitions as $key => $meta) {
             $locked = (bool) ($meta['locked'] ?? false);
@@ -36,14 +37,52 @@ class SystemSettingsController extends Controller
                 default => false,
             };
 
-            $items[] = [
+            $flatItems[] = [
                 'key' => $key,
+                'category' => (string) ($meta['category'] ?? 'other'),
                 'label' => $meta['label'],
                 'help' => $meta['help'],
                 'locked' => $locked,
                 'lock_hint' => $meta['lock_hint'] ?? null,
                 'value' => $locked ? $effective : $stored,
                 'effective' => $effective,
+            ];
+        }
+
+        $buckets = [];
+        foreach ($flatItems as $item) {
+            $cat = $item['category'];
+            $buckets[$cat] ??= [];
+            $buckets[$cat][] = $item;
+        }
+
+        $categoryMeta = EffectiveSettings::toggleCategoryMeta();
+        $toggleSections = [];
+
+        foreach (EffectiveSettings::toggleCategoryOrder() as $categoryId) {
+            if (empty($buckets[$categoryId])) {
+                continue;
+            }
+
+            $meta = $categoryMeta[$categoryId] ?? ['title' => $categoryId, 'description' => ''];
+            $toggleSections[] = [
+                'id' => $categoryId,
+                'title' => $meta['title'],
+                'description' => $meta['description'],
+                'items' => $buckets[$categoryId],
+            ];
+        }
+
+        foreach ($buckets as $categoryId => $items) {
+            if (in_array($categoryId, EffectiveSettings::toggleCategoryOrder(), true)) {
+                continue;
+            }
+            $meta = $categoryMeta[$categoryId] ?? ['title' => $categoryId, 'description' => ''];
+            $toggleSections[] = [
+                'id' => $categoryId,
+                'title' => $meta['title'],
+                'description' => $meta['description'],
+                'items' => $items,
             ];
         }
 
@@ -71,17 +110,58 @@ class SystemSettingsController extends Controller
             ];
         })->values()->all();
 
-        $navCatalog = [];
-        foreach (NavigationCatalog::items() as $routeName => $label) {
-            $navCatalog[] = [
-                'route_name' => $routeName,
-                'label' => $label,
-            ];
+        $teamsWithNavRules = 0;
+        if (Schema::hasTable('team_navigation_grants')) {
+            $teamsWithNavRules = Team::query()->whereHas('navigationGrants')->count();
         }
 
+        $stats = [
+            'teams_total' => $teams->count(),
+            'teams_with_nav_rules' => $teamsWithNavRules,
+            'toggles_effective_on' => collect($flatItems)->where('effective', true)->count(),
+            'toggles_locked' => collect($flatItems)->where('locked', true)->count(),
+            'toggle_definitions_total' => count($flatItems),
+        ];
+
+        $appMeta = [
+            'name' => (string) config('app.name'),
+            'url' => (string) config('app.url'),
+            'timezone' => (string) config('app.timezone'),
+            'locale' => (string) config('app.locale'),
+            'environment' => app()->environment(),
+            'session_lifetime_minutes' => (int) config('session.lifetime'),
+            'php_version' => PHP_VERSION,
+        ];
+
+        $scheduleHints = [
+            [
+                'label' => 'تذكير مبيعات البضاعة',
+                'command' => 'goods:send-daily-sales-reminders',
+                'schedule' => 'يومياً '.(string) config('services.goods.daily_sales_reminder_at', '09:00').' ('.config('app.timezone').')',
+            ],
+            [
+                'label' => 'تذكير مبيعات بوابة العميل',
+                'command' => 'portal:send-daily-sales-reminders',
+                'schedule' => 'يومياً '.(string) config('services.portal.daily_sales_reminder_at', '18:00').' ('.config('app.timezone').')',
+            ],
+            [
+                'label' => 'التقرير اليومي للعملاء',
+                'command' => 'portal:send-daily-client-reports',
+                'schedule' => 'يومياً '.(string) config('services.client_reports.daily_at', '19:30').' ('.config('app.timezone').')',
+            ],
+            [
+                'label' => 'التقرير الأسبوعي للعملاء',
+                'command' => 'portal:send-weekly-client-reports',
+                'schedule' => 'أسبوعياً يوم '.(string) config('services.client_reports.weekly_at', '10:00').' ('.config('app.timezone').')',
+            ],
+        ];
+
         return Inertia::render('Settings/Index', [
-            'items' => $items,
-            'nav_catalog' => $navCatalog,
+            'toggle_sections' => $toggleSections,
+            'stats' => $stats,
+            'app_meta' => $appMeta,
+            'schedule_hints' => $scheduleHints,
+            'nav_sections' => NavigationCatalog::sectionsForUi(),
             'teams_navigation' => $teamsNavigation,
         ]);
     }
