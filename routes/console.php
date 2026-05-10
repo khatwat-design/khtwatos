@@ -32,3 +32,9 @@ Schedule::command('portal:send-weekly-client-reports --limit=400')
         (string) config('services.client_reports.weekly_at', '10:00')
     )
     ->withoutOverlapping();
+
+if (config('database_backup.schedule_enabled')) {
+    Schedule::command('db:backup')
+        ->dailyAt((string) config('database_backup.schedule_at', '03:30'))
+        ->withoutOverlapping(120);
+}

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\SystemSetting;
 use App\Models\Team;
 use App\Models\TeamNavigationGrant;
+use App\Services\DatabaseBackupService;
 use App\Support\EffectiveSettings;
 use App\Support\NavigationCatalog;
 use Illuminate\Http\RedirectResponse;
@@ -154,6 +155,13 @@ class SystemSettingsController extends Controller
                 'command' => 'portal:send-weekly-client-reports',
                 'schedule' => 'أسبوعياً يوم '.(string) config('services.client_reports.weekly_at', '10:00').' ('.config('app.timezone').')',
             ],
+            [
+                'label' => 'نسخ احتياطي لقاعدة البيانات',
+                'command' => 'db:backup',
+                'schedule' => config('database_backup.schedule_enabled')
+                    ? 'يومياً '.(string) config('database_backup.schedule_at', '03:30').' ('.config('app.timezone').')'
+                    : 'معطّل حالياً — لفعّل الجدولة اضبط BACKUP_SCHEDULE_ENABLED=true في .env',
+            ],
         ];
 
         return Inertia::render('Settings/Index', [
@@ -163,6 +171,7 @@ class SystemSettingsController extends Controller
             'schedule_hints' => $scheduleHints,
             'nav_sections' => NavigationCatalog::sectionsForUi(),
             'teams_navigation' => $teamsNavigation,
+            'database_backup' => app(DatabaseBackupService::class)->inertiaPayload(),
         ]);
     }
 

@@ -5,7 +5,8 @@ import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import SecondaryButton from '@/Components/SecondaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import DangerButton from '@/Components/DangerButton.vue';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -33,12 +34,61 @@ const props = defineProps({
         type: Array,
         default: () => [],
     },
+    database_backup: {
+        type: Object,
+        default: () => ({
+            files: [],
+            connection: '',
+            driver: '',
+            mode: 'full',
+            keep_max_files: 30,
+            compress: true,
+            encrypt: false,
+            encryption_configured: true,
+            openssl_iterations: 600000,
+            include_public_storage: true,
+            include_private_storage: true,
+            schedule_enabled: false,
+            schedule_at: '03:30',
+            storage_hint: '',
+        }),
+    },
 });
 
 const page = usePage();
 
-const tabIds = ['overview', 'automation', 'navigation', 'system'];
-const activeTab = ref('overview');
+const tabIds = ['overview', 'automation', 'navigation', 'backups', 'system'];
+
+const tabMatch = String(page.url).match(/[?&]tab=([^&]+)/);
+const initialTabId = tabMatch?.[1];
+const activeTab = ref(initialTabId && tabIds.includes(initialTabId) ? initialTabId : 'overview');
+
+watch(
+    () => page.url,
+    (url) => {
+        const m = String(url).match(/[?&]tab=([^&]+)/);
+        const t = m?.[1];
+        if (t && tabIds.includes(t)) {
+            activeTab.value = t;
+        }
+    },
+);
+
+function setTab(tid) {
+    activeTab.value = tid;
+    try {
+        const url = new URL(window.location.href);
+        if (tid === 'overview') {
+            url.searchParams.delete('tab');
+        } else {
+            url.searchParams.set('tab', tid);
+        }
+        const q = url.searchParams.toString();
+        window.history.replaceState({}, '', q ? `${url.pathname}?${q}` : url.pathname);
+    } catch {
+        /* ignore */
+    }
+}
 
 const categoryAccent = {
     notifications: 'border-emerald-400 bg-emerald-50/40 ring-emerald-100',
@@ -197,7 +247,7 @@ function submitTeamNavigation() {
     navForm.patch(route('settings.team-navigation.update'), {
         preserveScroll: true,
         onSuccess: () => {
-            activeTab.value = 'navigation';
+            setTab('navigation');
         },
     });
 }
@@ -207,9 +257,47 @@ function tabLabel(id) {
         overview: 'نظرة عامة',
         automation: 'التشغيل الآلي',
         navigation: 'القائمة والفرق',
+        backups: 'نسخ احتياطي',
         system: 'التطبيق والجدولة',
     };
     return labels[id] || id;
+}
+
+function formatBytes(bytes) {
+    const n = Number(bytes);
+    if (!Number.isFinite(n) || n <= 0) {
+        return '0 بايت';
+    }
+    const k = 1024;
+    const sizes = ['بايت', 'ك.ب', 'م.ب', 'غ.ب'];
+    const i = Math.min(sizes.length - 1, Math.floor(Math.log(n) / Math.log(k)));
+
+    return `${parseFloat((n / k ** i).toFixed(i === 0 ? 0 : 2))} ${sizes[i]}`;
+}
+
+const backupBusy = ref(false);
+
+function createBackup() {
+    backupBusy.value = true;
+    router.post(route('settings.backups.store'), {}, {
+        preserveScroll: true,
+        onFinish: () => {
+            backupBusy.value = false;
+        },
+    });
+}
+
+function deleteBackup(filename) {
+    if (!window.confirm(`حذف الملف «${filename}» نهائياً من الخادم؟`)) {
+        return;
+    }
+    backupBusy.value = true;
+    router.delete(route('settings.backups.destroy', { filename }), {
+        preserveScroll: true,
+        onFinish: () => {
+            backupBusy.value = false;
+        },
+    });
 }
 
 const envBadgeClass = computed(() => {
@@ -243,7 +331,8 @@ const navFormHasErrors = computed(() => Object.keys(navForm.errors || {}).length
                         <h1 class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">إعدادات النظام</h1>
                         <p class="text-sm leading-relaxed text-slate-600">
                             اضبط التشغيل الآلي، تقارير العملاء، وإشعارات الجوال، ثم حدّد صفحات القائمة لكل فريق ولأعضاء /
-                            قادة الفريق. التعديلات تُحفظ في قاعدة البيانات؛ القيم المقفلة من البيئة (.env) لا تُفعَّل من هنا.
+                            قادة الفريق. أنشئ نسخاً احتياطية للقاعدة من هنا بدل اشتراك النسخ لدى مزوّد الاستضافة. التعديلات تُحفظ في
+                            قاعدة البيانات؛ القيم المقفلة من البيئة (.env) لا تُفعَّل من هنا.
                         </p>
                     </div>
                     <div class="flex flex-wrap items-center gap-2 md:flex-col md:items-end">
@@ -274,6 +363,13 @@ const navFormHasErrors = computed(() => Object.keys(navForm.errors || {}).length
             >
                 {{ page.props.flash.success }}
             </div>
+            <div
+                v-if="page.props.flash?.error"
+                class="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900 shadow-sm"
+                role="alert"
+            >
+                {{ page.props.flash.error }}
+            </div>
 
             <!-- Tabs -->
             <div class="mt-6 flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white/90 p-1 shadow-sm scrollbar-thin">
@@ -287,7 +383,7 @@ const navFormHasErrors = computed(() => Object.keys(navForm.errors || {}).length
                             ? 'bg-brand-600 text-white shadow-md shadow-brand-600/20'
                             : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                     "
-                    @click="activeTab = tid"
+                    @click="setTab(tid)"
                 >
                     {{ tabLabel(tid) }}
                 </button>
@@ -541,6 +637,172 @@ const navFormHasErrors = computed(() => Object.keys(navForm.errors || {}).length
                     </div>
 
                     <p v-else class="mt-4 text-sm text-slate-500">لا توجد فرق بعد — أنشئ فرقاً من صفحة الموظفين ثم عد إلى هنا.</p>
+                </div>
+            </div>
+
+            <!-- Database backups -->
+            <div v-show="activeTab === 'backups'" class="mt-6 space-y-6">
+                <div class="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-xs leading-relaxed text-amber-950 shadow-sm sm:text-sm">
+                    <strong class="font-semibold">مهم:</strong>
+                    الملفات تُخزَّن على<b class="mx-0.5">قرص الخادم فقط</b>
+                    (<span class="font-mono">{{ database_backup.storage_hint }}</span>). لو تعطّل الخادم أو الحساب، قد تضيع النسخ مع باقي
+                    الملفات. حمّل النسخ دورياً إلى جهازك أو إلى تخزين سحابي (Drive، S3، إلخ) لتكون النسخة خارج الموقع.
+                </div>
+
+                <div
+                    v-if="database_backup.encrypt && !database_backup.encryption_configured"
+                    class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-900 shadow-sm sm:text-sm"
+                    role="alert"
+                >
+                    التشفير مفعّل في الإعدادات لكن كلمة مرور النسخ غير صالحة (BACKUP_ENCRYPTION_PASSWORD يجب أن يكون 16 حرفاً على الأقل). لن
+                    تنجح النسخ التلقائية أو اليدوية حتى تُضبط القيمة على الخادم.
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div class="space-y-2">
+                            <h2 class="text-lg font-bold text-slate-900">نسخ احتياطي كامل للنظام</h2>
+                            <p class="text-xs text-slate-600 sm:text-sm">
+                                الوضع الحالي:
+                                <strong>{{ database_backup.mode === 'full' ? 'أرشيف كامل (قاعدة + ملفات)' : 'قاعدة البيانات فقط' }}</strong>
+                                · الاتصال:
+                                <span class="font-mono font-semibold text-slate-800">{{ database_backup.driver }}</span>
+                                (<span class="font-mono text-slate-700">{{ database_backup.connection }}</span>)
+                            </p>
+                            <p class="text-[11px] text-slate-500">
+                                في الوضع الكامل يُجمَع: تصدير القاعدة (كل الجداول — عملاء، مهام، إعدادات، إلخ) مع نسخ محليّ لـ
+                                <span class="font-mono">storage/app/public</span>
+                                و <span class="font-mono">storage/app/private</span> (مرفقات الشاشات، الشعارات، الدردشة… حسب استخدامك)، ثم أرشيف
+                                <span class="font-mono">tar.gz</span>
+                                مرتب مع ملف <span class="font-mono">manifest.json</span>.
+                                {{ database_backup.encrypt ? 'الأرشيف النهائي مُشفّر بـ OpenSSL (AES-256-CBC + PBKDF2).' : 'بدون طبقة تشفير خارجية.' }}
+                            </p>
+                            <p class="text-[11px] text-slate-500">
+                                يُحتفظ بآخر <strong>{{ database_backup.keep_max_files }}</strong> ملفاً. ضغط SQL داخل الأرشيف:
+                                {{ database_backup.compress ? 'نعم' : 'لا' }}.
+                            </p>
+                        </div>
+                        <PrimaryButton type="button" class="shrink-0" :disabled="backupBusy" @click="createBackup">
+                            {{ backupBusy ? 'جاري التنفيذ…' : 'إنشاء نسخة الآن' }}
+                        </PrimaryButton>
+                    </div>
+
+                    <div
+                        class="mt-6 overflow-x-auto rounded-xl border border-slate-100 ring-1 ring-slate-50"
+                        v-if="database_backup.files?.length"
+                    >
+                        <table class="min-w-full border-collapse text-start text-xs sm:text-sm">
+                            <thead>
+                                <tr class="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+                                    <th class="px-3 py-2 font-semibold">الملف</th>
+                                    <th class="px-3 py-2 font-semibold">النوع</th>
+                                    <th class="px-3 py-2 font-semibold">الحجم</th>
+                                    <th class="px-3 py-2 font-semibold">التاريخ</th>
+                                    <th class="px-3 py-2 font-semibold">إجراءات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr
+                                    v-for="row in database_backup.files"
+                                    :key="row.filename"
+                                    class="border-b border-slate-100 odd:bg-white even:bg-slate-50/50"
+                                >
+                                    <td class="max-w-[12rem] truncate px-3 py-2 font-mono text-[11px] text-slate-800 sm:max-w-lg sm:text-xs">
+                                        {{ row.filename }}
+                                    </td>
+                                    <td class="whitespace-nowrap px-3 py-2">
+                                        <span
+                                            class="me-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                                            :class="row.kind === 'full' ? 'bg-sky-100 text-sky-900' : 'bg-slate-100 text-slate-700'"
+                                        >
+                                            {{ row.kind === 'full' ? 'كامل' : 'قاعدة فقط' }}
+                                        </span>
+                                        <span
+                                            v-if="row.encrypted"
+                                            class="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-900"
+                                        >
+                                            مشفّر
+                                        </span>
+                                    </td>
+                                    <td class="whitespace-nowrap px-3 py-2 text-slate-600">{{ formatBytes(row.size_bytes) }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2 text-slate-600">{{ row.created_at }}</td>
+                                    <td class="whitespace-nowrap px-3 py-2">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <a
+                                                :href="route('settings.backups.download', { filename: row.filename })"
+                                                class="text-[11px] font-semibold text-brand-700 underline-offset-2 hover:underline sm:text-xs"
+                                            >
+                                                تنزيل
+                                            </a>
+                                            <DangerButton
+                                                type="button"
+                                                class="!px-2 !py-1 text-[11px]"
+                                                :disabled="backupBusy"
+                                                @click="deleteBackup(row.filename)"
+                                            >
+                                                حذف
+                                            </DangerButton>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p v-else class="mt-6 text-sm text-slate-500">لا توجد نسخ بعد. اضغط «إنشاء نسخة الآن» لتوليد أول ملف.</p>
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <h3 class="text-sm font-bold text-slate-900">جدولة يومية تلقائية + تشفير على الخادم</h3>
+                    <p class="mt-2 text-xs leading-relaxed text-slate-600">
+                        تأكد أنّ <span class="font-mono">cron</span> يستدعي
+                        <span class="font-mono">php artisan schedule:run</span> كل دقيقة. على الإنتاج يُفضّل ضبط ما يلي في
+                        <span class="font-mono">.env</span>:
+                    </p>
+                    <pre class="mt-3 overflow-x-auto rounded-xl bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100"
+                        >BACKUP_MODE=full
+BACKUP_ENCRYPT=true
+BACKUP_ENCRYPTION_PASSWORD="استبدل_بكلمة_مرور_طويلة_عشوائية_16_حرفاً_أو_أكثر"
+BACKUP_SCHEDULE_ENABLED=true
+BACKUP_SCHEDULE_AT={{ database_backup.schedule_at }}</pre
+                    >
+                    <p class="mt-3 text-[11px] text-slate-500">
+                        الحالة الحالية للجدولة:
+                        <strong>{{ database_backup.schedule_enabled ? 'مفعّلة' : 'معطّلة' }}</strong>
+                        — وقت التشغيل المقترح: {{ database_backup.schedule_at }} (
+                        {{ app_meta.timezone }} ).
+                    </p>
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <h3 class="text-sm font-bold text-slate-900">استعادة أرشيف كامل (<span class="font-mono">*-full.tar.gz.enc</span>)</h3>
+                    <p class="mt-2 text-xs text-slate-600">
+                        على جهازك أو على خادم staging آمن: فك التشفير ثم فتح الأرشيف، ثم استيراد القاعدة ونسخ المجلدات إلى مسارات Laravel (بعد
+                        إيقاف الموقع مؤقتاً إن لزم).
+                    </p>
+                    <pre class="mt-3 overflow-x-auto rounded-xl bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100"
+                        >export LARAVEL_BACKUP_ENC_PASS='نفس_BACKUP_ENCRYPTION_PASSWORD'
+openssl enc -aes-256-cbc -d -salt -pbkdf2 -iter {{ database_backup.openssl_iterations }} \
+  -pass env:LARAVEL_BACKUP_ENC_PASS \
+  -in backup-xxxx-full.tar.gz.enc -out backup-full.tar.gz
+mkdir restore &amp;&amp; tar -xzf backup-full.tar.gz -C restore
+cat restore/manifest.json</pre
+                    >
+                    <p class="mt-2 text-xs text-slate-600">
+                        ثم استورد ملف القاعدة تحت <span class="font-mono">restore/01_database/</span> (غالباً
+                        <span class="font-mono">database.sql.gz</span> — استخدم <span class="font-mono">gunzip</span> ثم
+                        <span class="font-mono">mysql … &lt; database.sql</span>). وللمجلدات:
+                    </p>
+                    <pre class="mt-3 overflow-x-auto rounded-xl bg-slate-900 p-3 text-[11px] text-slate-100"
+                        >rsync -a restore/02_storage_public/ storage/app/public/
+rsync -a restore/03_storage_private/ storage/app/private/</pre
+                    >
+                </div>
+
+                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <h3 class="text-sm font-bold text-slate-900">استعادة نسخة «قاعدة فقط» القديمة (<span class="font-mono">.sql.gz</span>)</h3>
+                    <pre class="mt-3 overflow-x-auto rounded-xl bg-slate-900 p-3 text-[11px] text-slate-100"
+                        >gunzip -c backup.sql.gz | mysql -h HOST -u USER -p DATABASE_NAME</pre
+                    >
                 </div>
             </div>
 

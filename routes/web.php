@@ -4,6 +4,7 @@ use App\Http\Controllers\AcademyController;
 use App\Http\Controllers\ChatNotificationsController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientPortalController;
+use App\Http\Controllers\DatabaseBackupController;
 use App\Http\Controllers\DevicePushTokenController;
 use App\Http\Controllers\DirectChatController;
 use App\Http\Controllers\EmployeeController;
@@ -175,6 +176,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/settings', [SystemSettingsController::class, 'update'])->name('settings.update');
         Route::patch('/settings/team-navigation', [SystemSettingsController::class, 'updateTeamNavigation'])
             ->name('settings.team-navigation.update');
+
+        Route::post('/settings/backups', [DatabaseBackupController::class, 'store'])->name('settings.backups.store');
+        Route::delete('/settings/backups/{filename}', [DatabaseBackupController::class, 'destroy'])
+            ->where('filename', '[a-zA-Z0-9._-]+')
+            ->name('settings.backups.destroy');
+        Route::get('/settings/backups/{filename}/download', [DatabaseBackupController::class, 'download'])
+            ->where('filename', '[a-zA-Z0-9._-]+')
+            ->name('settings.backups.download');
     });
 
     Route::middleware('can:manage-employees')->group(function () {
