@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
@@ -80,6 +81,13 @@ final class DatabaseBackupService
             'schedule_enabled' => (bool) config('database_backup.schedule_enabled', false),
             'schedule_at' => (string) config('database_backup.schedule_at', '03:30'),
             'storage_hint' => 'storage/app/'.trim((string) config('database_backup.directory', 'backups'), '/'),
+            'github_push_enabled' => (bool) config('database_backup.github_push_enabled', false),
+            'github_configured' => $this->githubBackupConfigured(),
+            'github_repo_label' => $this->githubRepoLabel(),
+            'github_branch' => (string) config('database_backup.github_branch', 'main'),
+            'github_subpath' => trim((string) config('database_backup.github_subpath', 'backups'), '/') ?: 'backups',
+            'github_clone_hint' => $this->githubCloneRelativeHint(),
+            'delete_local_after_github_push' => (bool) config('database_backup.delete_local_after_github_push', false),
         ];
     }
 
@@ -127,6 +135,19 @@ final class DatabaseBackupService
             : $this->createFullBundleBackup();
 
         $this->applyRetention();
+
+        $pushed = false;
+
+        try {
+            $pushed = app(BackupGithubPushService::class)->pushBackupFile($finalPath);
+        } catch (\Throwable $e) {
+            report($e);
+            Log::error('GitHub backup push failed', ['exception' => $e]);
+        }
+
+        if ($pushed && config('database_backup.delete_local_after_github_push')) {
+            @unlink($finalPath);
+        }
 
         return basename($finalPath);
     }
@@ -582,5 +603,41 @@ final class DatabaseBackupService
         usort($paths, fn (string $a, string $b): int => (@filemtime($b) ?: 0) <=> (@filemtime($a) ?: 0));
 
         return $paths;
+    }
+
+    private function githubBackupConfigured(): bool
+    {
+        if (! config('database_backup.github_push_enabled')) {
+            return false;
+        }
+
+        $token = trim((string) config('database_backup.github_token'));
+        $owner = trim((string) config('database_backup.github_owner'));
+        $repo = trim((string) config('database_backup.github_repo'));
+
+        return $token !== '' && strlen($token) >= 8 && $owner !== '' && $repo !== '';
+    }
+
+    private function githubRepoLabel(): string
+    {
+        $owner = trim((string) config('database_backup.github_owner'));
+        $repo = trim((string) config('database_backup.github_repo'));
+
+        if ($owner === '' || $repo === '') {
+            return '';
+        }
+
+        return $owner.'/'.$repo;
+    }
+
+    private function githubCloneRelativeHint(): string
+    {
+        $configuredWd = config('database_backup.github_workdir');
+
+        if (is_string($configuredWd) && trim($configuredWd) !== '') {
+            return trim(str_replace('\\', '/', $configuredWd));
+        }
+
+        return 'storage/app/.backup-github-remote';
     }
 }

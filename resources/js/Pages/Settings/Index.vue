@@ -51,6 +51,13 @@ const props = defineProps({
             schedule_enabled: false,
             schedule_at: '03:30',
             storage_hint: '',
+            github_push_enabled: false,
+            github_configured: false,
+            github_repo_label: '',
+            github_branch: 'main',
+            github_subpath: 'backups',
+            github_clone_hint: '',
+            delete_local_after_github_push: false,
         }),
     },
 });
@@ -644,9 +651,31 @@ const navFormHasErrors = computed(() => Object.keys(navForm.errors || {}).length
             <div v-show="activeTab === 'backups'" class="mt-6 space-y-6">
                 <div class="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-xs leading-relaxed text-amber-950 shadow-sm sm:text-sm">
                     <strong class="font-semibold">مهم:</strong>
-                    الملفات تُخزَّن على<b class="mx-0.5">قرص الخادم فقط</b>
-                    (<span class="font-mono">{{ database_backup.storage_hint }}</span>). لو تعطّل الخادم أو الحساب، قد تضيع النسخ مع باقي
-                    الملفات. حمّل النسخ دورياً إلى جهازك أو إلى تخزين سحابي (Drive، S3، إلخ) لتكون النسخة خارج الموقع.
+                    <template v-if="database_backup.github_push_enabled && database_backup.github_configured">
+                        بعد كل نسخة يتم أيضاً <strong>git push</strong> إلى مستودع GitHub خاص:
+                        <span class="font-mono">{{ database_backup.github_repo_label }}</span> — الفرع
+                        <span class="font-mono">{{ database_backup.github_branch }}</span>، المسار داخل المستودع
+                        <span class="font-mono">{{ database_backup.github_subpath }}/</span>.
+                        يبقى نسخ محلي تحت <span class="font-mono">{{ database_backup.storage_hint }}</span>
+                        ما لم تفعّل حذف الملف المحلي بعد الرفع الناجح.
+                        استنساخ Git المحلي للرفع يُحفظ خارج المستودع الرئيسي تحت
+                        <span class="font-mono">{{ database_backup.github_clone_hint }}</span>.
+                        استخدم مستودعاً <strong>خاصاً</strong>؛ النسخ تحتوي بيانات حساسة.
+                    </template>
+                    <template v-else>
+                        الملفات تُخزَّن على<b class="mx-0.5">قرص الخادم</b>
+                        (<span class="font-mono">{{ database_backup.storage_hint }}</span>). لتخزين خارج الموقع فعّل الرفع إلى مستودع GitHub
+                        من الإعدادات البيئية أو حمّل النسخ إلى جهازك أو سحابة أخرى.
+                    </template>
+                </div>
+
+                <div
+                    v-if="database_backup.github_push_enabled && !database_backup.github_configured"
+                    class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-900 shadow-sm sm:text-sm"
+                    role="alert"
+                >
+                    الرفع إلى GitHub مفعّل لكن الإعداد غير مكتمل. عيّن BACKUP_GITHUB_TOKEN و BACKUP_GITHUB_OWNER و BACKUP_GITHUB_REPO في
+                    <span class="font-mono">.env</span>.
                 </div>
 
                 <div
@@ -678,8 +707,11 @@ const navFormHasErrors = computed(() => Object.keys(navForm.errors || {}).length
                                 {{ database_backup.encrypt ? 'الأرشيف النهائي مُشفّر بـ OpenSSL (AES-256-CBC + PBKDF2).' : 'بدون طبقة تشفير خارجية.' }}
                             </p>
                             <p class="text-[11px] text-slate-500">
-                                يُحتفظ بآخر <strong>{{ database_backup.keep_max_files }}</strong> ملفاً. ضغط SQL داخل الأرشيف:
+                                يُحتفظ بآخر <strong>{{ database_backup.keep_max_files }}</strong> ملفاً على الخادم. ضغط SQL داخل الأرشيف:
                                 {{ database_backup.compress ? 'نعم' : 'لا' }}.
+                                <template v-if="database_backup.delete_local_after_github_push">
+                                    بعد رفع ناجح إلى GitHub يُحذف الملف من الخادم تلقائياً.
+                                </template>
                             </p>
                         </div>
                         <PrimaryButton type="button" class="shrink-0" :disabled="backupBusy" @click="createBackup">

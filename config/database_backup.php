@@ -86,4 +86,32 @@ return [
 
     'openssl_path' => env('BACKUP_OPENSSL_PATH', 'openssl'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | رفع النسخ إلى مستودع GitHub خاص (git commit + push). يتطلب git على الخادم ورمز وصول (classic PAT مع repo، أو fine-grained مع Contents: RW).
+    |--------------------------------------------------------------------------
+    */
+
+    'github_push_enabled' => filter_var(env('BACKUP_GITHUB_PUSH_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
+
+    'github_token' => env('BACKUP_GITHUB_TOKEN'),
+
+    'github_owner' => env('BACKUP_GITHUB_OWNER'),
+
+    'github_repo' => env('BACKUP_GITHUB_REPO'),
+
+    'github_branch' => env('BACKUP_GITHUB_BRANCH', 'main'),
+
+    'github_subpath' => env('BACKUP_GITHUB_SUBPATH', 'backups'),
+
+    'github_workdir' => env('BACKUP_GITHUB_WORKDIR', ''),
+
+    /*
+    |--------------------------------------------------------------------------
+    | بعد نجاح الرفع إلى GitHub: حذف الملف من storage/app/backups (القائمة والتنزيل من لوحة التحكم لن يعرضا ذلك الملف).
+    |--------------------------------------------------------------------------
+    */
+
+    'delete_local_after_github_push' => filter_var(env('BACKUP_DELETE_LOCAL_AFTER_GITHUB_PUSH', false), FILTER_VALIDATE_BOOLEAN),
+
 ];
