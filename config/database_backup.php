@@ -70,7 +70,24 @@ return [
 
     'schedule_enabled' => filter_var(env('BACKUP_SCHEDULE_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
 
+    /*
+    |--------------------------------------------------------------------------
+    | تكرار النسخ التلقائي: عدد الساعات بين كل تشغيل لـ db:backup (مثلاً 2 = كل ساعتين عند الدقيقة 0).
+    | ضع 0 أو ≥24 لاستخدام الجدولة اليومية بالوقت schedule_at بدلاً من ذلك.
+    |--------------------------------------------------------------------------
+    */
+
+    'schedule_every_hours' => (int) env('BACKUP_SCHEDULE_EVERY_HOURS', 2),
+
     'schedule_at' => env('BACKUP_SCHEDULE_AT', '03:30'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | مدة قفل withoutOverlapping بالدقائق (منع تداخل تشغيلين إن استغرق النسخ وقتاً أطول).
+    |--------------------------------------------------------------------------
+    */
+
+    'schedule_overlap_minutes' => (int) env('BACKUP_SCHEDULE_OVERLAP_MINUTES', 90),
 
     /*
     |--------------------------------------------------------------------------
@@ -112,6 +129,6 @@ return [
     |--------------------------------------------------------------------------
     */
 
-    'delete_local_after_github_push' => filter_var(env('BACKUP_DELETE_LOCAL_AFTER_GITHUB_PUSH', false), FILTER_VALIDATE_BOOLEAN),
+    'delete_local_after_github_push' => filter_var(env('BACKUP_DELETE_LOCAL_AFTER_GITHUB_PUSH', true), FILTER_VALIDATE_BOOLEAN),
 
 ];

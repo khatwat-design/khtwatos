@@ -65,9 +65,18 @@ final class DatabaseBackupService
         $driver = (string) config("database.connections.{$connection}.driver");
         $encrypt = (bool) config('database_backup.encrypt', false);
         $password = (string) (config('database_backup.encryption_password') ?? '');
+        $files = $this->listMeta();
+        $totalBytes = array_sum(array_column($files, 'size_bytes'));
+        $githubOn = (bool) config('database_backup.github_push_enabled', false);
+        $deleteLocal = (bool) config('database_backup.delete_local_after_github_push', true);
 
         return [
-            'files' => $this->listMeta(),
+            'files' => $files,
+            'stats' => [
+                'local_count' => count($files),
+                'local_total_bytes' => $totalBytes,
+                'last_backup_at' => $files[0]['created_at'] ?? null,
+            ],
             'connection' => $connection,
             'driver' => $driver,
             'mode' => (string) config('database_backup.mode', 'full'),
@@ -79,15 +88,19 @@ final class DatabaseBackupService
             'include_public_storage' => (bool) config('database_backup.include_public_storage', true),
             'include_private_storage' => (bool) config('database_backup.include_private_storage', true),
             'schedule_enabled' => (bool) config('database_backup.schedule_enabled', false),
+            'schedule_every_hours' => (int) config('database_backup.schedule_every_hours', 2),
             'schedule_at' => (string) config('database_backup.schedule_at', '03:30'),
+            'schedule_overlap_minutes' => (int) config('database_backup.schedule_overlap_minutes', 90),
+            'schedule_summary_ar' => $this->backupScheduleSummaryAr(),
             'storage_hint' => 'storage/app/'.trim((string) config('database_backup.directory', 'backups'), '/'),
-            'github_push_enabled' => (bool) config('database_backup.github_push_enabled', false),
+            'github_push_enabled' => $githubOn,
             'github_configured' => $this->githubBackupConfigured(),
             'github_repo_label' => $this->githubRepoLabel(),
             'github_branch' => (string) config('database_backup.github_branch', 'main'),
             'github_subpath' => trim((string) config('database_backup.github_subpath', 'backups'), '/') ?: 'backups',
             'github_clone_hint' => $this->githubCloneRelativeHint(),
-            'delete_local_after_github_push' => (bool) config('database_backup.delete_local_after_github_push', false),
+            'delete_local_after_github_push' => $deleteLocal,
+            'purge_local_after_github_ok' => $githubOn && $deleteLocal,
         ];
     }
 
@@ -639,5 +652,28 @@ final class DatabaseBackupService
         }
 
         return 'storage/app/.backup-github-remote';
+    }
+
+    private function backupScheduleSummaryAr(): string
+    {
+        if (! config('database_backup.schedule_enabled')) {
+            return 'معطّلة';
+        }
+
+        $hours = (int) config('database_backup.schedule_every_hours', 2);
+
+        if ($hours <= 0 || $hours >= 24) {
+            return 'يومياً '.(string) config('database_backup.schedule_at', '03:30').' — '.(string) config('app.timezone');
+        }
+
+        if ($hours === 1) {
+            return 'كل ساعة (الدقيقة 0) — '.(string) config('app.timezone');
+        }
+
+        if ($hours === 2) {
+            return 'كل ساعتين (الدقيقة 0) — '.(string) config('app.timezone');
+        }
+
+        return 'كل '.$hours.' ساعات (الدقيقة 0) — '.(string) config('app.timezone');
     }
 }

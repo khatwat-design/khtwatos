@@ -38,6 +38,7 @@ const props = defineProps({
         type: Object,
         default: () => ({
             files: [],
+            stats: { local_count: 0, local_total_bytes: 0, last_backup_at: null },
             connection: '',
             driver: '',
             mode: 'full',
@@ -49,7 +50,10 @@ const props = defineProps({
             include_public_storage: true,
             include_private_storage: true,
             schedule_enabled: false,
+            schedule_every_hours: 2,
             schedule_at: '03:30',
+            schedule_overlap_minutes: 90,
+            schedule_summary_ar: '',
             storage_hint: '',
             github_push_enabled: false,
             github_configured: false,
@@ -57,7 +61,8 @@ const props = defineProps({
             github_branch: 'main',
             github_subpath: 'backups',
             github_clone_hint: '',
-            delete_local_after_github_push: false,
+            delete_local_after_github_push: true,
+            purge_local_after_github_ok: false,
         }),
     },
 });
@@ -648,130 +653,149 @@ const navFormHasErrors = computed(() => Object.keys(navForm.errors || {}).length
             </div>
 
             <!-- Database backups -->
-            <div v-show="activeTab === 'backups'" class="mt-6 space-y-6">
-                <div class="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-xs leading-relaxed text-amber-950 shadow-sm sm:text-sm">
-                    <strong class="font-semibold">مهم:</strong>
-                    <template v-if="database_backup.github_push_enabled && database_backup.github_configured">
-                        بعد كل نسخة يتم أيضاً <strong>git push</strong> إلى مستودع GitHub خاص:
-                        <span class="font-mono">{{ database_backup.github_repo_label }}</span> — الفرع
-                        <span class="font-mono">{{ database_backup.github_branch }}</span>، المسار داخل المستودع
-                        <span class="font-mono">{{ database_backup.github_subpath }}/</span>.
-                        يبقى نسخ محلي تحت <span class="font-mono">{{ database_backup.storage_hint }}</span>
-                        ما لم تفعّل حذف الملف المحلي بعد الرفع الناجح.
-                        استنساخ Git المحلي للرفع يُحفظ خارج المستودع الرئيسي تحت
-                        <span class="font-mono">{{ database_backup.github_clone_hint }}</span>.
-                        استخدم مستودعاً <strong>خاصاً</strong>؛ النسخ تحتوي بيانات حساسة.
-                    </template>
-                    <template v-else>
-                        الملفات تُخزَّن على<b class="mx-0.5">قرص الخادم</b>
-                        (<span class="font-mono">{{ database_backup.storage_hint }}</span>). لتخزين خارج الموقع فعّل الرفع إلى مستودع GitHub
-                        من الإعدادات البيئية أو حمّل النسخ إلى جهازك أو سحابة أخرى.
-                    </template>
-                </div>
-
+            <div v-show="activeTab === 'backups'" class="backup-panel mt-6 space-y-5">
                 <div
                     v-if="database_backup.github_push_enabled && !database_backup.github_configured"
-                    class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-900 shadow-sm sm:text-sm"
+                    class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-900 shadow-sm"
                     role="alert"
                 >
-                    الرفع إلى GitHub مفعّل لكن الإعداد غير مكتمل. عيّن BACKUP_GITHUB_TOKEN و BACKUP_GITHUB_OWNER و BACKUP_GITHUB_REPO في
-                    <span class="font-mono">.env</span>.
+                    GitHub: إعداد ناقص — تحقق من BACKUP_GITHUB_TOKEN و BACKUP_GITHUB_OWNER و BACKUP_GITHUB_REPO في
+                    <span class="font-mono">.env</span>
                 </div>
 
                 <div
                     v-if="database_backup.encrypt && !database_backup.encryption_configured"
-                    class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-900 shadow-sm sm:text-sm"
+                    class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-medium text-red-900 shadow-sm"
                     role="alert"
                 >
-                    التشفير مفعّل في الإعدادات لكن كلمة مرور النسخ غير صالحة (BACKUP_ENCRYPTION_PASSWORD يجب أن يكون 16 حرفاً على الأقل). لن
-                    تنجح النسخ التلقائية أو اليدوية حتى تُضبط القيمة على الخادم.
+                    التشفير مفعّل لكن BACKUP_ENCRYPTION_PASSWORD غير صالح (&lt; 16 حرفاً).
                 </div>
 
-                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div class="space-y-2">
-                            <h2 class="text-lg font-bold text-slate-900">نسخ احتياطي كامل للنظام</h2>
-                            <p class="text-xs text-slate-600 sm:text-sm">
-                                الوضع الحالي:
-                                <strong>{{ database_backup.mode === 'full' ? 'أرشيف كامل (قاعدة + ملفات)' : 'قاعدة البيانات فقط' }}</strong>
-                                · الاتصال:
-                                <span class="font-mono font-semibold text-slate-800">{{ database_backup.driver }}</span>
-                                (<span class="font-mono text-slate-700">{{ database_backup.connection }}</span>)
-                            </p>
-                            <p class="text-[11px] text-slate-500">
-                                في الوضع الكامل يُجمَع: تصدير القاعدة (كل الجداول — عملاء، مهام، إعدادات، إلخ) مع نسخ محليّ لـ
-                                <span class="font-mono">storage/app/public</span>
-                                و <span class="font-mono">storage/app/private</span> (مرفقات الشاشات، الشعارات، الدردشة… حسب استخدامك)، ثم أرشيف
-                                <span class="font-mono">tar.gz</span>
-                                مرتب مع ملف <span class="font-mono">manifest.json</span>.
-                                {{ database_backup.encrypt ? 'الأرشيف النهائي مُشفّر بـ OpenSSL (AES-256-CBC + PBKDF2).' : 'بدون طبقة تشفير خارجية.' }}
-                            </p>
-                            <p class="text-[11px] text-slate-500">
-                                يُحتفظ بآخر <strong>{{ database_backup.keep_max_files }}</strong> ملفاً على الخادم. ضغط SQL داخل الأرشيف:
-                                {{ database_backup.compress ? 'نعم' : 'لا' }}.
-                                <template v-if="database_backup.delete_local_after_github_push">
-                                    بعد رفع ناجح إلى GitHub يُحذف الملف من الخادم تلقائياً.
-                                </template>
-                            </p>
+                <div
+                    class="flex flex-col gap-4 rounded-3xl border border-slate-200/90 bg-gradient-to-br from-slate-900 via-slate-800 to-brand-900 p-5 text-white shadow-lg sm:flex-row sm:items-center sm:justify-between sm:p-6"
+                >
+                    <div class="min-w-0 space-y-2">
+                        <p class="text-[11px] font-semibold uppercase tracking-wider text-white/60">النسخ الاحتياطي</p>
+                        <h2 class="text-xl font-bold tracking-tight sm:text-2xl">لوحة النسخ والجدولة</h2>
+                        <div class="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-white/85 sm:text-xs">
+                            <span>{{ database_backup.schedule_summary_ar }}</span>
+                            <span class="text-white/40">|</span>
+                            <span
+                                >cron overlap {{ database_backup.schedule_overlap_minutes }} دقيقة · منطقة
+                                {{ app_meta.timezone }}</span
+                            >
                         </div>
-                        <PrimaryButton type="button" class="shrink-0" :disabled="backupBusy" @click="createBackup">
-                            {{ backupBusy ? 'جاري التنفيذ…' : 'إنشاء نسخة الآن' }}
-                        </PrimaryButton>
                     </div>
+                    <PrimaryButton type="button" class="shrink-0" :disabled="backupBusy" @click="createBackup">
+                        {{ backupBusy ? 'جاري الإنشاء…' : 'نسخة الآن' }}
+                    </PrimaryButton>
+                </div>
 
-                    <div
-                        class="mt-6 overflow-x-auto rounded-xl border border-slate-100 ring-1 ring-slate-50"
-                        v-if="database_backup.files?.length"
+                <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100">
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">ملفات على الخادم الآن</p>
+                        <p class="mt-1 font-mono text-2xl font-bold tabular-nums text-slate-900">
+                            {{ database_backup.stats?.local_count ?? 0 }}
+                        </p>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100">
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">حجم المجلد المحلي</p>
+                        <p class="mt-1 font-mono text-2xl font-bold tabular-nums text-slate-900">
+                            {{ formatBytes(database_backup.stats?.local_total_bytes ?? 0) }}
+                        </p>
+                        <p class="mt-1 font-mono text-[10px] text-slate-400">{{ database_backup.storage_hint }}</p>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100">
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">آخر نسخة محلية</p>
+                        <p class="mt-1 font-mono text-sm font-semibold text-slate-900">
+                            {{ database_backup.stats?.last_backup_at ?? '—' }}
+                        </p>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-100">
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">GitHub بعد الرفع</p>
+                        <template v-if="database_backup.github_push_enabled && database_backup.github_configured">
+                            <p class="mt-1 truncate font-mono text-sm font-semibold text-emerald-800" :title="database_backup.github_repo_label">
+                                {{ database_backup.github_repo_label }}
+                            </p>
+                            <p class="mt-0.5 font-mono text-[10px] text-slate-500">
+                                {{ database_backup.github_branch }} · {{ database_backup.github_subpath }}/
+                            </p>
+                            <p
+                                v-if="database_backup.purge_local_after_github_ok"
+                                class="mt-2 inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-900"
+                            >
+                                حذف الملف من الخادم بعد رفع ناجح
+                            </p>
+                            <p v-else class="mt-2 text-[10px] text-slate-500">يبقى الملف محلياً بعد الرفع</p>
+                        </template>
+                        <p v-else class="mt-1 text-sm text-slate-500">غير مفعّل</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                    <span class="rounded-full bg-slate-100 px-3 py-1 font-mono text-[11px] text-slate-800"
+                        >قاعدة: {{ database_backup.driver }} · {{ database_backup.connection }}</span
                     >
-                        <table class="min-w-full border-collapse text-start text-xs sm:text-sm">
+                    <span class="rounded-full bg-slate-100 px-3 py-1 font-mono text-[11px] text-slate-800">{{
+                        database_backup.mode === 'full' ? 'أرشيف كامل' : 'قاعدة فقط'
+                    }}</span>
+                    <span class="rounded-full bg-slate-100 px-3 py-1 font-mono text-[11px] text-slate-800">{{
+                        database_backup.encrypt ? 'OpenSSL مشفّر' : 'بدون تشفير خارجي'
+                    }}</span>
+                    <span class="rounded-full bg-slate-100 px-3 py-1 font-mono text-[11px] text-slate-800"
+                        >احتفاظ محلي حتى {{ database_backup.keep_max_files }} ملفاً</span
+                    >
+                    <span v-if="database_backup.github_push_enabled" class="rounded-full bg-slate-100 px-3 py-1 font-mono text-[11px] text-slate-800"
+                        >استنساخ git: {{ database_backup.github_clone_hint }}</span
+                    >
+                </div>
+
+                <div
+                    class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                    v-if="database_backup.files?.length"
+                >
+                    <div class="border-b border-slate-100 bg-slate-50 px-4 py-2 text-[11px] font-semibold text-slate-600">آخر النسخ المحلية</div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full border-collapse text-start text-xs">
                             <thead>
-                                <tr class="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
-                                    <th class="px-3 py-2 font-semibold">الملف</th>
-                                    <th class="px-3 py-2 font-semibold">النوع</th>
-                                    <th class="px-3 py-2 font-semibold">الحجم</th>
-                                    <th class="px-3 py-2 font-semibold">التاريخ</th>
-                                    <th class="px-3 py-2 font-semibold">إجراءات</th>
+                                <tr class="border-b border-slate-100 bg-white text-[10px] uppercase tracking-wide text-slate-400">
+                                    <th class="px-4 py-2 font-semibold">ملف</th>
+                                    <th class="px-4 py-2 font-semibold">نوع</th>
+                                    <th class="px-4 py-2 font-semibold">حجم</th>
+                                    <th class="px-4 py-2 font-semibold">وقت</th>
+                                    <th class="px-4 py-2 font-semibold"></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr
                                     v-for="row in database_backup.files"
                                     :key="row.filename"
-                                    class="border-b border-slate-100 odd:bg-white even:bg-slate-50/50"
+                                    class="border-b border-slate-50 odd:bg-white even:bg-slate-50/60"
                                 >
-                                    <td class="max-w-[12rem] truncate px-3 py-2 font-mono text-[11px] text-slate-800 sm:max-w-lg sm:text-xs">
+                                    <td class="max-w-[14rem] truncate px-4 py-2.5 font-mono text-[11px] text-slate-900 sm:max-w-xl">
                                         {{ row.filename }}
                                     </td>
-                                    <td class="whitespace-nowrap px-3 py-2">
+                                    <td class="whitespace-nowrap px-4 py-2.5">
                                         <span
-                                            class="me-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                                            :class="row.kind === 'full' ? 'bg-sky-100 text-sky-900' : 'bg-slate-100 text-slate-700'"
+                                            class="me-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold"
+                                            :class="row.kind === 'full' ? 'bg-sky-100 text-sky-900' : 'bg-slate-200 text-slate-800'"
                                         >
-                                            {{ row.kind === 'full' ? 'كامل' : 'قاعدة فقط' }}
+                                            {{ row.kind === 'full' ? 'كامل' : 'قاعدة' }}
                                         </span>
-                                        <span
-                                            v-if="row.encrypted"
-                                            class="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-900"
-                                        >
-                                            مشفّر
+                                        <span v-if="row.encrypted" class="rounded-md bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-900">
+                                            AES
                                         </span>
                                     </td>
-                                    <td class="whitespace-nowrap px-3 py-2 text-slate-600">{{ formatBytes(row.size_bytes) }}</td>
-                                    <td class="whitespace-nowrap px-3 py-2 text-slate-600">{{ row.created_at }}</td>
-                                    <td class="whitespace-nowrap px-3 py-2">
-                                        <div class="flex flex-wrap items-center gap-2">
+                                    <td class="whitespace-nowrap px-4 py-2.5 font-mono text-slate-600">{{ formatBytes(row.size_bytes) }}</td>
+                                    <td class="whitespace-nowrap px-4 py-2.5 font-mono text-slate-600">{{ row.created_at }}</td>
+                                    <td class="whitespace-nowrap px-4 py-2.5">
+                                        <div class="flex gap-2">
                                             <a
                                                 :href="route('settings.backups.download', { filename: row.filename })"
-                                                class="text-[11px] font-semibold text-brand-700 underline-offset-2 hover:underline sm:text-xs"
+                                                class="font-semibold text-brand-700 hover:underline"
+                                                >تنزيل</a
                                             >
-                                                تنزيل
-                                            </a>
-                                            <DangerButton
-                                                type="button"
-                                                class="!px-2 !py-1 text-[11px]"
-                                                :disabled="backupBusy"
-                                                @click="deleteBackup(row.filename)"
-                                            >
+                                            <DangerButton type="button" class="!px-2 !py-1 text-[11px]" :disabled="backupBusy" @click="deleteBackup(row.filename)">
                                                 حذف
                                             </DangerButton>
                                         </div>
@@ -780,62 +804,38 @@ const navFormHasErrors = computed(() => Object.keys(navForm.errors || {}).length
                             </tbody>
                         </table>
                     </div>
-                    <p v-else class="mt-6 text-sm text-slate-500">لا توجد نسخ بعد. اضغط «إنشاء نسخة الآن» لتوليد أول ملف.</p>
                 </div>
+                <p v-else class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center text-sm text-slate-500">
+                    لا ملفات محلية حالياً — غالباً لأن الرفع إلى GitHub يمسح المحلي بعد النجاح، أو لم تُنشأ نسخة بعد.
+                </p>
 
-                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <h3 class="text-sm font-bold text-slate-900">جدولة يومية تلقائية + تشفير على الخادم</h3>
-                    <p class="mt-2 text-xs leading-relaxed text-slate-600">
-                        تأكد أنّ <span class="font-mono">cron</span> يستدعي
-                        <span class="font-mono">php artisan schedule:run</span> كل دقيقة. على الإنتاج يُفضّل ضبط ما يلي في
-                        <span class="font-mono">.env</span>:
-                    </p>
-                    <pre class="mt-3 overflow-x-auto rounded-xl bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100"
-                        >BACKUP_MODE=full
-BACKUP_ENCRYPT=true
-BACKUP_ENCRYPTION_PASSWORD="استبدل_بكلمة_مرور_طويلة_عشوائية_16_حرفاً_أو_أكثر"
-BACKUP_SCHEDULE_ENABLED=true
-BACKUP_SCHEDULE_AT={{ database_backup.schedule_at }}</pre
+                <details class="group rounded-2xl border border-slate-200 bg-white shadow-sm open:ring-1 open:ring-slate-200">
+                    <summary
+                        class="cursor-pointer select-none list-none px-4 py-3 font-semibold text-slate-800 marker:hidden [&::-webkit-details-marker]:hidden"
                     >
-                    <p class="mt-3 text-[11px] text-slate-500">
-                        الحالة الحالية للجدولة:
-                        <strong>{{ database_backup.schedule_enabled ? 'مفعّلة' : 'معطّلة' }}</strong>
-                        — وقت التشغيل المقترح: {{ database_backup.schedule_at }} (
-                        {{ app_meta.timezone }} ).
-                    </p>
-                </div>
-
-                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <h3 class="text-sm font-bold text-slate-900">استعادة أرشيف كامل (<span class="font-mono">*-full.tar.gz.enc</span>)</h3>
-                    <p class="mt-2 text-xs text-slate-600">
-                        على جهازك أو على خادم staging آمن: فك التشفير ثم فتح الأرشيف، ثم استيراد القاعدة ونسخ المجلدات إلى مسارات Laravel (بعد
-                        إيقاف الموقع مؤقتاً إن لزم).
-                    </p>
-                    <pre class="mt-3 overflow-x-auto rounded-xl bg-slate-900 p-3 text-[11px] leading-relaxed text-slate-100"
-                        >export LARAVEL_BACKUP_ENC_PASS='نفس_BACKUP_ENCRYPTION_PASSWORD'
+                        <span class="inline-flex items-center gap-2">
+                            أوامر استعادة سريعة
+                            <svg class="h-4 w-4 text-slate-400 transition group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M6 9l6 6 6-6" />
+                            </svg>
+                        </span>
+                    </summary>
+                    <div class="space-y-4 border-t border-slate-100 px-4 pb-4 pt-3 text-[11px] leading-relaxed text-slate-600">
+                        <div>
+                            <p class="mb-1 font-semibold text-slate-800">أرشيف مشفّر (<span class="font-mono">.tar.gz.enc</span>)</p>
+                            <pre class="overflow-x-auto rounded-xl bg-slate-900 p-3 font-mono text-[10px] text-slate-100 sm:text-[11px]"
+                                >export LARAVEL_BACKUP_ENC_PASS='BACKUP_ENCRYPTION_PASSWORD'
 openssl enc -aes-256-cbc -d -salt -pbkdf2 -iter {{ database_backup.openssl_iterations }} \
-  -pass env:LARAVEL_BACKUP_ENC_PASS \
-  -in backup-xxxx-full.tar.gz.enc -out backup-full.tar.gz
-mkdir restore &amp;&amp; tar -xzf backup-full.tar.gz -C restore
-cat restore/manifest.json</pre
-                    >
-                    <p class="mt-2 text-xs text-slate-600">
-                        ثم استورد ملف القاعدة تحت <span class="font-mono">restore/01_database/</span> (غالباً
-                        <span class="font-mono">database.sql.gz</span> — استخدم <span class="font-mono">gunzip</span> ثم
-                        <span class="font-mono">mysql … &lt; database.sql</span>). وللمجلدات:
-                    </p>
-                    <pre class="mt-3 overflow-x-auto rounded-xl bg-slate-900 p-3 text-[11px] text-slate-100"
-                        >rsync -a restore/02_storage_public/ storage/app/public/
-rsync -a restore/03_storage_private/ storage/app/private/</pre
-                    >
-                </div>
-
-                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <h3 class="text-sm font-bold text-slate-900">استعادة نسخة «قاعدة فقط» القديمة (<span class="font-mono">.sql.gz</span>)</h3>
-                    <pre class="mt-3 overflow-x-auto rounded-xl bg-slate-900 p-3 text-[11px] text-slate-100"
-                        >gunzip -c backup.sql.gz | mysql -h HOST -u USER -p DATABASE_NAME</pre
-                    >
-                </div>
+  -pass env:LARAVEL_BACKUP_ENC_PASS -in ملف.enc -out ملف.tar.gz
+mkdir -p restore &amp;&amp; tar -xzf ملف.tar.gz -C restore</pre
+                            >
+                        </div>
+                        <div>
+                            <p class="mb-1 font-semibold text-slate-800">استيراد SQL بعد الفك</p>
+                            <pre class="overflow-x-auto rounded-xl bg-slate-900 p-3 font-mono text-[10px] text-slate-100">gunzip -c restore/01_database/database.sql.gz | mysql -h HOST -u USER -p DATABASE</pre>
+                        </div>
+                    </div>
+                </details>
             </div>
 
             <!-- System meta -->

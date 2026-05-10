@@ -57,6 +57,8 @@ final class BackupGithubPushService
 
         $this->ensureRepositoryReady($workDir, $authenticatedUrl, $branch);
 
+        $this->ensureGithubBackupSubpathFolder($workDir, $branch, $subpath);
+
         $relativeFile = ($subpath !== '' ? $subpath.'/' : '').$filename;
         $destDir = $subpath !== '' ? $workDir.DIRECTORY_SEPARATOR.$subpath : $workDir;
         File::makeDirectory($destDir, 0750, true);
@@ -160,6 +162,42 @@ final class BackupGithubPushService
                 0,
                 $e
             );
+        }
+    }
+
+    /**
+     * إنشاء مجلد النسخ داخل المستودع مع README عند أول استخدام (حتى يظهر المجلد على GitHub بوضوح).
+     */
+    private function ensureGithubBackupSubpathFolder(string $workDir, string $branch, string $subpath): void
+    {
+        $subpath = trim($subpath, '/');
+        if ($subpath === '') {
+            return;
+        }
+
+        $readmeAbsolute = $workDir.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $subpath).DIRECTORY_SEPARATOR.'README.md';
+
+        if (File::exists($readmeAbsolute)) {
+            return;
+        }
+
+        File::makeDirectory(dirname($readmeAbsolute), 0750, true);
+
+        File::put(
+            $readmeAbsolute,
+            "# النسخ الاحتياطية\n\nيُرفَع إلى هذا المجلد **آلياً** من خادم التطبيق. يجب أن يبقى المستودع **خاصاً**؛ المحتوى حساس.\n"
+        );
+
+        $readmeRelative = $subpath.'/README.md';
+
+        (new Process(['git', '-C', $workDir, 'add', '--', $readmeRelative]))->setTimeout(60)->mustRun();
+
+        $commit = new Process(['git', '-C', $workDir, 'commit', '-m', 'chore: إنشاء مجلد النسخ الاحتياطية']);
+        $commit->setTimeout(120);
+        $commit->run();
+
+        if ($commit->isSuccessful()) {
+            (new Process(['git', '-C', $workDir, 'push', 'origin', $branch]))->setTimeout(600)->mustRun();
         }
     }
 }

@@ -34,7 +34,14 @@ Schedule::command('portal:send-weekly-client-reports --limit=400')
     ->withoutOverlapping();
 
 if (config('database_backup.schedule_enabled')) {
-    Schedule::command('db:backup')
-        ->dailyAt((string) config('database_backup.schedule_at', '03:30'))
-        ->withoutOverlapping(120);
+    $hours = (int) config('database_backup.schedule_every_hours', 2);
+    $overlapMinutes = max(15, (int) config('database_backup.schedule_overlap_minutes', 90));
+
+    $backupSchedule = Schedule::command('db:backup')->withoutOverlapping($overlapMinutes);
+
+    if ($hours <= 0 || $hours >= 24) {
+        $backupSchedule->dailyAt((string) config('database_backup.schedule_at', '03:30'));
+    } else {
+        $backupSchedule->cron(sprintf('0 */%d * * *', $hours));
+    }
 }

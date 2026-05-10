@@ -158,9 +158,21 @@ class SystemSettingsController extends Controller
             [
                 'label' => 'نسخ احتياطي لقاعدة البيانات',
                 'command' => 'db:backup',
-                'schedule' => config('database_backup.schedule_enabled')
-                    ? 'يومياً '.(string) config('database_backup.schedule_at', '03:30').' ('.config('app.timezone').')'
-                    : 'معطّل حالياً — لفعّل الجدولة اضبط BACKUP_SCHEDULE_ENABLED=true في .env',
+                'schedule' => (function (): string {
+                    if (! config('database_backup.schedule_enabled')) {
+                        return 'معطّل — BACKUP_SCHEDULE_ENABLED=false';
+                    }
+
+                    $hours = (int) config('database_backup.schedule_every_hours', 2);
+
+                    if ($hours <= 0 || $hours >= 24) {
+                        return 'يومياً '.(string) config('database_backup.schedule_at', '03:30').' ('.config('app.timezone').')';
+                    }
+
+                    return $hours === 2
+                        ? 'كل ساعتين — '.config('app.timezone').' (cron 0 */2 * * *)'
+                        : 'كل '.$hours.' ساعات — '.config('app.timezone');
+                })(),
             ],
         ];
 
