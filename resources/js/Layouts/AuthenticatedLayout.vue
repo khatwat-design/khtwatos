@@ -49,9 +49,13 @@ const teamNotebook = computed(() => {
     return nb?.team_id ? nb : null;
 });
 
-/** إخفاء الدفتر في صفحات تحتاج مساحة قراءة كاملة أو لا تناسب الطفو */
+/** إخفاء الدفتر في صفحات تحتاج مساحة قراءة كاملة أو لا تناسب الطفو؛ أو حسب تفضيل المستخدم في الملف الشخصي */
 const showTeamNotebookDock = computed(() => {
     if (!teamNotebook.value) {
+        return false;
+    }
+    const user = page.props.auth?.user;
+    if (user && user.show_team_notebook === false) {
         return false;
     }
     if (route().current('chat.*') || route().current('outside.*')) {

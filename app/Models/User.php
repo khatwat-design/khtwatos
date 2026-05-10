@@ -26,6 +26,7 @@ use Illuminate\Notifications\Notifiable;
     'availability_end_time',
     'availability_schedule',
     'avatar_path',
+    'show_team_notebook',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -39,6 +40,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_bookable' => 'boolean',
+            'show_team_notebook' => 'boolean',
             'availability_days' => 'array',
             'availability_schedule' => 'array',
         ];

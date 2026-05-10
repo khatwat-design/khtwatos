@@ -201,6 +201,22 @@ class ProfileController extends Controller
     }
 
     /**
+     * تحكم في إظهار دفتر الملاحظات الجانبي (المحتوى يبقى محفوظاً في قاعدة البيانات).
+     */
+    public function updateTeamNotebookVisibility(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'show_team_notebook' => ['required', 'boolean'],
+        ]);
+
+        $request->user()->update([
+            'show_team_notebook' => $data['show_team_notebook'],
+        ]);
+
+        return Redirect::back();
+    }
+
+    /**
      * Delete the user's account.
      */
     public function destroy(Request $request): RedirectResponse
