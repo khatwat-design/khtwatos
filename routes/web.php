@@ -173,6 +173,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('can:manage-system-settings')->group(function () {
         Route::get('/settings', [SystemSettingsController::class, 'edit'])->name('settings.index');
         Route::patch('/settings', [SystemSettingsController::class, 'update'])->name('settings.update');
+        Route::patch('/settings/team-navigation', [SystemSettingsController::class, 'updateTeamNavigation'])
+            ->name('settings.team-navigation.update');
     });
 
     Route::middleware('can:manage-employees')->group(function () {

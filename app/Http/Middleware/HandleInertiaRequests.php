@@ -6,6 +6,7 @@ use App\Http\Controllers\TeamNotebookController;
 use App\Services\ChatNotificationReadService;
 use App\Services\ChatUnreadService;
 use App\Services\NativePushService;
+use App\Services\NavigationVisibilityService;
 use App\Support\EffectiveSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -82,6 +83,7 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn () => $request->session()->get('error'),
             ],
             'team_notebook' => fn () => TeamNotebookController::sharedPayloadForRequest($request),
+            'nav_team_routes' => fn () => app(NavigationVisibilityService::class)->allowedRouteNamesForUser($user),
         ];
     }
 }

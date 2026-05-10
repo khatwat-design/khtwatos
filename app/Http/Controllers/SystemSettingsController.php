@@ -3,9 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\SystemSetting;
+use App\Models\Team;
+use App\Models\TeamNavigationGrant;
 use App\Support\EffectiveSettings;
+use App\Support\NavigationCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -42,8 +47,42 @@ class SystemSettingsController extends Controller
             ];
         }
 
+        $teams = Team::query()->orderBy('sort_order')->orderBy('id')->get(['id', 'name', 'slug']);
+        $grantRows = TeamNavigationGrant::query()
+            ->whereIn('team_id', $teams->pluck('id'))
+            ->get();
+
+        $teamsNavigation = $teams->map(function (Team $team) use ($grantRows) {
+            $rows = $grantRows->where('team_id', $team->id)->keyBy('route_name');
+            $routes = [];
+            foreach (NavigationCatalog::routeNames() as $routeName) {
+                $g = $rows->get($routeName);
+                $routes[$routeName] = [
+                    'allow_members' => $g ? (bool) $g->allow_members : false,
+                    'allow_leads' => $g ? (bool) $g->allow_leads : false,
+                ];
+            }
+
+            return [
+                'id' => $team->id,
+                'name' => $team->name,
+                'slug' => $team->slug,
+                'routes' => $routes,
+            ];
+        })->values()->all();
+
+        $navCatalog = [];
+        foreach (NavigationCatalog::items() as $routeName => $label) {
+            $navCatalog[] = [
+                'route_name' => $routeName,
+                'label' => $label,
+            ];
+        }
+
         return Inertia::render('Settings/Index', [
             'items' => $items,
+            'nav_catalog' => $navCatalog,
+            'teams_navigation' => $teamsNavigation,
         ]);
     }
 
@@ -68,5 +107,45 @@ class SystemSettingsController extends Controller
         }
 
         return redirect()->route('settings.index')->with('success', 'تم حفظ الإعدادات.');
+    }
+
+    public function updateTeamNavigation(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()?->can('manage-system-settings'), 403);
+
+        $routeNames = NavigationCatalog::routeNames();
+
+        $data = $request->validate([
+            'teams' => ['required', 'array'],
+            'teams.*.team_id' => ['required', 'integer', 'exists:teams,id'],
+            'teams.*.routes' => ['required', 'array'],
+            'teams.*.routes.*.route_name' => ['required', 'string', Rule::in($routeNames)],
+            'teams.*.routes.*.allow_members' => ['required', 'boolean'],
+            'teams.*.routes.*.allow_leads' => ['required', 'boolean'],
+        ]);
+
+        DB::transaction(function () use ($data): void {
+            foreach ($data['teams'] as $teamPayload) {
+                $teamId = (int) $teamPayload['team_id'];
+                TeamNavigationGrant::query()->where('team_id', $teamId)->delete();
+
+                foreach ($teamPayload['routes'] as $routePayload) {
+                    $allowMembers = (bool) ($routePayload['allow_members'] ?? false);
+                    $allowLeads = (bool) ($routePayload['allow_leads'] ?? false);
+                    if (! $allowMembers && ! $allowLeads) {
+                        continue;
+                    }
+
+                    TeamNavigationGrant::query()->create([
+                        'team_id' => $teamId,
+                        'route_name' => (string) $routePayload['route_name'],
+                        'allow_members' => $allowMembers,
+                        'allow_leads' => $allowLeads,
+                    ]);
+                }
+            }
+        });
+
+        return redirect()->route('settings.index')->with('success', 'تم حفظ ظهور القائمة للفرق.');
     }
 }

@@ -64,7 +64,7 @@ const showTeamNotebookDock = computed(() => {
     return true;
 });
 
-const nav = [
+const navBase = computed(() => [
     { label: 'الرئيسية', routeName: 'home.index', match: 'home.*' },
     { label: 'المهام', routeName: 'tasks.index', match: 'tasks.*' },
     { label: 'الدردشة', routeName: 'chat.index', match: 'chat.*' },
@@ -82,14 +82,32 @@ const nav = [
     ...(page.props.auth?.can?.manageSystemSettings
         ? [{ label: 'الإعدادات', routeName: 'settings.index', match: 'settings.*' }]
         : []),
-];
+]);
+
+/** قيود ظهور القائمة حسب الفريق (من الخادم): null = لا قيود إضافية */
+const navTeamAllowlist = computed(() => {
+    const raw = page.props.nav_team_routes;
+    if (raw === null || raw === undefined) {
+        return null;
+    }
+    return Array.isArray(raw) ? new Set(raw) : null;
+});
+
+const nav = computed(() => {
+    const list = navBase.value;
+    const allow = navTeamAllowlist.value;
+    if (!allow) {
+        return list;
+    }
+    return list.filter((item) => allow.has(item.routeName));
+});
 
 const mobileBottomNav = computed(() =>
-    nav.filter((item) => !['academy.index', 'employees.index', 'settings.index'].includes(item.routeName)),
+    nav.value.filter((item) => !['academy.index', 'employees.index', 'settings.index'].includes(item.routeName)),
 );
 
 const mobileDropdownNav = computed(() =>
-    nav.filter((item) => ['academy.index', 'employees.index', 'settings.index'].includes(item.routeName)),
+    nav.value.filter((item) => ['academy.index', 'employees.index', 'settings.index'].includes(item.routeName)),
 );
 
 function active(match) {
