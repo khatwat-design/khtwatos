@@ -40,3 +40,17 @@ DerivedData/
 
 # حزم APK محلية للاختبار
 /dist/
+
+# Python debug scripts and cache (local-only)
+__pycache__/
+/_d2.py
+/_decoded_patch.py
+/_fix_dec.py
+/_patch_dec.py
+/fix_unknown_cols.py
+/fix_unknown_cols.py.b64
+/patch_fix_object.py
+/patch_fix_object.py.b64
+
+# External vendored docs (separate git repo)
+/openapi/

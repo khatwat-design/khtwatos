@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Team;
 use App\Models\User;
+use App\Services\EmployeeAnalyticsService;
 use App\Services\SmartNotificationService;
 use App\Services\WhatsAppCloudService;
 use App\Support\ArabCountryDialCodes;
@@ -26,6 +27,7 @@ class EmployeeController extends Controller
     public function __construct(
         private readonly SmartNotificationService $smartNotifications,
         private readonly WhatsAppCloudService $whatsAppCloudService,
+        private readonly EmployeeAnalyticsService $analytics,
     ) {}
 
     public function index(Request $request): Response
@@ -36,8 +38,17 @@ class EmployeeController extends Controller
             ->orderBy('name')
             ->get();
 
+        $rangeDays = max(7, min(180, (int) $request->query('range', 30)));
+        $analytics = $this->analytics->analyticsForEmployees($employees, $rangeDays);
+        $teamSummary = $this->analytics->teamSummary($analytics, $employees, $rangeDays);
+        $teamsBreakdown = $this->analytics->teamsBreakdown($analytics, $employees, $rangeDays);
+
         return Inertia::render('Employees/Index', [
             'arab_country_dial_options' => ArabCountryDialCodes::optionsForFront(),
+            'analytics' => $analytics,
+            'analytics_range_days' => $rangeDays,
+            'team_summary' => $teamSummary,
+            'teams_breakdown' => $teamsBreakdown,
             'employees' => $employees->map(function (User $user) {
                 $split = $this->splitPhoneForDisplay($user->phone);
 

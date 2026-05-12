@@ -7,6 +7,7 @@ use App\Http\Controllers\ClientPortalController;
 use App\Http\Controllers\DatabaseBackupController;
 use App\Http\Controllers\DevicePushTokenController;
 use App\Http\Controllers\DirectChatController;
+use App\Http\Controllers\EmployeeAttendanceController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\GoodsCustomerController;
 use App\Http\Controllers\HomeController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\PrivateChatRoomController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicBookingController;
 use App\Http\Controllers\PushSubscriptionController;
+use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\SystemSettingsController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TeamChatController;
@@ -121,6 +123,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/goods/customers/{goodsCustomer}/sales-reminder', [GoodsCustomerController::class, 'sendSalesReminder'])->name('goods.customers.sales-reminder');
     Route::post('/goods/customers/{goodsCustomer}/weekly-survey', [GoodsCustomerController::class, 'sendWeeklySurvey'])->name('goods.customers.weekly-survey');
 
+    Route::get('/sales/analytics', [\App\Http\Controllers\SalesAnalyticsController::class, 'index'])->name('sales.analytics');
+
     Route::get('/meetings', [MeetingController::class, 'index'])->name('meetings.index');
     Route::get('/meetings/create', [MeetingController::class, 'create'])->name('meetings.create');
     Route::post('/meetings', [MeetingController::class, 'store'])->name('meetings.store');
@@ -193,6 +197,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
         Route::post('/employees/{employee}/login-whatsapp', [EmployeeController::class, 'sendLoginWhatsApp'])->name('employees.login-whatsapp');
     });
+
+    // الحضور اليومي ونبضات النشاط
+    Route::get('/attendance/status', [EmployeeAttendanceController::class, 'status'])->name('attendance.status');
+    Route::post('/attendance/check', [EmployeeAttendanceController::class, 'check'])->name('attendance.check');
+    Route::post('/attendance/check-out', [EmployeeAttendanceController::class, 'checkOut'])->name('attendance.check-out');
+    Route::post('/attendance/heartbeat', [EmployeeAttendanceController::class, 'heartbeat'])->name('attendance.heartbeat');
+
+    // تذاكر الدعم والمشاكل
+    Route::get('/tickets', [SupportTicketController::class, 'index'])->name('tickets.index');
+    Route::post('/tickets', [SupportTicketController::class, 'store'])->name('tickets.store');
+    Route::get('/tickets/{ticket}', [SupportTicketController::class, 'show'])->name('tickets.show');
+    Route::patch('/tickets/{ticket}', [SupportTicketController::class, 'update'])->name('tickets.update');
+    Route::delete('/tickets/{ticket}', [SupportTicketController::class, 'destroy'])->name('tickets.destroy');
+    Route::post('/tickets/{ticket}/messages', [SupportTicketController::class, 'addMessage'])->name('tickets.messages.store');
 });
 
 Route::middleware('auth')->group(function () {

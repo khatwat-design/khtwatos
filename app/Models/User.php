@@ -94,6 +94,31 @@ class User extends Authenticatable
         return $this->hasMany(MetaOAuthToken::class);
     }
 
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(EmployeeAttendance::class);
+    }
+
+    public function activitySessions(): HasMany
+    {
+        return $this->hasMany(UserActivitySession::class);
+    }
+
+    public function taskTimeLogs(): HasMany
+    {
+        return $this->hasMany(TaskTimeLog::class);
+    }
+
+    public function reportedTickets(): HasMany
+    {
+        return $this->hasMany(SupportTicket::class, 'reporter_id');
+    }
+
+    public function assignedTickets(): HasMany
+    {
+        return $this->hasMany(SupportTicket::class, 'assignee_id');
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';

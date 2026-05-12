@@ -1,11 +1,13 @@
 <script setup>
 import { Capacitor } from '@capacitor/core';
 import { initNativePushForAuthenticatedSession } from '@/capacitor/native-push';
+import DailyAttendanceModal from '@/Components/DailyAttendanceModal.vue';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import TeamNotebookDock from '@/Components/TeamNotebookDock.vue';
+import { usePresenceHeartbeat } from '@/composables/usePresenceHeartbeat';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const page = usePage();
 const sidebarCollapsed = ref(false);
@@ -70,12 +72,16 @@ const navBase = computed(() => [
     { label: 'الدردشة', routeName: 'chat.index', match: 'chat.*' },
     { label: 'الخارج', routeName: 'outside.index', match: 'outside.*' },
     { label: 'البضاعة', routeName: 'goods.index', match: 'goods.*' },
+    ...(page.props.auth?.can?.viewSalesAnalytics
+        ? [{ label: 'تحليلات المبيعات', routeName: 'sales.analytics', match: 'sales.*' }]
+        : []),
     { label: 'الاجتماعات', routeName: 'meetings.index', match: 'meetings.*' },
     { label: 'العملاء', routeName: 'clients.index', match: 'clients.*' },
     ...(page.props.auth?.can?.viewWarehouse
         ? [{ label: 'المخزن', routeName: 'warehouse.index', match: 'warehouse.*' }]
         : []),
     { label: 'الأكاديمية', routeName: 'academy.index', match: 'academy.index' },
+    { label: 'المشاكل والدعم', routeName: 'tickets.index', match: 'tickets.*' },
     ...(page.props.auth?.can?.manageEmployees
         ? [{ label: 'الموظفين', routeName: 'employees.index', match: 'employees.*' }]
         : []),
@@ -103,12 +109,35 @@ const nav = computed(() => {
 });
 
 const mobileBottomNav = computed(() =>
-    nav.value.filter((item) => !['academy.index', 'employees.index', 'settings.index'].includes(item.routeName)),
+    nav.value.filter(
+        (item) => !['academy.index', 'employees.index', 'settings.index', 'tickets.index'].includes(item.routeName),
+    ),
 );
 
 const mobileDropdownNav = computed(() =>
-    nav.value.filter((item) => ['academy.index', 'employees.index', 'settings.index'].includes(item.routeName)),
+    nav.value.filter((item) =>
+        ['academy.index', 'employees.index', 'settings.index', 'tickets.index'].includes(item.routeName),
+    ),
 );
+
+// نافذة تسجيل الحضور اليومية + قياس النشاط
+const isAttendanceModalOpen = ref(false);
+const attendanceDismissed = ref(false);
+
+const needsCheckIn = computed(() => Boolean(page.props.attendance?.needs_check_in));
+const openTicketsCount = computed(() => Number(page.props.tickets_meta?.open_count || 0));
+
+watch(
+    needsCheckIn,
+    (val) => {
+        if (val && !attendanceDismissed.value) {
+            isAttendanceModalOpen.value = true;
+        }
+    },
+    { immediate: true },
+);
+
+usePresenceHeartbeat();
 
 function active(match) {
     return route().current(match);
@@ -120,13 +149,20 @@ function navIcon(item) {
     if (item.routeName === 'chat.index') return 'chat';
     if (item.routeName === 'outside.index') return 'outside';
     if (item.routeName === 'goods.index') return 'goods';
+    if (item.routeName === 'sales.analytics') return 'analytics';
     if (item.routeName === 'meetings.index') return 'calendar';
     if (item.routeName === 'clients.index') return 'users';
     if (item.routeName === 'warehouse.index') return 'warehouse';
     if (item.routeName === 'academy.index') return 'academy';
     if (item.routeName === 'employees.index') return 'employees';
+    if (item.routeName === 'tickets.index') return 'tickets';
     if (item.routeName === 'settings.index') return 'settings';
     return 'dot';
+}
+
+function dismissAttendanceModal() {
+    attendanceDismissed.value = true;
+    isAttendanceModalOpen.value = false;
 }
 
 onMounted(() => {
@@ -351,7 +387,7 @@ async function openNotification(note) {
                         :href="route(item.routeName)"
                         prefetch
                         :class="[
-                            'group rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ease-out hover:scale-[1.02]',
+                            'group flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ease-out hover:scale-[1.02]',
                             active(item.match)
                                 ? 'bg-brand-100 text-black ring-1 ring-brand-200 shadow-lg shadow-slate-200'
                                 : 'text-slate-700 hover:bg-slate-100 hover:text-black',
@@ -360,6 +396,13 @@ async function openNotification(note) {
                     >
                         <span v-if="!sidebarCollapsed">{{ item.label }}</span>
                         <span v-else class="mx-auto block h-2 w-2 rounded-full bg-current/80" />
+                        <span
+                            v-if="!sidebarCollapsed && item.routeName === 'tickets.index' && openTicketsCount > 0"
+                            class="inline-flex min-w-[20px] items-center justify-center rounded-full bg-rose-600 px-1.5 text-[10px] font-bold text-white"
+                            :title="`${openTicketsCount} تذكرة مفتوحة`"
+                        >
+                            {{ openTicketsCount > 99 ? '99+' : openTicketsCount }}
+                        </span>
                     </Link>
                 </nav>
                 <div class="border-t border-slate-200 p-3 text-xs text-slate-600">
@@ -517,6 +560,12 @@ async function openNotification(note) {
                     <slot />
                 </main>
 
+                <DailyAttendanceModal
+                    :open="isAttendanceModalOpen && needsCheckIn"
+                    @close="dismissAttendanceModal"
+                    @checked-in="dismissAttendanceModal"
+                />
+
                 <TeamNotebookDock v-if="showTeamNotebookDock" :key="teamNotebook.team_id" :notebook="teamNotebook" />
                 <nav class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 py-1.5 backdrop-blur-xl md:hidden">
                     <div class="grid gap-1" :style="{ gridTemplateColumns: `repeat(${Math.max(mobileBottomNav.length, 1)}, minmax(0, 1fr))` }">
@@ -551,6 +600,10 @@ async function openNotification(note) {
                                 <path d="M5 7l1.5 12h11L19 7" />
                                 <path d="M9 11v5M15 11v5" />
                                 <path d="M9 7V5a3 3 0 0 1 6 0v2" />
+                            </svg>
+                            <svg v-else-if="navIcon(item) === 'analytics'" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path d="M3 20h18" />
+                                <path d="M6 17V9M11 17V5M16 17v-7M21 17v-3" />
                             </svg>
                             <svg v-else-if="navIcon(item) === 'calendar'" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                 <rect x="3" y="5" width="18" height="16" rx="2" />

@@ -11,6 +11,7 @@ use App\Models\TaskChecklistItem;
 use App\Models\TaskMessage;
 use App\Models\TaskReassignment;
 use App\Models\TaskStatusHistory;
+use App\Models\TaskTimeLog;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\ClientWorkflowAutomationService;
@@ -433,8 +434,11 @@ class TaskController extends Controller
 
                     $task->board_column_id = $column->id;
 
-                    if ($didMoveColumn && (int) $task->client_id > 0 && $toColumnName === 'تم') {
-                        $this->workflowAutomation->handleTaskMovedToDone($task, $request->user()?->id);
+                    if ($didMoveColumn && $this->isCompletionColumnName((string) $toColumnName)) {
+                        $this->recordTaskCompletionLog($task, (string) ($columnNameMap[$fromColumnId] ?? ''), (string) $toColumnName);
+                        if ((int) $task->client_id > 0 && $toColumnName === 'تم') {
+                            $this->workflowAutomation->handleTaskMovedToDone($task, $request->user()?->id);
+                        }
                     }
                     if ($didMoveColumn) {
                         $task->loadMissing('assignees:id,name');
@@ -832,5 +836,53 @@ class TaskController extends Controller
             'active_count' => (clone $base)->whereNull('archived_at')->count(),
             'archived_count' => (clone $base)->whereNotNull('archived_at')->count(),
         ];
+    }
+
+    /**
+     * هل اسم العمود يعتبر "إنجاز" — وحينها نسجّل سجلّ وقت الإنجاز.
+     */
+    private function isCompletionColumnName(string $name): bool
+    {
+        $normalized = trim($name);
+
+        return in_array($normalized, ['تم', 'مكتمل', 'منجز', 'Done', 'Completed'], true);
+    }
+
+    /**
+     * تسجيل وقت إنجاز المهمة لكل مكلَّف بها — يستخدم في تحليلات الموظفين.
+     */
+    private function recordTaskCompletionLog(Task $task, string $fromColumn, string $toColumn): void
+    {
+        $task->loadMissing(['assignees:id', 'assignee:id']);
+
+        $userIds = $task->assignees->pluck('id')->all();
+        if (empty($userIds) && $task->assignee_id) {
+            $userIds = [(int) $task->assignee_id];
+        }
+        $userIds = array_values(array_unique(array_map('intval', $userIds)));
+
+        if (empty($userIds)) {
+            $userIds = [null];
+        }
+
+        $startedAt = $task->created_at ?? now()->subDay();
+        $completedAt = now();
+        $duration = max(0, (int) $startedAt->diffInSeconds($completedAt));
+        $wasOverdue = $task->due_at !== null && $completedAt->greaterThan($task->due_at);
+        $overdueSeconds = $wasOverdue && $task->due_at ? (int) $task->due_at->diffInSeconds($completedAt) : 0;
+
+        foreach ($userIds as $userId) {
+            TaskTimeLog::query()->create([
+                'task_id' => $task->id,
+                'user_id' => $userId,
+                'started_at' => $startedAt,
+                'completed_at' => $completedAt,
+                'duration_seconds' => $duration,
+                'was_overdue' => $wasOverdue,
+                'overdue_seconds' => $overdueSeconds,
+                'from_column_name' => $fromColumn !== '' ? $fromColumn : null,
+                'to_column_name' => $toColumn,
+            ]);
+        }
     }
 }

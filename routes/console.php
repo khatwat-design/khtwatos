@@ -10,6 +10,7 @@ Artisan::command('inspire', function () {
 
 Schedule::command('notifications:sync-smart')->everyMinute()->withoutOverlapping();
 Schedule::command('meta:sync-campaigns --days=7')->everyMinute()->withoutOverlapping();
+Schedule::command('attendance:close-stale')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('goods:send-weekly-survey --limit=200')
     ->weeklyOn(6, '10:00')
     ->withoutOverlapping();

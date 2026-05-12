@@ -18,11 +18,13 @@ final class NavigationCatalog
             'chat.index' => 'الدردشة',
             'outside.index' => 'الخارج',
             'goods.index' => 'البضاعة',
+            'sales.analytics' => 'تحليلات المبيعات',
             'meetings.index' => 'الاجتماعات',
             'clients.index' => 'العملاء',
             'warehouse.index' => 'المخزن',
             'academy.index' => 'الأكاديمية',
             'employees.index' => 'الموظفين',
+            'tickets.index' => 'المشاكل والدعم',
             'settings.index' => 'إعدادات النظام',
         ];
     }
@@ -51,7 +53,7 @@ final class NavigationCatalog
             [
                 'id' => 'channels',
                 'label' => 'القنوات والميدان',
-                'routes' => ['outside.index', 'goods.index'],
+                'routes' => ['outside.index', 'goods.index', 'sales.analytics'],
             ],
             [
                 'id' => 'commercial',
@@ -61,7 +63,7 @@ final class NavigationCatalog
             [
                 'id' => 'org',
                 'label' => 'التعليم والموارد',
-                'routes' => ['academy.index', 'employees.index'],
+                'routes' => ['academy.index', 'employees.index', 'tickets.index'],
             ],
             [
                 'id' => 'system',
