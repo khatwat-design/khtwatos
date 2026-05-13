@@ -1015,7 +1015,6 @@ function outsideMessengerUrl(channel) {
                                 id="facebook_page"
                                 v-model="clientForm.facebook_page"
                                 class="mt-1 block w-full"
-                                placeholder="مثال: 123456789 أو رابط الصفحة"
                             />
                         </div>
                         <div>
@@ -1024,7 +1023,6 @@ function outsideMessengerUrl(channel) {
                                 id="instagram_page"
                                 v-model="clientForm.instagram_page"
                                 class="mt-1 block w-full"
-                                placeholder="مثال: 1784... أو @username"
                             />
                         </div>
                         <div>

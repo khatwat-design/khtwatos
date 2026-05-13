@@ -21,6 +21,8 @@ const form = useForm({
     account_manager_id: null,
     campaign_manager_id: null,
     current_pipeline_stage_id: props.stages[0]?.id ?? null,
+    facebook_page: '',
+    instagram_page: '',
 });
 
 function submit() {
@@ -152,6 +154,26 @@ function submit() {
                         class="mt-1 block w-full rounded-md border-gray-300 text-black shadow-sm focus:border-brand-500 focus:ring-brand-500"
                     />
                     <InputError class="mt-1" :message="form.errors.notes" />
+                </div>
+                <div>
+                    <InputLabel for="facebook_page" value="صفحة الفيسبوك" />
+                    <TextInput
+                        id="facebook_page"
+                        v-model="form.facebook_page"
+                        type="text"
+                        class="mt-1 block w-full text-black"
+                    />
+                    <InputError class="mt-1" :message="form.errors.facebook_page" />
+                </div>
+                <div>
+                    <InputLabel for="instagram_page" value="صفحة الانستغرام" />
+                    <TextInput
+                        id="instagram_page"
+                        v-model="form.instagram_page"
+                        type="text"
+                        class="mt-1 block w-full text-black"
+                    />
+                    <InputError class="mt-1" :message="form.errors.instagram_page" />
                 </div>
                 <PrimaryButton :disabled="form.processing">إنشاء</PrimaryButton>
             </form>

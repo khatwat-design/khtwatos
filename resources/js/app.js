@@ -2,7 +2,9 @@ import '../css/app.css';
 import './bootstrap';
 
 import InertiaRoot from '@/InertiaRoot.vue';
+import { Capacitor } from '@capacitor/core';
 import { initCapacitorNativeShell } from '@/capacitor/init-native';
+import { initPwaShell } from '@/pwa/init-pwa-shell';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, h } from 'vue';
@@ -15,6 +17,9 @@ async function bootstrap() {
         document.documentElement.setAttribute('data-app-shell', 'booting');
     }
 
+    if (!Capacitor.isNativePlatform()) {
+        initPwaShell();
+    }
     await initCapacitorNativeShell();
 
     createInertiaApp({

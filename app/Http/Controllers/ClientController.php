@@ -112,6 +112,14 @@ class ClientController extends Controller
             return $client;
         });
 
+        if (Schema::hasTable('client_meta_integrations')) {
+            $this->syncClientMetaPageFields(
+                $client->id,
+                isset($data['facebook_page']) ? trim((string) $data['facebook_page']) : '',
+                isset($data['instagram_page']) ? trim((string) $data['instagram_page']) : '',
+            );
+        }
+
         $initialStage = PipelineStage::query()->find($stageId);
         if ($initialStage) {
             $this->workflowAutomation->handleClientStageEntered($client->fresh(), $initialStage->key, $request->user()?->id);
@@ -405,17 +413,11 @@ class ClientController extends Controller
         $client->save();
 
         if (Schema::hasTable('client_meta_integrations')) {
-            $hasMetaData = ! empty($data['facebook_page']) || ! empty($data['instagram_page']);
-            if ($hasMetaData) {
-                ClientMetaIntegration::query()->updateOrCreate(
-                    ['client_id' => $client->id],
-                    [
-                        'meta_page_id' => $data['facebook_page'] ?? null,
-                        'meta_instagram_account_id' => $data['instagram_page'] ?? null,
-                        'is_active' => true,
-                    ]
-                );
-            }
+            $this->syncClientMetaPageFields(
+                $client->id,
+                isset($data['facebook_page']) ? trim((string) $data['facebook_page']) : '',
+                isset($data['instagram_page']) ? trim((string) $data['instagram_page']) : '',
+            );
         }
 
         return redirect()->route('clients.show', $client);
@@ -714,7 +716,30 @@ class ClientController extends Controller
             'account_manager_id' => ['nullable', 'exists:users,id'],
             'campaign_manager_id' => ['nullable', 'exists:users,id'],
             'current_pipeline_stage_id' => ['required', 'exists:pipeline_stages,id'],
+            'facebook_page' => ['nullable', 'string', 'max:255'],
+            'instagram_page' => ['nullable', 'string', 'max:255'],
         ]);
+    }
+
+    private function syncClientMetaPageFields(int $clientId, string $facebookPage, string $instagramPage): void
+    {
+        $pageId = $facebookPage === '' ? null : $facebookPage;
+        $igId = $instagramPage === '' ? null : ltrim($instagramPage, '@');
+
+        $existing = ClientMetaIntegration::query()->where('client_id', $clientId)->first();
+
+        if ($pageId === null && $igId === null && ! $existing) {
+            return;
+        }
+
+        ClientMetaIntegration::query()->updateOrCreate(
+            ['client_id' => $clientId],
+            [
+                'meta_page_id' => $pageId,
+                'meta_instagram_account_id' => $igId,
+                'is_active' => true,
+            ]
+        );
     }
 
     private function campaignManagers()

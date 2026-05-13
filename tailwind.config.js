@@ -102,6 +102,8 @@ export default {
         plugin(({ addVariant }) => {
             /** يطبّق فقط داخل تطبيق Capacitor (يُضاف class على html من init-native) */
             addVariant('native', 'html.capacitor-native &');
+            /** PWA مثبت من المتصفح (display-mode standalone / iOS navigator.standalone) */
+            addVariant('pwa', 'html.pwa-standalone &');
         }),
     ],
 };

@@ -42,6 +42,9 @@
         --color-brand-800: 143 46 50;
         --color-brand-900: 119 44 47;
         --color-brand-950: 65 19 21;
+
+        /** ارتفاع نافذة العرض (يُحدَّث في PWA من visualViewport) */
+        --app-visual-vh: 100dvh;
     }
 
     /** خلفية ثابتة سوداء داخل تطبيق الهاتف (WebView) */
@@ -79,6 +82,36 @@
 
     html.capacitor-native[data-app-shell='booting'] body {
         background: #000000 !important;
+    }
+
+    /**
+     * PWA (متصفح — standalone / iOS add-to-home): هوامش آمنة + حقول 16px لتقليل تكبير iOS.
+     * يُضبط --app-visual-vh من init-pwa-shell عند الحاجة.
+     */
+    html.pwa-standalone {
+        --app-visual-vh: 100dvh;
+    }
+
+    html.pwa-standalone body {
+        padding-left: env(safe-area-inset-left, 0px);
+        padding-right: env(safe-area-inset-right, 0px);
+    }
+
+    html.pwa-standalone input:not([type='checkbox']):not([type='radio']):not([type='range']),
+    html.pwa-standalone select,
+    html.pwa-standalone textarea {
+        font-size: 16px !important;
+    }
+
+    html.pwa-standalone input:not([type='checkbox']):not([type='radio']),
+    html.pwa-standalone select,
+    html.pwa-standalone textarea {
+        min-height: 2.75rem;
+    }
+
+    html.pwa-standalone button,
+    html.pwa-standalone [role='button'] {
+        touch-action: manipulation;
     }
 
     html,

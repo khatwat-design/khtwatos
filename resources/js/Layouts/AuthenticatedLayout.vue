@@ -348,8 +348,8 @@ async function openNotification(note) {
 </script>
 
 <template>
-    <div class="relative min-h-screen min-w-0 bg-[var(--bg-secondary)] text-[var(--text-primary)]">
-        <div class="relative flex min-h-screen">
+    <div class="relative min-h-[var(--app-visual-vh,100dvh)] min-w-0 bg-[var(--bg-secondary)] text-[var(--text-primary)] md:min-h-screen">
+        <div class="relative flex min-h-[var(--app-visual-vh,100dvh)] md:min-h-screen">
             <aside
                 :class="[
                     'hidden shrink-0 flex-col border-s border-slate-200 bg-white transition-[width] duration-200 ease-out md:flex',
@@ -411,7 +411,7 @@ async function openNotification(note) {
 
             <div class="flex min-h-0 min-w-0 flex-1 flex-col">
                 <header
-                    class="sticky top-0 z-20 flex h-12 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 shadow-[0_1px_0_rgba(15,23,42,0.04)] md:px-5"
+                    class="sticky top-0 z-20 flex min-h-12 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 shadow-[0_1px_0_rgba(15,23,42,0.04)] max-md:min-h-[calc(3rem+env(safe-area-inset-top,0px))] max-md:pt-[env(safe-area-inset-top,0px)] md:px-5"
                 >
                     <div class="flex min-w-0 flex-1 items-center gap-3 md:min-w-0 md:flex-initial md:gap-0">
                         <Link :href="route('dashboard')" class="shrink-0 md:hidden">
@@ -441,7 +441,7 @@ async function openNotification(note) {
                             </button>
                             <div
                                 v-if="isNotificationsOpen"
-                                class="notifications-panel-solid fixed left-2 right-2 top-14 z-[90] rounded-lg border border-slate-200 p-2 text-black shadow-lg md:absolute md:left-auto md:right-0 md:top-11 md:w-[22rem] md:max-w-[92vw]"
+                                class="notifications-panel-solid fixed left-2 right-2 z-[90] flex max-h-[min(24rem,70dvh)] flex-col rounded-lg border border-slate-200 p-2 text-black shadow-lg max-md:top-[max(0.75rem,calc(env(safe-area-inset-top,0px)+3.25rem))] max-md:max-h-[min(72dvh,calc(var(--app-visual-vh,100dvh)-5.5rem))] md:absolute md:left-auto md:right-0 md:top-11 md:max-h-[min(24rem,70vh)] md:w-[22rem] md:max-w-[92vw]"
                             >
                                 <div class="mb-2 flex items-center justify-between px-2">
                                     <div class="text-sm font-semibold text-slate-900">الإشعارات</div>
@@ -455,7 +455,7 @@ async function openNotification(note) {
                                 </div>
                                 <div v-if="notificationsLoading" class="p-3 text-xs text-slate-500">جاري تحميل الإشعارات...</div>
                                 <div v-else-if="!notifications.length" class="p-3 text-xs text-slate-500">لا توجد إشعارات حالياً.</div>
-                                <div v-else class="max-h-80 space-y-1 overflow-y-auto px-1 pb-1">
+                                <div v-else class="min-h-0 flex-1 space-y-1 overflow-y-auto px-1 pb-1 max-md:max-h-[min(50dvh,22rem)] md:max-h-80">
                                     <button
                                         v-for="note in notifications"
                                         :key="note.id"
@@ -549,7 +549,7 @@ async function openNotification(note) {
                 </div>
 
                 <main
-                    class="relative z-10 flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-ops-4 py-ops-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:px-ops-5 md:py-ops-5 md:pb-ops-5"
+                    class="relative z-10 flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-ops-4 py-ops-4 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] md:px-ops-5 md:py-ops-5 md:pb-ops-5"
                 >
                     <slot />
                 </main>
@@ -561,7 +561,9 @@ async function openNotification(note) {
                 />
 
                 <TeamNotebookDock v-if="showTeamNotebookDock" :key="teamNotebook.team_id" :notebook="teamNotebook" />
-                <nav class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white px-2 py-1 md:hidden">
+                <nav
+                    class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white px-2 py-1 ps-[max(0.5rem,env(safe-area-inset-left,0px))] pe-[max(0.5rem,env(safe-area-inset-right,0px))] md:hidden"
+                >
                     <div class="grid gap-1" :style="{ gridTemplateColumns: `repeat(${Math.max(mobileBottomNav.length, 1)}, minmax(0, 1fr))` }">
                         <Link
                             v-for="item in mobileBottomNav"
