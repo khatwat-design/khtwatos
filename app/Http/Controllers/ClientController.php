@@ -19,6 +19,7 @@ use App\Services\CampaignDecisionEngineService;
 use App\Services\ClientMetaConnectionService;
 use App\Services\ClientWorkflowAutomationService;
 use App\Services\SmartNotificationService;
+use App\Support\SocialProfileUrl;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -348,6 +349,8 @@ class ClientController extends Controller
                 [
                     'facebook_page' => $metaIntegration?->meta_page_id,
                     'instagram_page' => $metaIntegration?->meta_instagram_account_id,
+                    'facebook_page_url' => SocialProfileUrl::facebook($metaIntegration?->meta_page_id),
+                    'instagram_page_url' => SocialProfileUrl::instagram($metaIntegration?->meta_instagram_account_id),
                     'ad_account_id' => $metaIntegration?->ad_account_id,
                     'outside_instagram_threads' => Schema::hasTable('outside_contacts')
                         ? OutsideContact::query()
@@ -382,8 +385,8 @@ class ClientController extends Controller
             'notes' => ['nullable', 'string', 'max:10000'],
             'account_manager_id' => ['nullable', 'exists:users,id'],
             'campaign_manager_id' => ['nullable', 'exists:users,id'],
-            'facebook_page' => ['nullable', 'string', 'max:255'],
-            'instagram_page' => ['nullable', 'string', 'max:255'],
+            'facebook_page' => ['nullable', 'string', 'max:2000'],
+            'instagram_page' => ['nullable', 'string', 'max:2000'],
             'logo' => ['nullable', 'image', 'max:4096'],
             'remove_logo' => ['nullable', 'boolean'],
         ]);
@@ -716,8 +719,8 @@ class ClientController extends Controller
             'account_manager_id' => ['nullable', 'exists:users,id'],
             'campaign_manager_id' => ['nullable', 'exists:users,id'],
             'current_pipeline_stage_id' => ['required', 'exists:pipeline_stages,id'],
-            'facebook_page' => ['nullable', 'string', 'max:255'],
-            'instagram_page' => ['nullable', 'string', 'max:255'],
+            'facebook_page' => ['nullable', 'string', 'max:2000'],
+            'instagram_page' => ['nullable', 'string', 'max:2000'],
         ]);
     }
 

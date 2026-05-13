@@ -1016,6 +1016,15 @@ function outsideMessengerUrl(channel) {
                                 v-model="clientForm.facebook_page"
                                 class="mt-1 block w-full"
                             />
+                            <a
+                                v-if="meta_profile?.facebook_page_url"
+                                :href="meta_profile.facebook_page_url"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="mt-1 inline-block text-xs font-semibold text-blue-600 underline-offset-2 hover:underline"
+                            >
+                                فتح صفحة الفيسبوك في المتصفح
+                            </a>
                         </div>
                         <div>
                             <InputLabel for="instagram_page" value="صفحة الانستغرام" />
@@ -1024,6 +1033,15 @@ function outsideMessengerUrl(channel) {
                                 v-model="clientForm.instagram_page"
                                 class="mt-1 block w-full"
                             />
+                            <a
+                                v-if="meta_profile?.instagram_page_url"
+                                :href="meta_profile.instagram_page_url"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="mt-1 inline-block text-xs font-semibold text-pink-700 underline-offset-2 hover:underline"
+                            >
+                                فتح صفحة الإنستغرام في المتصفح
+                            </a>
                         </div>
                         <div>
                             <InputLabel for="ad_account_id" value="رقم الحساب الإعلاني المرتبط" />
