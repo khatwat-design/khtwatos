@@ -26,6 +26,33 @@ export default {
 
     theme: {
         extend: {
+            /**
+             * Operational typography (Phase 2): dense, scannable, consistent hierarchy.
+             * Use as text-ops-* utilities; pair with .ops-page-title / .ops-section-title in app.css.
+             */
+            fontSize: {
+                'ops-meta': ['0.625rem', { lineHeight: '0.875rem' }],
+                'ops-label': ['0.6875rem', { lineHeight: '1rem' }],
+                'ops-body-sm': ['0.75rem', { lineHeight: '1rem' }],
+                'ops-body': ['0.8125rem', { lineHeight: '1.125rem' }],
+                'ops-body-md': ['0.875rem', { lineHeight: '1.25rem' }],
+                'ops-title-sm': ['0.9375rem', { lineHeight: '1.25rem' }],
+                'ops-title': ['1rem', { lineHeight: '1.375rem' }],
+                'ops-title-md': ['1.0625rem', { lineHeight: '1.375rem' }],
+                'ops-title-lg': ['1.125rem', { lineHeight: '1.375rem' }],
+                'ops-title-xl': ['1.25rem', { lineHeight: '1.5rem' }],
+            },
+            /** Rhythm tokens for dashboards / forms (optional spacing-ops-*). */
+            spacing: {
+                'ops-1': '0.25rem',
+                'ops-2': '0.5rem',
+                'ops-3': '0.75rem',
+                'ops-4': '1rem',
+                'ops-5': '1.25rem',
+                'ops-6': '1.5rem',
+                'ops-8': '2rem',
+                'ops-10': '2.5rem',
+            },
             colors: {
                 brand: {
                     50: withOpacity('--color-brand-50'),

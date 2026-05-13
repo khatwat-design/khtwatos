@@ -11,6 +11,7 @@ use App\Models\Task;
 use App\Models\TaskBoard;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\TaskBoardDefaults;
 use Carbon\Carbon;
 
 class ClientWorkflowAutomationService
@@ -341,12 +342,7 @@ class ClientWorkflowAutomationService
             ['name' => 'لوحة '.$team->name]
         );
 
-        $columnDefaults = [
-            ['name' => 'قائمة الانتظار', 'sort_order' => 10],
-            ['name' => 'قيد التنفيذ', 'sort_order' => 20],
-            ['name' => 'مراجعة', 'sort_order' => 30],
-            ['name' => 'تم', 'sort_order' => 40],
-        ];
+        $columnDefaults = TaskBoardDefaults::COLUMNS;
 
         $waitingColumnId = null;
         foreach ($columnDefaults as $columnDefault) {

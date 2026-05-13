@@ -348,20 +348,15 @@ async function openNotification(note) {
 </script>
 
 <template>
-    <div class="relative min-h-screen overflow-hidden bg-white text-black">
-        <div class="pointer-events-none absolute inset-0">
-            <div class="absolute -left-24 top-0 h-80 w-80 rounded-full bg-brand-500/20 blur-3xl" />
-            <div class="absolute right-0 top-32 h-72 w-72 rounded-full bg-indigo-500/15 blur-3xl" />
-            <div class="absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl" />
-        </div>
+    <div class="relative min-h-screen min-w-0 bg-[var(--bg-secondary)] text-[var(--text-primary)]">
         <div class="relative flex min-h-screen">
             <aside
                 :class="[
-                    'hidden shrink-0 flex-col border-s border-slate-200 bg-white/80 text-black backdrop-blur-xl transition-all duration-300 ease-out md:flex',
+                    'hidden shrink-0 flex-col border-s border-slate-200 bg-white transition-[width] duration-200 ease-out md:flex',
                     sidebarCollapsed ? 'w-[88px]' : 'w-60',
                 ]"
             >
-                <div class="flex h-28 items-center justify-center border-b border-slate-200 px-4">
+                <div class="flex h-24 items-center justify-center border-b border-slate-200 px-3">
                     <Link :href="route('dashboard')" class="flex w-full items-center justify-center">
                         <img
                             src="/images/logo-sidebar.png"
@@ -371,26 +366,26 @@ async function openNotification(note) {
                         />
                     </Link>
                 </div>
-                <div class="px-3 pt-3">
+                <div class="px-2.5 pt-2">
                     <button
                         type="button"
-                        class="inline-flex h-9 w-full items-center justify-center rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-700 transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-slate-50"
+                        class="inline-flex h-8 w-full items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-100"
                         @click="sidebarCollapsed = !sidebarCollapsed"
                     >
                         {{ sidebarCollapsed ? 'توسيع' : 'طي القائمة' }}
                     </button>
                 </div>
-                <nav class="flex flex-1 flex-col gap-1.5 p-3">
+                <nav class="flex flex-1 flex-col gap-0.5 p-2">
                     <Link
                         v-for="item in nav"
                         :key="item.routeName"
                         :href="route(item.routeName)"
                         prefetch
                         :class="[
-                            'group flex items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ease-out hover:scale-[1.02]',
+                            'group flex items-center justify-between gap-2 rounded-md px-2.5 py-2 text-[13px] font-medium transition-colors',
                             active(item.match)
-                                ? 'bg-brand-100 text-black ring-1 ring-brand-200 shadow-lg shadow-slate-200'
-                                : 'text-slate-700 hover:bg-slate-100 hover:text-black',
+                                ? 'border-s-2 border-brand-600 bg-slate-100 font-semibold text-slate-900'
+                                : 'border-s-2 border-transparent text-slate-700 hover:bg-slate-50 hover:text-slate-900',
                         ]"
                         :title="item.label"
                     >
@@ -405,7 +400,7 @@ async function openNotification(note) {
                         </span>
                     </Link>
                 </nav>
-                <div class="border-t border-slate-200 p-3 text-xs text-slate-600">
+                <div class="border-t border-slate-200 p-2.5 text-[11px] text-slate-600">
                     <div v-if="!sidebarCollapsed" class="flex items-center gap-2">
                         <img :src="avatarUrl" alt="avatar" class="h-7 w-7 rounded-full border border-slate-200 object-cover" />
                         <span>{{ page.props.auth.user?.name }}</span>
@@ -416,24 +411,21 @@ async function openNotification(note) {
 
             <div class="flex min-h-0 min-w-0 flex-1 flex-col">
                 <header
-                    class="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-slate-200 bg-white/85 px-4 backdrop-blur-xl md:px-6"
+                    class="sticky top-0 z-20 flex h-12 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 shadow-[0_1px_0_rgba(15,23,42,0.04)] md:px-5"
                 >
-                    <div class="flex items-center gap-3 md:hidden">
-                        <Link :href="route('dashboard')">
+                    <div class="flex min-w-0 flex-1 items-center gap-3 md:min-w-0 md:flex-initial md:gap-0">
+                        <Link :href="route('dashboard')" class="shrink-0 md:hidden">
                             <img src="/images/mobile-logo.png" alt="خارج المخزون" class="h-10 w-10 rounded-lg object-contain" />
                         </Link>
-                        <div class="text-sm font-semibold text-black">
+                        <h1 class="ops-page-title min-w-0">
                             <slot name="title" />
-                        </div>
-                    </div>
-                    <div class="hidden text-lg font-semibold tracking-tight text-black md:block">
-                        <slot name="title" />
+                        </h1>
                     </div>
                     <div class="ms-auto flex items-center gap-2">
                         <div class="relative">
                             <button
                                 type="button"
-                                class="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-800 shadow-sm transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-slate-50"
+                                class="relative inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-800 transition-colors hover:bg-slate-50"
                                 title="الإشعارات"
                                 @click="toggleNotificationsPanel"
                             >
@@ -449,7 +441,7 @@ async function openNotification(note) {
                             </button>
                             <div
                                 v-if="isNotificationsOpen"
-                                class="notifications-panel-solid fixed left-2 right-2 top-16 z-[90] rounded-2xl border border-slate-200 p-2 text-black shadow-2xl ring-1 ring-slate-200 md:absolute md:left-auto md:right-0 md:top-12 md:w-[22rem] md:max-w-[92vw]"
+                                class="notifications-panel-solid fixed left-2 right-2 top-14 z-[90] rounded-lg border border-slate-200 p-2 text-black shadow-lg md:absolute md:left-auto md:right-0 md:top-11 md:w-[22rem] md:max-w-[92vw]"
                             >
                                 <div class="mb-2 flex items-center justify-between px-2">
                                     <div class="text-sm font-semibold text-slate-900">الإشعارات</div>
@@ -490,7 +482,7 @@ async function openNotification(note) {
                             <template #trigger>
                                 <button
                                     type="button"
-                                    class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-black transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-slate-50"
+                                    class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] font-medium text-slate-900 transition-colors hover:bg-slate-50"
                                 >
                                     <img :src="avatarUrl" alt="avatar" class="h-7 w-7 rounded-full border border-slate-200 object-cover" />
                                     {{ page.props.auth.user.name }}
@@ -556,7 +548,9 @@ async function openNotification(note) {
                     </button>
                 </div>
 
-                <main class="relative z-10 flex min-h-0 flex-1 flex-col overflow-auto p-3 pb-20 md:p-6 md:pb-6">
+                <main
+                    class="relative z-10 flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-ops-4 py-ops-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:px-ops-5 md:py-ops-5 md:pb-ops-5"
+                >
                     <slot />
                 </main>
 
@@ -567,7 +561,7 @@ async function openNotification(note) {
                 />
 
                 <TeamNotebookDock v-if="showTeamNotebookDock" :key="teamNotebook.team_id" :notebook="teamNotebook" />
-                <nav class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 py-1.5 backdrop-blur-xl md:hidden">
+                <nav class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white px-2 py-1 md:hidden">
                     <div class="grid gap-1" :style="{ gridTemplateColumns: `repeat(${Math.max(mobileBottomNav.length, 1)}, minmax(0, 1fr))` }">
                         <Link
                             v-for="item in mobileBottomNav"
@@ -575,10 +569,10 @@ async function openNotification(note) {
                             :href="route(item.routeName)"
                             prefetch
                             :class="[
-                                'relative inline-flex h-12 items-center justify-center rounded-xl transition-all duration-200 ease-out',
+                                'relative inline-flex h-11 items-center justify-center rounded-md transition-colors',
                                 active(item.match)
-                                    ? 'bg-brand-100 text-black ring-1 ring-brand-200'
-                                    : 'text-slate-700 hover:bg-slate-100',
+                                    ? 'bg-slate-100 text-slate-900 ring-1 ring-slate-200'
+                                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
                             ]"
                             :title="item.label"
                         >

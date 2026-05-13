@@ -433,6 +433,8 @@ const columnLabelMap = {
     doing: 'قيد التنفيذ',
     'in progress': 'قيد التنفيذ',
     review: 'مراجعة',
+    revision: 'تعديل',
+    modify: 'تعديل',
     done: 'تم',
     completed: 'تم',
     blocked: 'متوقفة',

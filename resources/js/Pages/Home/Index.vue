@@ -31,7 +31,7 @@ function formatStaffDateTime(iso) {
     }
 }
 
-/** شريط عمودي بلون ثابت لكل نوع مؤشر (بدون خلفيات صاخبة) */
+/** بطاقات KPI للموظف (قيم من staff.cards فقط) */
 const staffKpiCards = computed(() => {
     const c = props.staff?.cards || {};
     return [
@@ -40,35 +40,30 @@ const staffKpiCards = computed(() => {
             title: 'مهامي النشطة',
             value: Number(c.tasks_assigned || 0),
             sub: `متأخرة: ${Number(c.tasks_overdue || 0)}`,
-            stripeBg: 'bg-slate-600',
         },
         {
             key: 'meetings',
             title: 'اجتماعات قادمة',
             value: Number(c.meetings_upcoming || 0),
             sub: 'مجدولة لك كمضيف أو مدعو',
-            stripeBg: 'bg-amber-500',
         },
         {
             key: 'clients_am',
             title: 'عملاء (مسؤول حساب)',
             value: Number(c.clients_account_manager || 0),
             sub: 'مرتبطون بك كمسؤول حساب',
-            stripeBg: 'bg-sky-500',
         },
         {
             key: 'clients_cm',
             title: 'عملاء (مدير حملات)',
             value: Number(c.clients_campaign_manager || 0),
             sub: 'مرتبطون بك كمدير حملات',
-            stripeBg: 'bg-violet-500',
         },
         {
             key: 'outside',
             title: 'الخارج — غير مقروء',
             value: Number(c.outside_unread_assigned || 0),
             sub: 'محادثات موجهة إليك بانتظار القراءة',
-            stripeBg: 'bg-emerald-500',
         },
     ];
 });
@@ -114,15 +109,32 @@ function truncateChartLabel(name, maxLen = 14) {
     return `${s.slice(0, maxLen - 1)}…`;
 }
 
-/** شريط لوني لبطاقات أولويات المتابعة */
-function staffFollowupStripeClass(kind) {
+/** نقطة شدّة تشغيلية (خطر / تحذير / معلومات / سليم) — ألوان دلالية فقط */
+function attentionKindDotClass(kind) {
     const map = {
-        danger: 'bg-rose-500',
+        danger: 'bg-rose-600',
         warning: 'bg-amber-500',
-        info: 'bg-sky-500',
-        success: 'bg-emerald-500',
+        info: 'bg-sky-600',
+        success: 'bg-emerald-600',
     };
     return map[kind] || 'bg-slate-400';
+}
+
+function attentionBorderClassForItems(items) {
+    const list = items || [];
+    if (!list.length) {
+        return 'border-s-slate-200';
+    }
+    if (list.some((i) => i.kind === 'danger')) {
+        return 'border-s-rose-600';
+    }
+    if (list.some((i) => i.kind === 'warning')) {
+        return 'border-s-amber-500';
+    }
+    if (list.some((i) => i.kind === 'info')) {
+        return 'border-s-sky-600';
+    }
+    return 'border-s-emerald-600';
 }
 
 const taskColumnChart = computed(() => {
@@ -247,13 +259,24 @@ const kpiCards = computed(() => [
     },
 ]);
 
+function meetingCardDotClass(kind) {
+    const map = {
+        warning: 'bg-amber-500',
+        success: 'bg-emerald-600',
+        danger: 'bg-rose-600',
+        neutral: 'bg-slate-400',
+        info: 'bg-sky-600',
+    };
+    return map[kind] || 'bg-slate-400';
+}
+
 const meetingsCards = computed(() => [
-    { key: 'scheduled', label: 'مجدولة', value: Number(props.meetings?.scheduled || 0), tone: 'border-amber-200/90 bg-amber-50/95 text-amber-950 ring-amber-100/80' },
-    { key: 'completed', label: 'منتهية', value: Number(props.meetings?.completed || 0), tone: 'border-emerald-200/90 bg-emerald-50/95 text-emerald-950 ring-emerald-100/80' },
-    { key: 'canceled', label: 'ملغاة', value: Number(props.meetings?.canceled || 0), tone: 'border-rose-200/90 bg-rose-50/95 text-rose-950 ring-rose-100/80' },
-    { key: 'today', label: 'اليوم', value: Number(props.meetings?.today || 0), tone: 'border-slate-200/90 bg-slate-50/95 text-slate-900 ring-slate-200/80' },
-    { key: 'internal', label: 'داخلية', value: Number(props.meetings?.internal || 0), tone: 'border-slate-200/80 bg-white text-slate-800 ring-slate-100/80' },
-    { key: 'client', label: 'للعملاء', value: Number(props.meetings?.client || 0), tone: 'border-sky-200/90 bg-sky-50/95 text-sky-950 ring-sky-100/80' },
+    { key: 'scheduled', label: 'مجدولة', value: Number(props.meetings?.scheduled || 0), kind: 'warning' },
+    { key: 'completed', label: 'منتهية', value: Number(props.meetings?.completed || 0), kind: 'success' },
+    { key: 'canceled', label: 'ملغاة', value: Number(props.meetings?.canceled || 0), kind: 'danger' },
+    { key: 'today', label: 'اليوم', value: Number(props.meetings?.today || 0), kind: 'neutral' },
+    { key: 'internal', label: 'داخلية', value: Number(props.meetings?.internal || 0), kind: 'neutral' },
+    { key: 'client', label: 'للعملاء', value: Number(props.meetings?.client || 0), kind: 'info' },
 ]);
 
 const clientsTotal = computed(() =>
@@ -261,14 +284,14 @@ const clientsTotal = computed(() =>
 );
 
 const stageChartColors = [
-    '#E5484D',
-    '#F25F63',
-    '#CF3E43',
-    '#AD3338',
-    '#8F2E32',
-    '#772C2F',
-    '#F07A7D',
-    '#D85A5E',
+    'rgb(51 65 85)',
+    'rgb(71 85 105)',
+    'rgb(100 116 139)',
+    'rgb(148 163 184)',
+    'rgb(190 18 60)',
+    'rgb(120 113 108)',
+    'rgb(87 83 78)',
+    'rgb(168 162 158)',
 ];
 
 const stageDistribution = computed(() => {
@@ -314,6 +337,88 @@ const topStage = computed(() => {
     return [...stageDistribution.value].sort((a, b) => b.count - a.count)[0];
 });
 
+/** لقطة إدارية: ما يستحق الانتباه من نفس الـ props (بدون تغيير API) */
+const adminAttentionItems = computed(() => {
+    const items = [];
+    const overdue = Number(props.cards?.tasks_overdue || 0);
+    if (overdue > 0) {
+        items.push({
+            kind: 'danger',
+            title: 'مهام متأخرة',
+            detail:
+                overdue === 1
+                    ? 'مهمة واحدة تجاوزت الموعد ولم تُغلق في عمود غير «تم».'
+                    : `${overdue} مهام تجاوزت الموعد ولم تُغلق بعد.`,
+            route: 'tasks.index',
+            action_label: 'المهام',
+        });
+    }
+    const failed = Number(props.outside_metrics?.failed_last_7_days ?? 0);
+    if (failed > 0) {
+        items.push({
+            kind: 'danger',
+            title: 'فشل إرسال في الخارج',
+            detail:
+                failed === 1
+                    ? 'فشل إرسال واحد خلال آخر ٧ أيام — راجع الرسائل والقنوات.'
+                    : `${failed} فشل إرسال خلال آخر ٧ أيام — يستحق المراجعة الفورية.`,
+            route: 'outside.index',
+            action_label: 'الخارج',
+        });
+    }
+    const leads = Number(props.cards?.clients_leads || 0);
+    const nonLead = Number(props.cards?.clients_total || 0);
+    const pipelineApprox = nonLead + leads;
+    if (pipelineApprox > 0 && leads > 0) {
+        const leadRatio = leads / pipelineApprox;
+        if (leadRatio >= 0.35) {
+            items.push({
+                kind: 'warning',
+                title: 'وزن عالٍ للعملاء المحتملين',
+                detail: `${leads} عميلاً في مرحلة «عميل محتمل» من إجمالي تقريبي ${pipelineApprox} في التوزيع الحالي.`,
+                route: 'clients.index',
+                action_label: 'العملاء',
+            });
+        }
+    }
+    const ts = topStage.value;
+    if (ts && clientsTotal.value > 0) {
+        const labelLower = String(ts.label || '').toLowerCase();
+        const isTerminal =
+            labelLower.includes('مغلق') ||
+            labelLower.includes('won') ||
+            labelLower.includes('lost') ||
+            labelLower.includes('رابح') ||
+            labelLower.includes('خاسر');
+        if (!isTerminal && ts.percent >= 32) {
+            items.push({
+                kind: 'info',
+                title: 'ازدحام في مرحلة المسار',
+                detail: `أعلى تجمّع حاليًا في «${ts.label}» (${ts.percent}٪ من العملاء في المسار).`,
+                route: 'clients.index',
+                action_label: 'المسار',
+            });
+        }
+    }
+    if (items.length === 0) {
+        items.push({
+            kind: 'success',
+            title: 'لا تنبيهات تشغيلية بارزة',
+            detail: 'لا مهام متأخرة في لقطة البيانات الحالية، ولا فشل إرسال حديث في الخارج ضمن العتبات المعروضة.',
+            route: null,
+            action_label: null,
+        });
+    }
+    return items.slice(0, 6);
+});
+
+const attentionBorderClass = computed(() => {
+    if (props.dashboard_mode === 'staff' && props.staff) {
+        return attentionBorderClassForItems(props.staff.priority_followups || []);
+    }
+    return attentionBorderClassForItems(adminAttentionItems.value);
+});
+
 const meetingsCompletionRate = computed(() =>
     ratioNumber(props.meetings?.completed || 0, props.cards?.meetings_total || 0),
 );
@@ -333,8 +438,7 @@ const outsideMetricTiles = computed(() => [
         label: 'الإجمالي',
         hint: 'كل المحادثات',
         value: props.outside_metrics?.total_conversations ?? 0,
-        border: 'border-slate-200/90',
-        bg: 'from-slate-50 to-white',
+        wrapClass: 'border-slate-200 bg-slate-50/60',
         labelClass: 'text-slate-600',
         valueClass: 'text-slate-900',
     },
@@ -343,18 +447,16 @@ const outsideMetricTiles = computed(() => [
         label: 'جديد',
         hint: 'لم تُغلق بعد',
         value: props.outside_metrics?.new_conversations ?? 0,
-        border: 'border-emerald-200/80',
-        bg: 'from-emerald-50/95 to-white',
-        labelClass: 'text-emerald-900/85',
-        valueClass: 'text-emerald-950',
+        wrapClass: 'border-slate-200 bg-white',
+        labelClass: 'text-slate-600',
+        valueClass: 'text-slate-900',
     },
     {
         key: 'closed',
         label: 'مغلقة',
         hint: 'مكتملة',
         value: props.outside_metrics?.closed_conversations ?? 0,
-        border: 'border-slate-200/90',
-        bg: 'from-slate-50 to-white',
+        wrapClass: 'border-slate-200 bg-slate-50/40',
         labelClass: 'text-slate-600',
         valueClass: 'text-slate-900',
     },
@@ -363,19 +465,17 @@ const outsideMetricTiles = computed(() => [
         label: 'صادر ٧ أيام',
         hint: 'رسائل صادرة',
         value: props.outside_metrics?.outbound_last_7_days ?? 0,
-        border: 'border-sky-200/85',
-        bg: 'from-sky-50/95 to-white',
-        labelClass: 'text-sky-900/85',
-        valueClass: 'text-sky-950',
+        wrapClass: 'border-slate-200 bg-white',
+        labelClass: 'text-slate-600',
+        valueClass: 'text-slate-900',
     },
     {
         key: 'fail7',
         label: 'فشل إرسال ٧ أيام',
         hint: 'يستحق مراجعة',
         value: props.outside_metrics?.failed_last_7_days ?? 0,
-        border: 'border-rose-200/85',
-        bg: 'from-rose-50/95 to-white',
-        labelClass: 'text-rose-900/85',
+        wrapClass: 'border-rose-200 bg-rose-50/50',
+        labelClass: 'text-rose-900',
         valueClass: 'text-rose-950',
     },
 ]);
@@ -392,27 +492,17 @@ const outsideMetricTiles = computed(() => [
             class="staff-home mx-auto max-w-6xl space-y-5 pb-6 md:space-y-6 md:pb-8"
         >
             <!-- بطاقة ترحيب: نفس لغة التصميم العامة (أبيض + ظلال خفيفة + لمسة brand) -->
-            <section
-                class="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50/95 shadow-[0_12px_40px_-14px_rgba(15,23,42,0.12)] ring-1 ring-slate-900/[0.04]"
-            >
-                <div
-                    class="pointer-events-none absolute -start-20 -top-24 h-64 w-64 rounded-full bg-brand-500/[0.07] blur-3xl"
-                    aria-hidden="true"
-                />
-                <div
-                    class="pointer-events-none absolute -bottom-16 end-0 h-52 w-52 rounded-full bg-indigo-500/[0.06] blur-3xl"
-                    aria-hidden="true"
-                />
-                <div class="relative border-b border-slate-100/90 px-5 pb-5 pt-5 sm:px-6 sm:pb-6 sm:pt-6">
+            <section class="ops-surface overflow-hidden">
+                <div class="relative border-b border-slate-100 px-4 pb-4 pt-4 sm:px-5 sm:pb-5 sm:pt-5">
                     <div class="flex flex-wrap items-start justify-between gap-4">
                         <div class="min-w-0 flex-1">
-                            <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-brand-700/95">
+                            <p class="ops-kicker ops-kicker--accent">
                                 مساحة عملك
                             </p>
-                            <h2 class="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-[1.65rem]">
+                            <h2 class="mt-2 text-ops-title-xl font-semibold tracking-tight text-slate-900 sm:text-[1.35rem]">
                                 مرحبًا، {{ $page.props.auth?.user?.name }}
                             </h2>
-                            <p class="mt-2 max-w-prose text-sm leading-relaxed text-slate-600">
+                            <p class="ops-section-lead mt-2 max-w-prose">
                                 <span class="font-semibold text-slate-800">{{ staff.role_label }}</span>
                                 <template v-if="staff.teams?.length">
                                     <span class="text-slate-400"> · </span>
@@ -421,10 +511,10 @@ const outsideMetricTiles = computed(() => [
                             </p>
                         </div>
                         <div
-                            class="hidden shrink-0 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3 text-center shadow-inner shadow-slate-900/[0.03] sm:block"
+                            class="hidden shrink-0 rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-center sm:block"
                         >
-                            <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">اليوم</p>
-                            <p class="mt-1 text-lg font-black tabular-nums text-slate-900">
+                            <p class="ops-kicker">اليوم</p>
+                            <p class="mt-1 text-lg font-semibold tabular-nums text-slate-900">
                                 {{ new Date().toLocaleDateString('ar-SA', { day: 'numeric', month: 'short' }) }}
                             </p>
                         </div>
@@ -433,7 +523,7 @@ const outsideMetricTiles = computed(() => [
                         <span
                             v-for="(t, idx) in staff.teams"
                             :key="`team-chip-${idx}-${t.slug}`"
-                            class="inline-flex items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-[12px] font-semibold text-slate-800 shadow-sm"
+                            class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[12px] font-semibold text-slate-800"
                         >
                             {{ t.name }}
                             <span
@@ -447,72 +537,78 @@ const outsideMetricTiles = computed(() => [
                 </div>
             </section>
 
-            <!-- مؤشرات موحّدة: خلفية بيضاء + شريط لوني ثابت على الطرف -->
-            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                <article
-                    v-for="card in staffKpiCards"
-                    :key="`stk-${card.key}`"
-                    class="flex min-h-[7.5rem] overflow-hidden rounded-2xl border border-slate-200/85 bg-white shadow-sm ring-1 ring-slate-900/[0.025]"
-                >
-                    <div class="w-1 shrink-0 self-stretch" :class="card.stripeBg" aria-hidden="true" />
-                    <div class="min-w-0 flex-1 px-4 py-4">
-                        <p class="text-[11px] font-bold text-slate-500">{{ card.title }}</p>
-                        <p class="mt-2 text-3xl font-black tabular-nums text-slate-900">{{ card.value }}</p>
-                        <p class="mt-2 text-[11px] font-medium leading-snug text-slate-500">{{ card.sub }}</p>
-                    </div>
-                </article>
-            </section>
-
+            <!-- أولوية تشغيلية: يُقرأ قبل أي KPI -->
             <section
-                class="rounded-3xl border border-slate-200/85 bg-white p-5 shadow-md shadow-slate-900/[0.04] ring-1 ring-slate-900/[0.03] sm:p-6"
+                class="ops-surface overflow-hidden border-s-4 bg-white p-0 shadow-sm"
+                :class="attentionBorderClass"
             >
-                <div class="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 pb-4">
+                <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
                     <div>
-                        <h3 class="text-base font-bold text-slate-900">ما يستحق متابعتك</h3>
-                        <p class="mt-1 text-xs leading-relaxed text-slate-500">
-                            تنبيهات مبنية على مهامك، الخارج، الاجتماعات، وعملاءك — وليس روابط ثابتة.
+                        <h3 class="ops-section-title-lg">مركز الانتباه</h3>
+                        <p class="ops-section-lead mt-0.5 text-ops-meta sm:text-ops-body-sm">
+                            ما يحتاج إجراءً أو متابعة من بياناتك المباشرة في النظام.
                         </p>
                     </div>
-                    <span
-                        class="rounded-full bg-brand-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-brand-800 ring-1 ring-brand-200/70"
-                    >
-                        من بيانات النظام
+                    <span class="rounded-md bg-slate-100 px-2 py-1 text-ops-meta font-semibold text-slate-600">
+                        مباشر
                     </span>
                 </div>
-                <ul v-if="staff.priority_followups?.length" class="mt-5 space-y-2.5" role="list">
+                <ul v-if="staff.priority_followups?.length" class="divide-y divide-slate-100" role="list">
                     <li v-for="(item, pi) in staff.priority_followups" :key="`pf-${pi}-${item.title}`">
-                        <div
-                            class="flex min-h-[4.25rem] overflow-hidden rounded-2xl border border-slate-200/85 bg-slate-50/35 shadow-sm ring-1 ring-slate-900/[0.02]"
-                        >
-                            <div
-                                class="w-1 shrink-0 self-stretch"
-                                :class="staffFollowupStripeClass(item.kind)"
+                        <div class="flex gap-3 px-4 py-3 sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-3.5">
+                            <span
+                                class="mt-1.5 h-2 w-2 shrink-0 rounded-full sm:mt-0"
+                                :class="attentionKindDotClass(item.kind)"
                                 aria-hidden="true"
                             />
-                            <div class="flex min-w-0 flex-1 flex-col justify-center gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                                <div class="min-w-0 text-start">
-                                    <p class="text-sm font-bold text-slate-900">{{ item.title }}</p>
-                                    <p class="mt-1 text-[11px] leading-relaxed text-slate-600">{{ item.detail }}</p>
-                                </div>
-                                <Link
-                                    v-if="item.route && item.action_label"
-                                    :href="route(item.route)"
-                                    class="shrink-0 self-start rounded-xl border border-brand-200/90 bg-white px-3 py-2 text-[11px] font-bold text-brand-800 shadow-sm transition hover:border-brand-400 hover:bg-brand-50 sm:self-center"
-                                >
-                                    {{ item.action_label }}
-                                </Link>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-ops-body-md font-semibold text-slate-900">{{ item.title }}</p>
+                                <p class="mt-0.5 text-ops-body-sm leading-relaxed text-slate-600">{{ item.detail }}</p>
                             </div>
+                            <Link
+                                v-if="item.route && item.action_label"
+                                :href="route(item.route)"
+                                class="shrink-0 self-center rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-ops-label font-semibold text-slate-800 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                            >
+                                {{ item.action_label }}
+                            </Link>
                         </div>
                     </li>
                 </ul>
             </section>
 
+            <!-- KPIs: سطح واحد لتقليل تنافس البطاقات -->
+            <section class="ops-surface overflow-hidden p-0 shadow-sm">
+                <div class="border-b border-slate-100 px-4 py-3 sm:px-5">
+                    <p class="ops-kicker">مؤشرات مساحة العمل</p>
+                    <p class="ops-section-lead mt-0.5 text-ops-meta">أرقام لحظية لما يخصك مباشرةً</p>
+                </div>
+                <div
+                    class="grid grid-cols-2 divide-x divide-slate-100 divide-y divide-slate-100 sm:grid-cols-2 lg:grid-cols-5 lg:divide-y-0"
+                >
+                    <article
+                        v-for="card in staffKpiCards"
+                        :key="`stk-${card.key}`"
+                        class="min-h-[6.5rem] px-4 py-3 sm:min-h-[6.75rem] sm:px-4 sm:py-4"
+                        :class="
+                            card.key === 'tasks' && Number(staff.cards?.tasks_overdue || 0) > 0
+                                ? 'bg-rose-50/25'
+                                : 'bg-white'
+                        "
+                    >
+                        <p class="text-ops-label font-semibold text-slate-500">{{ card.title }}</p>
+                        <p class="mt-1.5 text-2xl font-semibold tabular-nums text-slate-900 sm:text-[1.65rem]">{{ card.value }}</p>
+                        <p class="mt-1 text-ops-meta leading-snug text-slate-500 sm:text-ops-body-sm">{{ card.sub }}</p>
+                    </article>
+                </div>
+            </section>
+
             <section class="grid gap-4 lg:grid-cols-2">
                 <div
-                    class="rounded-3xl border border-slate-200/85 bg-white p-5 shadow-md shadow-slate-900/[0.04] ring-1 ring-slate-900/[0.03] sm:p-6"
+                    class="ops-surface p-4 sm:p-5"
                 >
                     <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-4">
-                        <h3 class="text-sm font-bold text-slate-900">مهامك القريبة</h3>
+                        <h3 class="ops-section-title">مهامك القريبة</h3>
                         <Link
                             :href="route('tasks.index')"
                             class="rounded-lg px-2 py-1 text-[11px] font-bold text-brand-700 transition hover:bg-brand-50 hover:text-brand-900"
@@ -540,10 +636,10 @@ const outsideMetricTiles = computed(() => [
                 </div>
 
                 <div
-                    class="rounded-3xl border border-slate-200/85 bg-white p-5 shadow-md shadow-slate-900/[0.04] ring-1 ring-slate-900/[0.03] sm:p-6"
+                    class="ops-surface p-4 sm:p-5"
                 >
                     <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-4">
-                        <h3 class="text-sm font-bold text-slate-900">اجتماعاتك القادمة</h3>
+                        <h3 class="ops-section-title">اجتماعاتك القادمة</h3>
                         <Link
                             :href="route('meetings.index')"
                             class="rounded-lg px-2 py-1 text-[11px] font-bold text-brand-700 transition hover:bg-brand-50 hover:text-brand-900"
@@ -583,43 +679,33 @@ const outsideMetricTiles = computed(() => [
             class="home-dashboard mx-auto max-w-7xl space-y-5 pb-4 md:space-y-6 md:pb-6 lg:max-w-6xl lg:space-y-4 lg:pb-5"
         >
             <!-- نبض تنفيذي -->
-            <section
-                class="relative overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-white to-slate-50/90 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.12)] ring-1 ring-slate-900/[0.04] lg:rounded-2xl"
-            >
-                <div
-                    class="pointer-events-none absolute -start-24 -top-28 h-72 w-72 rounded-full bg-brand-500/[0.08] blur-3xl"
-                    aria-hidden="true"
-                />
-                <div
-                    class="pointer-events-none absolute -bottom-20 end-0 h-56 w-56 rounded-full bg-indigo-500/[0.06] blur-3xl"
-                    aria-hidden="true"
-                />
-                <div class="relative grid gap-5 p-5 md:grid-cols-[1fr_auto] md:items-center md:gap-6 md:p-6 lg:gap-5 lg:p-5">
+            <section class="ops-surface overflow-hidden">
+                <div class="relative grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-center md:gap-5 md:p-5 lg:gap-4 lg:p-4">
                     <div class="min-w-0">
-                        <p class="text-[11px] font-bold uppercase tracking-[0.14em] text-brand-700/90 lg:text-[10px]">
+                        <p class="ops-kicker ops-kicker--accent lg:text-ops-meta">
                             نظرة تشغيلية
                         </p>
-                        <h2 class="mt-1.5 text-xl font-black leading-tight tracking-tight text-slate-900 md:text-2xl lg:text-xl">
+                        <h2 class="mt-1.5 text-ops-title-xl font-semibold leading-tight tracking-tight text-slate-900 md:text-[1.35rem]">
                             لوحة التحكم الإدارية
                         </h2>
-                        <p class="mt-2 max-w-prose text-sm leading-relaxed text-slate-600 lg:text-[13px]">
+                        <p class="ops-section-lead mt-2 max-w-prose lg:text-ops-body">
                             مزامنة مؤشرات الاجتماعات، قناة الخارج، والعملاء في صفحة واحدة واضحة.
                         </p>
                     </div>
                     <div class="flex flex-wrap gap-2.5 md:flex-nowrap md:justify-end lg:gap-2">
                         <div
-                            class="flex min-h-[5.25rem] min-w-[46%] flex-1 flex-col justify-center rounded-2xl border border-slate-200/90 bg-white/95 p-4 shadow-sm sm:min-w-[9.75rem] sm:flex-none md:min-w-[10.5rem] lg:min-h-[4.25rem] lg:min-w-[9rem] lg:p-3"
+                            class="flex min-h-[5.25rem] min-w-[46%] flex-1 flex-col justify-center rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:min-w-[9.75rem] sm:flex-none md:min-w-[10.5rem] lg:min-h-[4.25rem] lg:min-w-[9rem] lg:p-3"
                         >
-                            <span class="text-[11px] font-semibold text-slate-500 lg:text-[10px]">اليوم</span>
-                            <span class="mt-1 text-2xl font-black tabular-nums text-slate-900 lg:text-xl">{{ meetings?.today ?? 0 }}</span>
-                            <span class="mt-0.5 text-[10px] text-slate-400">اجتماعات مجدولة اليوم</span>
+                            <span class="text-ops-label font-semibold text-slate-500 lg:text-ops-meta">اليوم</span>
+                            <span class="mt-1 text-ops-title-xl font-semibold tabular-nums text-slate-900 lg:text-ops-title-lg">{{ meetings?.today ?? 0 }}</span>
+                            <span class="mt-0.5 text-ops-meta text-slate-400">اجتماعات مجدولة اليوم</span>
                         </div>
                         <div
-                            class="flex min-h-[5.25rem] min-w-[46%] flex-1 flex-col justify-center rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/90 to-white p-4 shadow-sm ring-1 ring-emerald-100/50 sm:min-w-[9.75rem] sm:flex-none md:min-w-[10.5rem] lg:min-h-[4.25rem] lg:min-w-[9rem] lg:p-3"
+                            class="flex min-h-[5.25rem] min-w-[46%] flex-1 flex-col justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 sm:min-w-[9.75rem] sm:flex-none md:min-w-[10.5rem] lg:min-h-[4.25rem] lg:min-w-[9rem] lg:p-3"
                         >
-                            <span class="text-[11px] font-semibold text-emerald-800/90 lg:text-[10px]">إنجاز الاجتماعات</span>
-                            <span class="mt-1 text-2xl font-black tabular-nums text-emerald-950 lg:text-xl">{{ meetingsCompletionRate }}٪</span>
-                            <span class="mt-0.5 text-[10px] text-emerald-700/80">من إجمالي سجل الاجتماعات</span>
+                            <span class="text-ops-label font-semibold text-slate-500 lg:text-ops-meta">إنجاز الاجتماعات</span>
+                            <span class="mt-1 text-ops-title-xl font-semibold tabular-nums text-emerald-700 lg:text-ops-title-lg">{{ meetingsCompletionRate }}٪</span>
+                            <span class="mt-0.5 text-ops-meta text-slate-500">من إجمالي سجل الاجتماعات</span>
                         </div>
                     </div>
                 </div>
@@ -631,102 +717,110 @@ const outsideMetricTiles = computed(() => [
                 </div>
             </section>
 
-            <!-- الخارج والرسائل — على الهاتف نفس ترتيب البطاقة المرجعية (عمودي + شبكة) -->
+            <!-- مركز الانتباه (إداري): نفس الـ props — بدون API جديد -->
             <section
-                class="rounded-3xl border border-slate-200/85 bg-white/95 p-4 shadow-md ring-1 ring-slate-900/[0.03] sm:p-5 md:p-6 lg:rounded-2xl lg:p-4"
+                class="ops-surface overflow-hidden border-s-4 bg-white p-0 shadow-sm"
+                :class="attentionBorderClass"
             >
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-3">
-                    <div class="min-w-0 flex-1">
-                        <h3 class="text-base font-bold tracking-tight text-slate-900 md:text-lg lg:text-[15px]">
-                            ملخص الأداء والتحليلات
-                        </h3>
-                        <p class="mt-1 text-xs leading-relaxed text-slate-500 md:text-sm lg:text-[11px]">
-                            قناة الخارج — واتساب وإنستغرام. الأرقام لقطة عند التحميل؛ للمزامنة أثناء العمل استخدم صفحة الخارج.
+                <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-3 sm:px-5">
+                    <div>
+                        <h3 class="ops-section-title-lg">مركز الانتباه التشغيلي</h3>
+                        <p class="ops-section-lead mt-0.5 text-ops-meta sm:text-ops-body-sm">
+                            تأخير المهام، فشل الإرسال في الخارج، وزن العملاء المحتملين، وازدحام مرحلة في المسار — من لقطة البيانات الحالية.
                         </p>
                     </div>
-                    <div
-                        class="flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-2xl border border-slate-200/90 bg-slate-50/90 px-4 py-2.5 text-sm text-slate-700 shadow-inner lg:inline-flex lg:min-h-0 lg:w-auto lg:rounded-xl lg:px-3 lg:py-2"
-                    >
-                        <span class="tabular-nums text-lg font-black text-slate-900 lg:text-base">{{ outside_metrics?.total_conversations ?? 0 }}</span>
-                        <span class="text-xs font-medium text-slate-500 lg:text-[11px]">محادثة مسجّلة</span>
-                    </div>
+                    <span class="rounded-md bg-slate-100 px-2 py-1 text-ops-meta font-semibold text-slate-600">لقطة</span>
                 </div>
-
-                <div class="mt-5 grid grid-cols-2 gap-2.5 lg:mt-4 lg:grid-cols-5 lg:gap-2">
-                    <div
-                        v-for="tile in outsideMetricTiles"
-                        :key="`om-${tile.key}`"
-                        class="rounded-2xl border bg-gradient-to-br p-3.5 shadow-sm sm:p-4 lg:rounded-xl lg:p-2.5"
-                        :class="[
-                            tile.border,
-                            tile.bg,
-                            tile.key === 'fail7' ? 'col-span-2 lg:col-span-1' : '',
-                        ]"
-                    >
-                        <p class="text-[10px] font-bold uppercase tracking-wide" :class="tile.labelClass">
-                            {{ tile.label }}
-                        </p>
-                        <p class="mt-1.5 text-2xl font-black tabular-nums leading-none lg:mt-1 lg:text-xl" :class="tile.valueClass">
-                            {{ tile.value }}
-                        </p>
-                        <p class="mt-1 text-[10px] font-medium text-slate-500 lg:text-[9px]">
-                            {{ tile.hint }}
-                        </p>
-                    </div>
-                </div>
+                <ul class="divide-y divide-slate-100" role="list">
+                    <li v-for="(item, ai) in adminAttentionItems" :key="`adm-att-${ai}-${item.title}`">
+                        <div class="flex gap-3 px-4 py-3 sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-3.5">
+                            <span
+                                class="mt-1.5 h-2 w-2 shrink-0 rounded-full sm:mt-0"
+                                :class="attentionKindDotClass(item.kind)"
+                                aria-hidden="true"
+                            />
+                            <div class="min-w-0 flex-1">
+                                <p class="text-ops-body-md font-semibold text-slate-900">{{ item.title }}</p>
+                                <p class="mt-0.5 text-ops-body-sm leading-relaxed text-slate-600">{{ item.detail }}</p>
+                            </div>
+                            <Link
+                                v-if="item.route && item.action_label"
+                                :href="route(item.route)"
+                                class="shrink-0 self-center rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-ops-label font-semibold text-slate-800 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                            >
+                                {{ item.action_label }}
+                            </Link>
+                        </div>
+                    </li>
+                </ul>
             </section>
 
-            <!-- بطاقات رئيسية: شبكة 2×2 (بطاقتان في كل صف) -->
-            <section class="grid grid-cols-2 gap-2.5 sm:gap-4 lg:gap-3">
-                <article
-                    v-for="card in kpiCards"
-                    :key="card.key"
-                    class="group min-w-0 overflow-hidden rounded-2xl border border-slate-200/50 bg-transparent shadow-sm ring-0 transition hover:border-slate-300/70 hover:shadow-md sm:rounded-3xl lg:rounded-2xl"
-                >
-                    <div class="border-b border-slate-200/40 bg-transparent px-3 py-3 sm:px-5 sm:py-4 lg:px-3 lg:py-2.5">
-                        <div class="flex items-start justify-between gap-1.5">
-                            <p class="min-w-0 truncate text-[11px] font-bold tracking-tight text-slate-800 sm:text-xs lg:text-[10px]">
-                                {{ card.title }}
-                            </p>
-                            <span
-                                class="shrink-0 rounded-full border border-slate-200/80 bg-transparent px-1.5 py-0.5 text-[9px] font-bold text-slate-500 sm:px-2 sm:text-[10px]"
-                            >
-                                KPI
-                            </span>
-                        </div>
-                        <p class="mt-1 truncate text-xl font-black tabular-nums tracking-tight text-slate-900 sm:text-2xl md:text-3xl lg:text-xl lg:leading-tight">
-                            {{ card.value }}
-                        </p>
-                    </div>
-                    <div class="space-y-2 bg-transparent p-3 sm:space-y-3 sm:p-5 lg:space-y-1.5 lg:p-3">
-                        <div class="flex items-center justify-between gap-1.5 text-[10px] sm:text-xs">
-                            <p class="min-w-0 flex-1 truncate font-medium text-slate-600">{{ card.sub }}</p>
-                            <span
-                                class="shrink-0 rounded-md border border-slate-200/70 bg-transparent px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-slate-700 sm:px-2 sm:text-[11px]"
-                            >
-                                {{ card.progress }}
-                            </span>
-                        </div>
-                        <div class="h-2 overflow-hidden rounded-full bg-slate-200/50">
+            <!-- KPIs + الخارج: سطح واحد لتقليل «تساوي أوزان البطاقات» -->
+            <section class="ops-surface overflow-hidden p-0 shadow-sm">
+                <div class="border-b border-slate-100 px-4 py-3 sm:px-5">
+                    <p class="ops-kicker">المنظومة التشغيلية</p>
+                    <h3 class="ops-section-title-lg mt-1">المؤشرات ومخرجات الخارج</h3>
+                    <p class="ops-section-lead mt-1 text-ops-meta sm:text-ops-body-sm">
+                        عملاء، مهام، اجتماعات، موظفون — ثم قناة الخارج في نفس الإطار لتسهيل المسح السريع.
+                    </p>
+                </div>
+                <div class="grid grid-cols-2 divide-x divide-y divide-slate-100 md:grid-cols-4">
+                    <article
+                        v-for="card in kpiCards"
+                        :key="`kpi-${card.key}`"
+                        class="min-h-[7rem] bg-white px-4 py-3 sm:min-h-[7.25rem] sm:px-4 sm:py-4"
+                    >
+                        <p class="text-ops-label font-semibold text-slate-500">{{ card.title }}</p>
+                        <p class="mt-1.5 truncate text-2xl font-semibold tabular-nums text-slate-900 sm:text-[1.65rem]">{{ card.value }}</p>
+                        <p class="mt-2 text-ops-body-sm text-slate-600">{{ card.sub }}</p>
+                        <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
                             <div
-                                class="h-full rounded-full bg-slate-700/85 transition-all duration-500 ease-out"
+                                class="h-full max-w-full rounded-full bg-slate-600/90 transition-[width] duration-300"
                                 :style="{ width: card.progress }"
                             />
                         </div>
+                    </article>
+                </div>
+                <div class="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                    <div class="min-w-0">
+                        <p class="text-ops-label font-semibold text-slate-600">قناة الخارج</p>
+                        <p class="ops-section-lead mt-0.5 text-ops-meta">
+                            إجمالي
+                            <span class="font-semibold tabular-nums text-slate-800">{{ outside_metrics?.total_conversations ?? 0 }}</span>
+                            محادثة مسجّلة — للمزامنة أثناء العمل استخدم صفحة الخارج.
+                        </p>
                     </div>
-                </article>
+                    <Link
+                        :href="route('outside.index')"
+                        class="shrink-0 rounded-md border border-slate-200 bg-white px-3 py-2 text-ops-label font-semibold text-slate-800 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                    >
+                        فتح الخارج
+                    </Link>
+                </div>
+                <div class="grid grid-cols-2 gap-2 border-t border-slate-100 p-3 sm:gap-2.5 sm:p-4 lg:grid-cols-5 lg:gap-2 lg:p-4">
+                    <div
+                        v-for="tile in outsideMetricTiles"
+                        :key="`om-${tile.key}`"
+                        class="rounded-lg border p-3 sm:p-3.5"
+                        :class="[tile.wrapClass, tile.key === 'fail7' ? 'col-span-2 lg:col-span-1' : '']"
+                    >
+                        <p class="text-ops-meta font-semibold uppercase tracking-wide" :class="tile.labelClass">
+                            {{ tile.label }}
+                        </p>
+                        <p class="mt-1.5 text-xl font-semibold tabular-nums leading-none sm:text-2xl" :class="tile.valueClass">
+                            {{ tile.value }}
+                        </p>
+                        <p class="mt-1 text-ops-meta text-slate-500">{{ tile.hint }}</p>
+                    </div>
+                </div>
             </section>
 
             <!-- مسار العملاء -->
-            <section
-                class="overflow-hidden rounded-3xl border border-slate-200/85 bg-white/95 p-4 shadow-md ring-1 ring-slate-900/[0.03] sm:p-6 lg:rounded-2xl lg:p-5"
-            >
+            <section class="ops-surface overflow-hidden p-4 sm:p-5 lg:p-4">
                 <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between lg:gap-2">
                     <div>
-                        <h3 class="text-base font-bold tracking-tight text-slate-900 md:text-lg lg:text-[15px]">
-                            العملاء حسب المراحل
-                        </h3>
-                        <p class="mt-1 text-xs text-slate-500 md:text-sm lg:text-[11px]">
+                        <h3 class="ops-section-title-lg">العملاء حسب المراحل</h3>
+                        <p class="ops-section-lead mt-1 md:text-ops-body-md lg:text-ops-body">
                             توزيع حيّ على مسار المبيعات الحالي في النظام.
                         </p>
                     </div>
@@ -740,7 +834,7 @@ const outsideMetricTiles = computed(() => [
 
                 <div class="mt-6 grid gap-6 lg:mt-5 lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] lg:gap-6 xl:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] xl:gap-8">
                     <div
-                        class="flex flex-col items-center justify-center rounded-3xl border border-slate-200/80 bg-gradient-to-b from-slate-50/90 to-white p-5 shadow-inner md:p-6 lg:rounded-2xl lg:p-4"
+                        class="flex flex-col items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-4 md:p-5 lg:p-4"
                     >
                         <div class="relative h-40 w-40 shrink-0 md:h-48 md:w-48 lg:h-36 lg:w-36">
                             <svg class="h-full w-full -rotate-90" viewBox="0 0 128 128" aria-hidden="true">
@@ -768,7 +862,7 @@ const outsideMetricTiles = computed(() => [
                             </svg>
                             <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
                                 <p class="text-xs font-medium text-slate-500 md:text-[13px] lg:text-[11px]">العملاء</p>
-                                <p class="text-3xl font-black tabular-nums text-slate-900 md:text-4xl lg:text-2xl">{{ clientsTotal }}</p>
+                                <p class="text-3xl font-semibold tabular-nums text-slate-900 md:text-4xl lg:text-2xl">{{ clientsTotal }}</p>
                             </div>
                         </div>
                         <p v-if="topStage" class="mt-4 max-w-[18rem] text-center text-xs leading-relaxed text-slate-600 md:text-sm lg:mt-3 lg:max-w-[14rem] lg:text-[11px]">
@@ -792,14 +886,14 @@ const outsideMetricTiles = computed(() => [
                             <li
                                 v-for="stage in stageDistribution"
                                 :key="`stage-row-${stage.id}`"
-                                class="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-3 shadow-sm ring-1 ring-slate-900/[0.02] md:p-4 lg:rounded-xl lg:p-2.5"
+                                class="rounded-md border border-slate-200 bg-white px-3 py-2.5 transition-colors hover:bg-slate-50 md:px-3.5 md:py-3 lg:px-2.5 lg:py-2"
                             >
                                 <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3 lg:gap-1.5">
-                                    <p class="min-w-0 text-[13px] font-bold leading-snug text-slate-900 sm:flex-1 sm:text-end md:text-sm lg:text-[12px]">
+                                    <p class="min-w-0 text-[13px] font-semibold leading-snug text-slate-900 sm:flex-1 sm:text-end md:text-sm lg:text-[12px]">
                                         {{ stage.label }}
                                     </p>
                                     <div class="flex shrink-0 flex-wrap items-baseline gap-x-2 sm:justify-end lg:gap-1">
-                                        <span class="text-lg font-black tabular-nums text-slate-900 md:text-xl lg:text-base">{{ stage.count }}</span>
+                                        <span class="text-lg font-semibold tabular-nums text-slate-900 md:text-xl lg:text-base">{{ stage.count }}</span>
                                         <span class="text-[11px] font-medium text-slate-500 md:text-xs lg:text-[10px]">من {{ clientsTotal }}</span>
                                         <span class="rounded-md bg-white/80 px-2 py-0.5 text-[10px] font-bold tabular-nums text-slate-600 ring-1 ring-slate-200/80 md:text-[11px] lg:px-1.5 lg:py-0 lg:text-[9px]">
                                             {{ stage.percent }}٪
@@ -832,34 +926,29 @@ const outsideMetricTiles = computed(() => [
 
             <!-- اجتماعات · موظفون · مهام -->
             <section class="grid gap-4 lg:grid-cols-3 lg:gap-4 xl:gap-5">
-                <div
-                    class="rounded-3xl border border-slate-200/85 bg-white/95 p-4 shadow-md ring-1 ring-slate-900/[0.03] sm:p-5 lg:rounded-2xl lg:p-4"
-                >
+                <div class="ops-surface p-4 sm:p-5 lg:p-4">
                     <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-3 lg:pb-2">
-                        <h3 class="text-sm font-bold text-slate-900 md:text-base lg:text-[13px]">تحليلات الاجتماعات</h3>
+                        <h3 class="ops-section-title">تحليلات الاجتماعات</h3>
                         <span class="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500 lg:text-[9px]">6 مؤشرات</span>
                     </div>
                     <div class="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3 lg:mt-3 lg:gap-2">
                         <div
                             v-for="card in meetingsCards"
                             :key="`meeting-${card.key}`"
-                            class="rounded-2xl border p-3 shadow-sm transition hover:shadow-md lg:rounded-xl lg:p-2.5"
-                            :class="card.tone"
+                            class="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 lg:p-2.5"
                         >
-                            <div class="flex items-center justify-between gap-1">
-                                <span class="text-[11px] font-bold lg:text-[10px]">{{ card.label }}</span>
-                                <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-50" aria-hidden="true" />
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="min-w-0 flex-1 text-end text-[11px] font-semibold text-slate-800 lg:text-[10px]">{{ card.label }}</span>
+                                <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="meetingCardDotClass(card.kind)" aria-hidden="true" />
                             </div>
-                            <p class="mt-2 text-xl font-black tabular-nums leading-none md:text-2xl lg:mt-1.5 lg:text-lg">{{ card.value }}</p>
+                            <p class="text-end text-xl font-semibold tabular-nums text-slate-900 lg:text-lg">{{ card.value }}</p>
                         </div>
                     </div>
                 </div>
 
-                <div
-                    class="rounded-3xl border border-slate-200/85 bg-white/95 p-4 shadow-md ring-1 ring-slate-900/[0.03] sm:p-5 lg:rounded-2xl lg:p-4"
-                >
+                <div class="ops-surface p-4 sm:p-5 lg:p-4">
                     <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-3 lg:pb-2">
-                        <h3 class="text-sm font-bold text-slate-900 md:text-base lg:text-[13px]">تحليلات الموظفين</h3>
+                        <h3 class="ops-section-title">تحليلات الموظفين</h3>
                     </div>
                     <div class="mt-4 grid grid-cols-3 gap-2 md:gap-3 lg:mt-3 lg:gap-2">
                         <div
@@ -882,7 +971,7 @@ const outsideMetricTiles = computed(() => [
                         </div>
                     </div>
                     <div class="mt-5 border-t border-slate-100 pt-4 lg:mt-4 lg:pt-3">
-                        <p class="text-[11px] font-bold uppercase tracking-wide text-slate-500 md:text-xs lg:text-[10px]">حسب الفريق</p>
+                        <p class="ops-kicker">حسب الفريق</p>
                         <p class="mt-1 text-[11px] leading-relaxed text-slate-600 md:text-sm lg:text-[11px]">
                             بطاقات لكل فريق: الاسم والعدد. أقصى عدد موظفين في فريق واحد عندك حالياً:
                             <span class="font-bold tabular-nums text-slate-800">{{ maxTeamEmployees }}</span>.
@@ -911,9 +1000,7 @@ const outsideMetricTiles = computed(() => [
                         <p v-else class="mt-2 text-center text-xs text-slate-500">لا توجد بيانات فرق بعد.</p>
                     </div>
                     <div class="mt-5 border-t border-slate-100 pt-4 lg:mt-4 lg:pt-3">
-                        <h4 class="text-[11px] font-bold uppercase tracking-wide text-slate-500 md:text-xs lg:text-[10px]">
-                            مدراء الحملات (عدد العملاء)
-                        </h4>
+                        <h4 class="ops-kicker">مدراء الحملات (عدد العملاء)</h4>
                         <p class="mt-1 text-[11px] leading-relaxed text-slate-600 md:text-sm lg:text-[11px]">
                             بطاقات لكل مدير: الاسم وعدد العملاء. أعلى عدد عملاء لمدير حملات عندك حالياً:
                             <span class="font-bold tabular-nums text-slate-800">{{ maxCampaignManagerClients }}</span>.
@@ -941,12 +1028,10 @@ const outsideMetricTiles = computed(() => [
                     </div>
                 </div>
 
-                <div
-                    class="flex min-h-0 flex-col rounded-3xl border border-slate-200/85 bg-white/95 p-4 shadow-md ring-1 ring-slate-900/[0.03] sm:p-5 lg:min-h-0 lg:rounded-2xl lg:p-4"
-                >
+                <div class="ops-surface flex min-h-0 flex-col p-4 sm:p-5 lg:min-h-0 lg:p-4">
                     <div class="shrink-0 border-b border-slate-100 pb-3 lg:pb-2">
-                        <h3 class="text-sm font-bold text-slate-900 md:text-base lg:text-[13px]">المهام حسب العمود</h3>
-                        <p class="mt-1 text-[11px] leading-relaxed text-slate-500 md:text-xs lg:text-[10px]">
+                        <h3 class="ops-section-title">المهام حسب العمود</h3>
+                        <p class="ops-section-lead mt-1 md:text-ops-body-sm lg:text-ops-meta">
                             رسم أعمدة: الارتفاع يتناسب مع العدد مقارنة بأعلى عمود ({{ taskColumnChart.max }}).
                         </p>
                     </div>

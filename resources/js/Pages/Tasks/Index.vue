@@ -4,6 +4,7 @@ import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import OpsToolbar from '@/Components/ops/OpsToolbar.vue';
 import TextInput from '@/Components/TextInput.vue';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import draggable from 'vuedraggable';
@@ -39,10 +40,62 @@ const columnLabelMap = {
     doing: 'قيد التنفيذ',
     'in progress': 'قيد التنفيذ',
     review: 'مراجعة',
+    revision: 'تعديل',
+    modify: 'تعديل',
     done: 'تم',
     completed: 'تم',
     blocked: 'متوقفة',
 };
+
+/** Board column name aliases (Arabic defaults + occasional English labels). */
+const COLUMN_REVIEW_ALIASES = ['مراجعة', 'Review', 'review'];
+const COLUMN_REVISION_ALIASES = ['تعديل', 'Revision', 'revision'];
+const COLUMN_DONE_ALIASES = ['تم', 'مكتمل', 'منجز', 'Done', 'Completed', 'done', 'completed'];
+
+function columnMatchesAliases(columnName, aliases) {
+    const raw = String(columnName || '').trim();
+    const low = raw.toLowerCase();
+
+    return aliases.some((a) => raw === a || low === String(a).toLowerCase());
+}
+
+function findBoardColumnId(aliases) {
+    for (const alias of aliases) {
+        const exact = boardState.columns.find((c) => c.name === alias);
+        if (exact) {
+            return exact.id;
+        }
+    }
+    const lowered = new Map(boardState.columns.map((c) => [String(c.name || '').trim().toLowerCase(), c.id]));
+    for (const alias of aliases) {
+        const id = lowered.get(String(alias).trim().toLowerCase());
+        if (id) {
+            return id;
+        }
+    }
+
+    return null;
+}
+
+function moveTaskToColumn(taskId, fromColumnId, toColumnId) {
+    if (!toColumnId || Number(fromColumnId) === Number(toColumnId)) {
+        return;
+    }
+    const sourceColumn = boardState.columns.find((column) => Number(column.id) === Number(fromColumnId));
+    const targetColumn = boardState.columns.find((column) => Number(column.id) === Number(toColumnId));
+    if (!sourceColumn || !targetColumn) {
+        return;
+    }
+
+    const sourceIndex = sourceColumn.tasks.findIndex((task) => Number(task.id) === Number(taskId));
+    if (sourceIndex < 0) {
+        return;
+    }
+
+    const [task] = sourceColumn.tasks.splice(sourceIndex, 1);
+    targetColumn.tasks.unshift(task);
+    onDragEnd();
+}
 
 function localizeTeamName(name, slug = null) {
     if (slug && teamLabelMap[slug]) {
@@ -130,6 +183,8 @@ const createDescriptionRef = ref(null);
 const editDescriptionRef = ref(null);
 const isBoardLoading = ref(false);
 const isBoardSyncing = ref(false);
+const boardSyncOk = ref(false);
+let boardSyncOkTimer;
 const isMobileWorkspaceExpanded = ref(false);
 const isTouchDevice =
     typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
@@ -219,6 +274,7 @@ function onDragEnd() {
     }
     clearTimeout(syncTimer);
     syncTimer = setTimeout(() => {
+        boardSyncOk.value = false;
         isBoardSyncing.value = true;
         window.axios
             .patch(
@@ -233,7 +289,16 @@ function onDragEnd() {
                     headers: { Accept: 'application/json' },
                 },
             )
+            .then(() => {
+                taskMessageError.value = '';
+                boardSyncOk.value = true;
+                clearTimeout(boardSyncOkTimer);
+                boardSyncOkTimer = setTimeout(() => {
+                    boardSyncOk.value = false;
+                }, 1400);
+            })
             .catch(() => {
+                boardSyncOk.value = false;
                 // Keep user feedback minimal; backend remains source of truth on next load.
                 taskMessageError.value = 'تعذر حفظ ترتيب المهام. حاول مرة أخرى.';
             })
@@ -266,8 +331,11 @@ function getAdvanceActionLabel(columnName) {
     if (key === 'قيد التنفيذ' || key === 'doing' || key === 'in progress') {
         return 'إرسال للمراجعة';
     }
-    if (key === 'مراجعة' || key === 'review') {
-        return 'تعليم كمكتملة';
+    if (columnMatchesAliases(columnName, COLUMN_REVISION_ALIASES)) {
+        return 'إعادة للمراجعة';
+    }
+    if (columnMatchesAliases(columnName, COLUMN_REVIEW_ALIASES)) {
+        return 'اعتماد أو تعديل';
     }
 
     return 'نقل للمرحلة التالية';
@@ -284,8 +352,11 @@ function getAdvanceIconType(columnName) {
     if (key === 'قيد التنفيذ' || key === 'doing' || key === 'in progress') {
         return 'review';
     }
-    if (key === 'مراجعة' || key === 'review') {
-        return 'done';
+    if (columnMatchesAliases(columnName, COLUMN_REVISION_ALIASES)) {
+        return 'review';
+    }
+    if (columnMatchesAliases(columnName, COLUMN_REVIEW_ALIASES)) {
+        return 'next';
     }
 
     return 'next';
@@ -770,29 +841,29 @@ async function toggleChecklistItem(item) {
                 isMobileWorkspaceExpanded ? 'max-w-none px-0 sm:px-0' : 'max-w-[1760px] px-3 sm:px-4 lg:px-6',
             ]"
         >
-            <div
-                class="ui-card mb-4 flex flex-col gap-2 p-3 sm:flex-row sm:flex-wrap sm:items-center"
-            >
-                <span class="text-sm text-slate-600">العميل:</span>
-                <select
-                    class="w-full rounded-xl border-slate-200/80 bg-white/80 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200 sm:w-auto"
-                    :value="filters?.client_id ?? ''"
-                    @change="setClientFilterFromSelect"
-                >
-                    <option value="">الكل</option>
-                    <option
-                        v-for="c in clients || []"
-                        :key="c.id"
-                        :value="c.id"
+            <OpsToolbar dense class="mb-4">
+                <div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                    <span class="shrink-0 text-sm font-medium text-slate-600">العميل</span>
+                    <select
+                        class="w-full rounded-xl border-slate-200/80 bg-white/80 text-sm shadow-sm transition-all duration-200 ease-out focus:border-brand-300 focus:ring-brand-200 sm:w-auto"
+                        :value="filters?.client_id ?? ''"
+                        @change="setClientFilterFromSelect"
                     >
-                        {{ c.name }}
-                    </option>
-                </select>
-                <span v-if="filterClient" class="text-sm text-slate-700">
-                    عرض مهام:
-                    <strong>{{ filterClient.name }}</strong>
-                </span>
-            </div>
+                        <option value="">الكل</option>
+                        <option
+                            v-for="c in clients || []"
+                            :key="c.id"
+                            :value="c.id"
+                        >
+                            {{ c.name }}
+                        </option>
+                    </select>
+                    <span v-if="filterClient" class="text-sm text-slate-700">
+                        عرض مهام:
+                        <strong>{{ filterClient.name }}</strong>
+                    </span>
+                </div>
+            </OpsToolbar>
 
             <div
                 class="mb-3 flex flex-col gap-2 border-b border-slate-200/80 pb-2 sm:mb-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:pb-3 lg:mb-5 lg:gap-4 lg:pb-4"
@@ -835,10 +906,20 @@ async function toggleChecklistItem(item) {
             </div>
 
             <div v-else class="space-y-4">
-                <div class="flex min-h-6 items-center">
-                    <div v-if="isBoardSyncing" class="inline-flex items-center gap-2 rounded-full border border-brand-200/70 bg-brand-50/85 px-3 py-1 text-[11px] font-medium text-brand-700">
+                <div class="flex min-h-6 flex-wrap items-center gap-2">
+                    <div
+                        v-if="isBoardSyncing"
+                        class="inline-flex items-center gap-2 rounded-full border border-brand-200/70 bg-brand-50/85 px-3 py-1 text-[11px] font-medium text-brand-700"
+                    >
                         <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-600" />
                         جار حفظ ترتيب المهام...
+                    </div>
+                    <div
+                        v-else-if="boardSyncOk"
+                        class="inline-flex items-center gap-2 rounded-full border border-emerald-200/80 bg-emerald-50/90 px-3 py-1 text-[11px] font-medium text-emerald-800"
+                    >
+                        <span class="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                        تم حفظ اللوحة
                     </div>
                 </div>
                 <div v-if="isBoardLoading" class="flex gap-3 overflow-x-auto pb-2 lg:gap-4">
@@ -868,7 +949,7 @@ async function toggleChecklistItem(item) {
                         "
                     >
                         <h3
-                            class="mb-2 border-b border-slate-200/70 pb-2 text-sm font-semibold text-slate-800 lg:mb-3 lg:pb-2.5 lg:text-base"
+                            class="sticky top-0 z-[5] -mx-3 mb-2 border-b border-slate-200/70 bg-white/95 px-3 pb-2 pt-0 text-sm font-semibold text-slate-800 backdrop-blur-sm lg:mb-3 lg:pb-2.5 lg:text-base"
                         >
                             {{ localizeColumnName(col.name) }}
                         </h3>
@@ -963,8 +1044,92 @@ async function toggleChecklistItem(item) {
                                                 />
                                             </svg>
                                         </button>
+                                        <template v-if="columnMatchesAliases(col.name, COLUMN_REVIEW_ALIASES)">
+                                            <button
+                                                v-if="findBoardColumnId(COLUMN_REVISION_ALIASES)"
+                                                type="button"
+                                                class="inline-flex min-h-11 min-w-0 flex-1 basis-[44%] items-center justify-center rounded-xl bg-orange-50 text-orange-900 ring-1 ring-orange-200/80 transition-colors hover:bg-orange-100 active:bg-orange-100 sm:min-h-0 sm:h-8 sm:w-8 sm:flex-none sm:basis-auto sm:max-w-none sm:rounded-lg sm:bg-transparent sm:p-1 sm:ring-0 lg:h-9 lg:w-9 lg:rounded-lg lg:bg-orange-50/95 lg:ring-1 lg:ring-orange-200/80 lg:hover:bg-orange-100"
+                                                title="يتطلب تعديلاً — نقل إلى تعديل"
+                                                @click.stop="
+                                                    moveTaskToColumn(
+                                                        element.id,
+                                                        col.id,
+                                                        findBoardColumnId(COLUMN_REVISION_ALIASES),
+                                                    )
+                                                "
+                                            >
+                                                <span class="sr-only">يتطلب تعديلاً</span>
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    class="h-5 w-5 sm:h-4 sm:w-4 lg:h-[1.15rem] lg:w-[1.15rem]"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                    stroke-width="2"
+                                                >
+                                                    <path
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                                    />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                v-if="findBoardColumnId(COLUMN_DONE_ALIASES)"
+                                                type="button"
+                                                class="inline-flex min-h-11 min-w-0 flex-1 basis-[44%] items-center justify-center rounded-xl bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200/80 transition-colors hover:bg-emerald-100 active:bg-emerald-100 sm:min-h-0 sm:h-8 sm:w-8 sm:flex-none sm:basis-auto sm:max-w-none sm:rounded-lg sm:bg-transparent sm:p-1 sm:ring-0 lg:h-9 lg:w-9 lg:rounded-lg lg:bg-emerald-50/95 lg:ring-1 lg:ring-emerald-200/80 lg:hover:bg-emerald-100"
+                                                title="اعتماد — نقل إلى تم"
+                                                @click.stop="
+                                                    moveTaskToColumn(
+                                                        element.id,
+                                                        col.id,
+                                                        findBoardColumnId(COLUMN_DONE_ALIASES),
+                                                    )
+                                                "
+                                            >
+                                                <span class="sr-only">اعتماد وإتمام</span>
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    class="h-5 w-5 sm:h-4 sm:w-4 lg:h-[1.15rem] lg:w-[1.15rem]"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                    stroke-width="2"
+                                                >
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            </button>
+                                        </template>
                                         <button
-                                            v-if="getNextColumnById(col.id)"
+                                            v-else-if="
+                                                columnMatchesAliases(col.name, COLUMN_REVISION_ALIASES) &&
+                                                findBoardColumnId(COLUMN_REVIEW_ALIASES)
+                                            "
+                                            type="button"
+                                            class="inline-flex min-h-11 w-[30%] max-w-[5.5rem] flex-none items-center justify-center rounded-xl bg-brand-50 text-brand-700 ring-1 ring-brand-200/70 transition-colors hover:bg-brand-100 active:bg-brand-100 sm:min-h-0 sm:h-8 sm:w-8 sm:max-w-none sm:rounded-lg sm:bg-transparent sm:p-1 sm:ring-0 lg:h-9 lg:w-9 lg:rounded-lg lg:bg-brand-50/95 lg:ring-1 lg:ring-brand-200/80 lg:hover:bg-brand-100"
+                                            title="إعادة للمراجعة"
+                                            @click.stop="
+                                                moveTaskToColumn(
+                                                    element.id,
+                                                    col.id,
+                                                    findBoardColumnId(COLUMN_REVIEW_ALIASES),
+                                                )
+                                            "
+                                        >
+                                            <span class="sr-only">إعادة للمراجعة</span>
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-5 w-5 sm:h-4 sm:w-4 lg:h-[1.15rem] lg:w-[1.15rem]"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            v-else-if="getNextColumnById(col.id)"
                                             type="button"
                                             class="inline-flex min-h-11 w-[30%] max-w-[5.5rem] flex-none items-center justify-center rounded-xl bg-brand-50 text-brand-700 ring-1 ring-brand-200/70 transition-colors hover:bg-brand-100 active:bg-brand-100 sm:min-h-0 sm:h-8 sm:w-8 sm:max-w-none sm:rounded-lg sm:bg-transparent sm:p-1 sm:ring-0 lg:h-9 lg:w-9 lg:rounded-lg lg:bg-brand-50/95 lg:ring-1 lg:ring-brand-200/80 lg:hover:bg-brand-100"
                                             :title="getAdvanceActionLabel(col.name)"

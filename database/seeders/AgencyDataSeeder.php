@@ -11,6 +11,7 @@ use App\Models\Task;
 use App\Models\TaskBoard;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\TaskBoardDefaults;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -108,21 +109,19 @@ class AgencyDataSeeder extends Seeder
 
         $shatha = User::query()->where('email', 'shatha@agency.test')->first();
 
-        $columnNames = ['قائمة الانتظار', 'قيد التنفيذ', 'مراجعة', 'تم'];
-
         foreach (Team::query()->orderBy('sort_order')->get() as $team) {
             $board = TaskBoard::query()->firstOrCreate(
                 ['team_id' => $team->id],
                 ['name' => 'لوحة '.$team->name]
             );
 
-            foreach ($columnNames as $i => $name) {
+            foreach (TaskBoardDefaults::COLUMNS as $col) {
                 BoardColumn::query()->firstOrCreate(
                     [
                         'task_board_id' => $board->id,
-                        'name' => $name,
+                        'name' => $col['name'],
                     ],
-                    ['sort_order' => $i * 10]
+                    ['sort_order' => $col['sort_order']]
                 );
             }
 

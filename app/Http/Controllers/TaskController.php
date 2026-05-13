@@ -16,6 +16,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\ClientWorkflowAutomationService;
 use App\Services\SmartNotificationService;
+use App\Support\TaskBoardDefaults;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -218,12 +219,7 @@ class TaskController extends Controller
             ['name' => 'لوحة '.$team->name]
         );
 
-        $columnDefaults = [
-            ['name' => 'قائمة الانتظار', 'sort_order' => 10],
-            ['name' => 'قيد التنفيذ', 'sort_order' => 20],
-            ['name' => 'مراجعة', 'sort_order' => 30],
-            ['name' => 'تم', 'sort_order' => 40],
-        ];
+        $columnDefaults = TaskBoardDefaults::COLUMNS;
 
         DB::transaction(function () use ($board, $columnDefaults): void {
             $defaultNames = collect($columnDefaults)->pluck('name')->all();
