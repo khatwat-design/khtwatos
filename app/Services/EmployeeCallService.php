@@ -7,6 +7,7 @@ use App\Models\DirectConversation;
 use App\Models\EmployeeCall;
 use App\Models\User;
 use App\Support\EmployeeCallChatLog;
+use App\Support\WebRtcSdp;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -88,12 +89,14 @@ class EmployeeCallService
 
             $conversation = DirectConversation::findOrCreateBetween($caller, $callee);
 
+            $normalizedOffer = WebRtcSdp::normalize($offerSdp);
+
             $call = EmployeeCall::query()->create([
                 'caller_id' => $caller->id,
                 'callee_id' => $callee->id,
                 'direct_conversation_id' => $conversation->id,
                 'type' => $type,
-                'offer_sdp' => $offerSdp,
+                'offer_sdp' => $normalizedOffer,
                 'status' => EmployeeCall::STATUS_RINGING,
             ]);
 
@@ -101,9 +104,9 @@ class EmployeeCallService
                 'call' => $call->toPayload($callee),
             ]);
 
-            if ($offerSdp) {
+            if ($normalizedOffer) {
                 $this->broadcastToUser($callee, 'offer', $call, $caller, [
-                    'sdp' => $offerSdp,
+                    'sdp' => $normalizedOffer,
                     'type' => $type,
                 ]);
             }
@@ -251,8 +254,10 @@ class EmployeeCallService
             return;
         }
 
-        if ($signalType === 'offer' && $sdp) {
-            $call->update(['offer_sdp' => $sdp]);
+        $normalizedSdp = $signalType === 'offer' ? WebRtcSdp::normalize($sdp) : null;
+        if ($normalizedSdp) {
+            $call->update(['offer_sdp' => $normalizedSdp]);
+            $sdp = $normalizedSdp;
         }
 
         $target = $call->otherUser($from);

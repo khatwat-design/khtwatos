@@ -137,20 +137,89 @@ function sdpToPayload(desc) {
     return null;
 }
 
-function normalizeSdpInit(sdp) {
+function repairSdpText(text) {
+    if (!text || typeof text !== 'string') {
+        return '';
+    }
+    let sdp = text.trim();
+    if (!sdp) {
+        return '';
+    }
+    if (sdp.startsWith('{')) {
+        try {
+            const parsed = JSON.parse(sdp);
+            if (parsed?.sdp) {
+                return repairSdpText(typeof parsed.sdp === 'string' ? parsed.sdp : JSON.stringify(parsed.sdp));
+            }
+        } catch {
+            /* keep raw */
+        }
+    }
+    if (!sdp.includes('\n') && sdp.includes('\\n')) {
+        sdp = sdp.replace(/\\r\\n/g, '\r\n').replace(/\\n/g, '\n');
+    }
+    sdp = sdp.replace(/\r\n/g, '\n');
+    sdp = sdp.replace(/\n{3,}/g, '\n\n');
+    return sdp.trim() ? `${sdp.trim()}\n` : '';
+}
+
+function isValidSdpInit(init) {
+    return Boolean(
+        init?.type
+        && typeof init.sdp === 'string'
+        && init.sdp.includes('v=0')
+        && init.sdp.includes('\nm='),
+    );
+}
+
+function normalizeSdpInit(sdp, defaultType = 'offer') {
     if (!sdp) {
         return null;
     }
-    if (typeof sdp === 'string') {
-        return { type: 'offer', sdp };
+
+    let node = sdp;
+    for (let depth = 0; depth < 6 && node; depth += 1) {
+        if (typeof node === 'string') {
+            const trimmed = node.trim();
+            if (trimmed.startsWith('{')) {
+                try {
+                    node = JSON.parse(trimmed);
+                    continue;
+                } catch {
+                    const repaired = repairSdpText(trimmed);
+                    return isValidSdpInit({ type: defaultType, sdp: repaired })
+                        ? { type: defaultType, sdp: repaired }
+                        : null;
+                }
+            }
+            const repaired = repairSdpText(trimmed);
+            return isValidSdpInit({ type: defaultType, sdp: repaired })
+                ? { type: defaultType, sdp: repaired }
+                : null;
+        }
+
+        if (node.sdp && typeof node.sdp === 'object') {
+            node = node.sdp;
+            continue;
+        }
+
+        if (node.type && typeof node.sdp === 'string') {
+            const repaired = repairSdpText(node.sdp);
+            const type = node.type || defaultType;
+            return isValidSdpInit({ type, sdp: repaired }) ? { type, sdp: repaired } : null;
+        }
+
+        break;
     }
-    if (sdp.type && sdp.sdp) {
-        return { type: sdp.type, sdp: sdp.sdp };
-    }
-    if (sdp.sdp?.type && sdp.sdp?.sdp) {
-        return { type: sdp.sdp.type, sdp: sdp.sdp.sdp };
-    }
+
     return null;
+}
+
+/** Prefer the first valid SDP (server copy should be listed first). */
+function pickBestSdpInit(...sources) {
+    const normalized = sources.map((source) => normalizeSdpInit(source)).filter(Boolean);
+    const valid = normalized.filter(isValidSdpInit);
+    return valid[0] || normalized[0] || null;
 }
 
 function iceCandidateToPayload(candidate) {
@@ -226,7 +295,7 @@ function syncLocalTracksToPeerConnection() {
     });
 }
 
-function createPeerConnection(callId) {
+function createPeerConnection(callId, { allowDefaultTransceivers = true } = {}) {
     closePeerConnection();
     pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
@@ -248,7 +317,7 @@ function createPeerConnection(callId) {
 
     syncLocalTracksToPeerConnection();
 
-    if (pc.getSenders().length === 0) {
+    if (allowDefaultTransceivers && pc.getSenders().length === 0) {
         pc.addTransceiver('audio', { direction: 'sendrecv' });
         if (isVideoCall.value) {
             pc.addTransceiver('video', { direction: 'sendrecv' });
@@ -273,8 +342,8 @@ async function handleRemoteOffer(callId, sdp, offerType = null) {
         }
     }
 
-    const remoteInit = normalizeSdpInit(sdp);
-    if (!remoteInit) {
+    const remoteInit = normalizeSdpInit(sdp, 'offer');
+    if (!isValidSdpInit(remoteInit)) {
         throw new Error('إشارة الاتصال غير صالحة.');
     }
     await pc.setRemoteDescription(new RTCSessionDescription(remoteInit));
@@ -301,8 +370,8 @@ async function handleRemoteAnswer(sdp) {
     if (pc.signalingState !== 'have-local-offer') {
         return;
     }
-    const remoteInit = normalizeSdpInit(sdp);
-    if (!remoteInit) {
+    const remoteInit = normalizeSdpInit(sdp, 'answer');
+    if (!isValidSdpInit(remoteInit)) {
         throw new Error('إشارة الرد غير صالحة.');
     }
     await pc.setRemoteDescription(new RTCSessionDescription(remoteInit));
@@ -449,7 +518,7 @@ function applyIncomingCall(payload) {
     }
     call.value = next;
     peer.value = payload.call?.caller || payload.caller;
-    const storedOffer = normalizeSdpInit(next?.offer_sdp);
+    const storedOffer = normalizeSdpInit(payload.offer_sdp ?? next?.offer_sdp);
     pendingOffer = storedOffer;
     pendingOfferType = storedOffer ? next?.type || 'voice' : null;
     if (!pendingOffer) {
@@ -697,22 +766,20 @@ async function acceptCall() {
         call.value = res.data.call || call.value;
         peer.value = call.value.caller || call.value.peer;
 
-        if (!pendingOffer && res.data?.offer_sdp) {
-            pendingOffer = normalizeSdpInit(res.data.offer_sdp);
-            pendingOfferType = type;
-            logStep('accept.offer_from_server');
-        }
-
-        const offerSdp = pendingOffer;
+        const offerSdp = pickBestSdpInit(res.data?.offer_sdp, pendingOffer, call.value?.offer_sdp);
         const offerType = pendingOfferType || type;
-        if (!offerSdp) {
-            settleIdle('لم تصل إشارة الاتصال من المتصل.');
+        logStep('accept.sdp_picked', {
+            valid: isValidSdpInit(offerSdp),
+            sdp_bytes: offerSdp?.sdp?.length ?? 0,
+        });
+        if (!isValidSdpInit(offerSdp)) {
+            settleIdle('إشارة الاتصال من المتصل غير صالحة. اطلب منه إعادة الاتصال.');
             return;
         }
 
         logStep('accept.webrtc_setup');
         await ensureLocalStream(type === 'video');
-        createPeerConnection(callId);
+        createPeerConnection(callId, { allowDefaultTransceivers: false });
         pendingOffer = null;
         pendingOfferType = null;
         await handleRemoteOffer(callId, offerSdp, offerType);
