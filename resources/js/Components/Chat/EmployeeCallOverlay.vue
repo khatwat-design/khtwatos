@@ -27,7 +27,18 @@ const {
     switchToVideo,
     switchToVoice,
     settleIdle,
+    diagnosticDetail,
+    copyDiagnostics,
 } = useEmployeeCall();
+
+const showDiagnostics = ref(false);
+
+async function onCopyDiagnostics() {
+    const ok = await copyDiagnostics();
+    if (ok && typeof window !== 'undefined') {
+        window.alert('تم نسخ سجل التشخيص.');
+    }
+}
 
 const localVideoRef = ref(null);
 const remoteVideoRef = ref(null);
@@ -255,10 +266,36 @@ watch(remoteStream, (stream) => {
 
         <div
             v-else-if="error"
-            class="fixed bottom-4 start-4 end-4 z-[190] mx-auto max-w-md rounded-xl bg-rose-600 px-4 py-3 text-center text-sm font-semibold text-white shadow-lg sm:end-4 sm:start-auto"
+            class="fixed bottom-4 start-4 end-4 z-[190] mx-auto max-w-lg rounded-xl bg-rose-600 px-4 py-3 text-sm text-white shadow-lg sm:end-4 sm:start-auto"
+            dir="rtl"
         >
-            {{ error }}
-            <button type="button" class="ms-2 underline" @click="settleIdle()">إغلاق</button>
+            <p class="whitespace-pre-wrap text-center font-semibold leading-relaxed">{{ error }}</p>
+            <div v-if="diagnosticDetail" class="mt-2">
+                <button
+                    type="button"
+                    class="w-full rounded-lg bg-white/15 px-3 py-1.5 text-xs font-bold"
+                    @click="showDiagnostics = !showDiagnostics"
+                >
+                    {{ showDiagnostics ? 'إخفاء التشخيص' : 'عرض سجل التشخيص' }}
+                </button>
+                <pre
+                    v-if="showDiagnostics"
+                    class="mt-2 max-h-40 overflow-auto rounded-lg bg-black/30 p-2 text-start text-[10px] leading-snug"
+                >{{ diagnosticDetail }}</pre>
+            </div>
+            <div class="mt-2 flex flex-wrap justify-center gap-2">
+                <button
+                    v-if="diagnosticDetail"
+                    type="button"
+                    class="rounded-lg bg-white/20 px-3 py-1 text-xs font-bold"
+                    @click="onCopyDiagnostics"
+                >
+                    نسخ التشخيص
+                </button>
+                <button type="button" class="rounded-lg bg-white/20 px-3 py-1 text-xs font-bold" @click="settleIdle()">
+                    إغلاق
+                </button>
+            </div>
         </div>
     </Teleport>
 </template>

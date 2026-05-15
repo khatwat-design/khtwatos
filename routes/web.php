@@ -111,6 +111,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/chat/private-rooms/{privateChatRoom}/leave', [PrivateChatRoomController::class, 'leave'])->name('chat.private-rooms.leave');
     Route::post('/chat/private-rooms/{privateChatRoom}/messages', [PrivateChatRoomController::class, 'storeMessage'])->name('chat.private-rooms.messages.store');
     Route::get('/chat/private-rooms/{privateChatRoom}/messages', [PrivateChatRoomController::class, 'messages'])->name('chat.private-rooms.messages.index');
+    Route::get('/chat/calls/diagnostics/status', [\App\Http\Controllers\EmployeeCallDiagnosticController::class, 'status'])->name('chat.calls.diagnostics.status');
+    Route::post('/chat/calls/diagnostics/client', [\App\Http\Controllers\EmployeeCallDiagnosticController::class, 'storeClientReport'])->name('chat.calls.diagnostics.client');
     Route::post('/chat/calls/release-stale', [EmployeeCallController::class, 'releaseStale'])->name('chat.calls.release-stale');
     Route::get('/chat/calls/pending', [EmployeeCallController::class, 'pending'])->name('chat.calls.pending');
     Route::post('/chat/calls', [EmployeeCallController::class, 'store'])->name('chat.calls.store');

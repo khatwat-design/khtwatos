@@ -6,7 +6,9 @@ use App\Models\Client;
 use App\Models\Meeting;
 use App\Models\Team;
 use App\Models\User;
+use App\Operational\Meetings\MeetingApplicationService;
 use App\Services\ClientWorkflowAutomationService;
+use App\Services\OperationalAuthorization;
 use App\Services\SmartNotificationService;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
@@ -19,14 +21,17 @@ class MeetingController extends Controller
 {
     public function __construct(
         private readonly ClientWorkflowAutomationService $workflowAutomation,
-        private readonly SmartNotificationService $smartNotifications
-    )
-    {
-    }
+        private readonly SmartNotificationService $smartNotifications,
+        private readonly OperationalAuthorization $opsAuth,
+        private readonly MeetingApplicationService $meetings,
+    ) {}
 
     public function index(Request $request): Response
     {
-        $this->archiveCompletedMeetings();
+        $user = $request->user();
+        abort_unless($user, 401);
+
+        $this->meetings->archiveCompletedMeetings();
         $hasArchiveColumn = Schema::hasColumn('meetings', 'archived_at');
         $includeArchived = $request->boolean('include_archived');
 
@@ -38,33 +43,14 @@ class MeetingController extends Controller
             ])
             ->orderByDesc('start_at');
 
-        if ($hasArchiveColumn && ! $includeArchived) {
-            $query->whereNull('archived_at');
-        }
-
-        if ($request->filled('user_id')) {
-            $query->where('user_id', (int) $request->query('user_id'));
-        }
-
-        if ($request->filled('client_id')) {
-            $query->where('client_id', (int) $request->query('client_id'));
-        }
+        $this->meetings->applyVisibilityAndFilters($query, $request, $user, $hasArchiveColumn, $includeArchived);
 
         $status = $request->query('status');
-        if (in_array($status, ['scheduled', 'completed', 'canceled', 'postponed'], true)) {
-            $query->where('status', $status);
-        }
-
         $scope = $request->query('scope');
-        if ($scope === 'internal') {
-            $query->whereNull('client_id');
-        } elseif ($scope === 'client') {
-            $query->whereNotNull('client_id');
-        }
 
         return Inertia::render('Meetings/Index', [
-            'hosts' => User::orderBy('name')->get(['id', 'name', 'role']),
-            'clients' => Client::query()->orderBy('name')->get(['id', 'name', 'email']),
+            'hosts' => $this->meetings->hostsForPicker($user),
+            'clients' => $this->meetings->clientsForPicker($user),
             'teams' => Team::query()->orderBy('sort_order')->get(['id', 'name', 'slug']),
             'meetings' => $query->limit(200)->get()->map(fn (Meeting $m) => [
                 'id' => $m->id,
@@ -99,19 +85,30 @@ class MeetingController extends Controller
                 'scope' => in_array($scope, ['internal', 'client'], true) ? $scope : null,
                 'include_archived' => $includeArchived,
             ],
-            'stats' => $this->buildStats($request, $hasArchiveColumn),
+            'stats' => $this->meetings->listStats($request, $hasArchiveColumn, $user),
         ]);
     }
 
     public function create(Request $request): Response
     {
+        $user = $request->user();
+        abort_unless($user, 401);
+
+        $defaultClientId = null;
+        if ($request->filled('client_id')) {
+            $cid = (int) $request->query('client_id');
+            if ($this->opsAuth->canUseMeetingClientFilter($user, $cid)) {
+                $defaultClientId = $cid;
+            }
+        }
+
         return Inertia::render('Meetings/Create', [
-            'hosts' => User::orderBy('name')->get(['id', 'name', 'role']),
-            'clients' => Client::query()->orderBy('name')->get(['id', 'name', 'email']),
+            'hosts' => $this->meetings->hostsForPicker($user),
+            'clients' => $this->meetings->clientsForPicker($user),
             'teams' => Team::query()->orderBy('sort_order')->get(['id', 'name', 'slug']),
             'defaults' => [
-                'user_id' => $request->user()->id,
-                'client_id' => $request->filled('client_id') ? (int) $request->query('client_id') : null,
+                'user_id' => $user->id,
+                'client_id' => $defaultClientId,
                 'team_ids' => [],
                 'participant_ids' => [],
             ],
@@ -122,11 +119,22 @@ class MeetingController extends Controller
     {
         $request->merge([
             'client_id' => $request->filled('client_id') ? $request->input('client_id') : null,
-            'team_ids' => $this->normalizeIds($request->input('team_ids', [])),
-            'participant_ids' => $this->normalizeIds($request->input('participant_ids', [])),
+            'team_ids' => $this->meetings->normalizeIds($request->input('team_ids', [])),
+            'participant_ids' => $this->meetings->normalizeIds($request->input('participant_ids', [])),
         ]);
 
         $data = $this->validatedMeeting($request);
+
+        $user = $request->user();
+        abort_unless($user, 401);
+        abort_unless($this->opsAuth->canAssignMeetingHost($user, (int) $data['user_id']), 403);
+        if (! empty($data['client_id'])) {
+            $clientForAuth = Client::query()->find((int) $data['client_id']);
+            abort_unless($clientForAuth && $this->opsAuth->canViewClient($user, $clientForAuth), 403);
+        }
+
+        $this->opsAuth->ensureMeetingTeamIdsAllowed($user, $data['team_ids'] ?? []);
+        $this->opsAuth->ensureMeetingParticipantIdsAllowed($user, $data['participant_ids'] ?? []);
 
         $client = isset($data['client_id']) ? Client::query()->find($data['client_id']) : null;
 
@@ -150,7 +158,7 @@ class MeetingController extends Controller
             'raw_payload' => null,
         ]);
 
-        $this->syncParticipants($meeting, $data);
+        $this->meetings->syncParticipants($meeting, $data);
         $this->smartNotifications->notifyMeetingCreated($meeting->fresh('participants:id,name'), $request->user()?->id);
 
         return redirect()->route('meetings.index', array_filter([
@@ -158,8 +166,12 @@ class MeetingController extends Controller
         ], fn ($v) => $v !== null && $v !== ''));
     }
 
-    public function edit(Meeting $meeting): Response
+    public function edit(Request $request, Meeting $meeting): Response
     {
+        $user = $request->user();
+        abort_unless($user, 401);
+        abort_unless($this->opsAuth->canViewMeeting($user, $meeting), 403);
+
         $this->ensureInternal($meeting);
 
         $meeting->load('participants:id,name');
@@ -180,24 +192,37 @@ class MeetingController extends Controller
                 'participant_ids' => $meeting->participants->pluck('id')->map(fn ($id) => (int) $id)->values(),
                 'team_ids' => [],
             ],
-            'hosts' => User::orderBy('name')->get(['id', 'name', 'role']),
-            'clients' => Client::query()->orderBy('name')->get(['id', 'name', 'email']),
+            'hosts' => $this->meetings->hostsForPicker($user),
+            'clients' => $this->meetings->clientsForPicker($user),
             'teams' => Team::query()->orderBy('sort_order')->get(['id', 'name', 'slug']),
         ]);
     }
 
     public function update(Request $request, Meeting $meeting): RedirectResponse
     {
+        $user = $request->user();
+        abort_unless($user, 401);
+        abort_unless($this->opsAuth->canViewMeeting($user, $meeting), 403);
+
         $this->ensureInternal($meeting);
         $previousStatus = $meeting->status;
 
         $request->merge([
             'client_id' => $request->filled('client_id') ? $request->input('client_id') : null,
-            'team_ids' => $this->normalizeIds($request->input('team_ids', [])),
-            'participant_ids' => $this->normalizeIds($request->input('participant_ids', [])),
+            'team_ids' => $this->meetings->normalizeIds($request->input('team_ids', [])),
+            'participant_ids' => $this->meetings->normalizeIds($request->input('participant_ids', [])),
         ]);
 
         $data = $this->validatedMeeting($request, isUpdate: true);
+
+        abort_unless($this->opsAuth->canAssignMeetingHost($user, (int) $data['user_id']), 403);
+        if (! empty($data['client_id'])) {
+            $clientForAuth = Client::query()->find((int) $data['client_id']);
+            abort_unless($clientForAuth && $this->opsAuth->canViewClient($user, $clientForAuth), 403);
+        }
+
+        $this->opsAuth->ensureMeetingTeamIdsAllowed($user, $data['team_ids'] ?? []);
+        $this->opsAuth->ensureMeetingParticipantIdsAllowed($user, $data['participant_ids'] ?? []);
 
         $client = isset($data['client_id']) ? Client::query()->find($data['client_id']) : null;
 
@@ -222,7 +247,7 @@ class MeetingController extends Controller
             'client_id' => $data['client_id'] ?? null,
         ]);
 
-        $this->syncParticipants($meeting, $data);
+        $this->meetings->syncParticipants($meeting, $data);
 
         $newStatus = $data['status'] ?? $meeting->status;
         if ($previousStatus !== 'completed' && $newStatus === 'completed') {
@@ -233,8 +258,12 @@ class MeetingController extends Controller
         return redirect()->route('meetings.index');
     }
 
-    public function destroy(Meeting $meeting): RedirectResponse
+    public function destroy(Request $request, Meeting $meeting): RedirectResponse
     {
+        $user = $request->user();
+        abort_unless($user, 401);
+        abort_unless($this->opsAuth->canViewMeeting($user, $meeting), 403);
+
         $this->ensureInternal($meeting);
         $meeting->delete();
 
@@ -243,6 +272,10 @@ class MeetingController extends Controller
 
     public function complete(Request $request, Meeting $meeting): RedirectResponse
     {
+        $user = $request->user();
+        abort_unless($user, 401);
+        abort_unless($this->opsAuth->canViewMeeting($user, $meeting), 403);
+
         $this->ensureInternal($meeting);
 
         $data = $request->validate([
@@ -261,8 +294,12 @@ class MeetingController extends Controller
         return redirect()->route('meetings.index');
     }
 
-    public function postpone(Meeting $meeting): RedirectResponse
+    public function postpone(Request $request, Meeting $meeting): RedirectResponse
     {
+        $user = $request->user();
+        abort_unless($user, 401);
+        abort_unless($this->opsAuth->canViewMeeting($user, $meeting), 403);
+
         $this->ensureInternal($meeting);
 
         $meeting->update([
@@ -275,6 +312,10 @@ class MeetingController extends Controller
 
     public function archive(Request $request, Meeting $meeting): RedirectResponse
     {
+        $user = $request->user();
+        abort_unless($user, 401);
+        abort_unless($this->opsAuth->canViewMeeting($user, $meeting), 403);
+
         $this->ensureInternal($meeting);
         if (! Schema::hasColumn('meetings', 'archived_at')) {
             return redirect()->route('meetings.index');
@@ -292,8 +333,12 @@ class MeetingController extends Controller
         return redirect()->route('meetings.index');
     }
 
-    public function restoreArchive(Meeting $meeting): RedirectResponse
+    public function restoreArchive(Request $request, Meeting $meeting): RedirectResponse
     {
+        $user = $request->user();
+        abort_unless($user, 401);
+        abort_unless($this->opsAuth->canViewMeeting($user, $meeting), 403);
+
         if (! Schema::hasColumn('meetings', 'archived_at')) {
             return redirect()->route('meetings.index', ['include_archived' => 1]);
         }
@@ -325,8 +370,8 @@ class MeetingController extends Controller
             'invitee_name' => $request->filled('invitee_name') ? $request->input('invitee_name') : null,
             'end_at' => $request->filled('end_at') ? $request->input('end_at') : null,
             'summary' => $request->filled('summary') ? $request->input('summary') : null,
-            'team_ids' => $this->normalizeIds($request->input('team_ids', [])),
-            'participant_ids' => $this->normalizeIds($request->input('participant_ids', [])),
+            'team_ids' => $this->meetings->normalizeIds($request->input('team_ids', [])),
+            'participant_ids' => $this->meetings->normalizeIds($request->input('participant_ids', [])),
         ]);
 
         $rules = [
@@ -350,90 +395,5 @@ class MeetingController extends Controller
         }
 
         return $request->validate($rules);
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function syncParticipants(Meeting $meeting, array $data): void
-    {
-        $participantIds = collect($data['participant_ids'] ?? [])
-            ->map(fn ($id) => (int) $id);
-
-        $teamIds = collect($data['team_ids'] ?? [])->map(fn ($id) => (int) $id)->values();
-        if ($teamIds->isNotEmpty()) {
-            $teamUserIds = User::query()
-                ->whereHas('teams', fn ($q) => $q->whereIn('teams.id', $teamIds))
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id);
-            $participantIds = $participantIds->merge($teamUserIds);
-        }
-
-        if (isset($data['user_id'])) {
-            $participantIds->push((int) $data['user_id']);
-        }
-
-        $meeting->participants()->sync(
-            $participantIds
-                ->unique()
-                ->values()
-                ->all()
-        );
-    }
-
-    /**
-     * @return array<int, int>
-     */
-    private function normalizeIds(mixed $value): array
-    {
-        if (!is_array($value)) {
-            return [];
-        }
-
-        return collect($value)
-            ->filter(fn ($id) => $id !== null && $id !== '')
-            ->map(fn ($id) => (int) $id)
-            ->unique()
-            ->values()
-            ->all();
-    }
-
-    private function archiveCompletedMeetings(): void
-    {
-        if (! Schema::hasColumn('meetings', 'archived_at')) {
-            return;
-        }
-
-        Meeting::query()
-            ->whereNull('archived_at')
-            ->whereIn('status', ['completed', 'canceled'])
-            ->where('updated_at', '<=', now()->subDays(14))
-            ->update([
-                'archived_at' => now(),
-                'archived_reason' => 'auto_closed_14d',
-            ]);
-    }
-
-    private function buildStats(Request $request, bool $hasArchiveColumn): array
-    {
-        $base = Meeting::query();
-        if ($request->filled('user_id')) {
-            $base->where('user_id', (int) $request->query('user_id'));
-        }
-        if ($request->filled('client_id')) {
-            $base->where('client_id', (int) $request->query('client_id'));
-        }
-
-        $activeBase = (clone $base);
-        if ($hasArchiveColumn) {
-            $activeBase->whereNull('archived_at');
-        }
-
-        return [
-            'today' => (clone $activeBase)->whereDate('start_at', today())->count(),
-            'scheduled' => (clone $activeBase)->where('status', 'scheduled')->count(),
-            'completed' => (clone $activeBase)->where('status', 'completed')->count(),
-            'archived' => $hasArchiveColumn ? (clone $base)->whereNotNull('archived_at')->count() : 0,
-        ];
     }
 }

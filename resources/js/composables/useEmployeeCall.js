@@ -1,5 +1,16 @@
+import {
+    buildErrorMessage,
+    copyTraceToClipboard,
+    fetchServerStatus,
+    flushToServer,
+    formatTraceForDisplay,
+    logStep,
+    startTrace,
+} from '@/utils/employeeCallDiagnostics.js';
 import { employeeCallRealtimeEnabled, userPrivateChannel } from '@/echo.js';
 import { computed, ref } from 'vue';
+
+const diagnosticDetail = ref('');
 
 const ICE_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -315,7 +326,7 @@ async function handleRemoteIce(candidate) {
     }
 }
 
-function settleIdle(message = '') {
+function settleIdle(message = '', err = null) {
     const endedId = call.value?.id;
     phase.value = 'idle';
     call.value = null;
@@ -323,6 +334,13 @@ function settleIdle(message = '') {
     pendingOffer = null;
     pendingOfferType = null;
     error.value = message;
+    if (message || err) {
+        logStep('settle.idle', { message, err_name: err?.name });
+        void flushToServer(err || new Error(message || 'idle'));
+        diagnosticDetail.value = formatTraceForDisplay();
+    } else {
+        diagnosticDetail.value = '';
+    }
     stopDurationTimer();
     closePeerConnection();
     resetStreams();
@@ -611,26 +629,38 @@ async function startCall(calleeId, type = 'voice') {
 
     error.value = '';
     phase.value = 'outgoing';
+    startTrace('start_call', { callee_id: calleeId, type });
 
     try {
         await releaseStaleOnServer();
+        logStep('start.release_stale_done');
         const wantVideo = type === 'video';
+        logStep('start.get_user_media', { video: wantVideo });
         const offerSdp = await buildLocalOffer(wantVideo);
+        logStep('start.offer_built', { has_sdp: Boolean(offerSdp?.sdp) });
 
         const res = await api().post(
             route('chat.calls.store'),
             { callee_id: calleeId, type, sdp: offerSdp },
             { headers: { Accept: 'application/json' } },
         );
+        logStep('start.store_ok', {
+            call_id: res.data?.call?.id,
+            diag_trace: res.data?.diag_trace,
+        });
         call.value = res.data.call;
         peer.value = res.data.call?.callee || res.data.call?.peer;
         createPeerConnection(call.value.id);
         await pc.setLocalDescription(new RTCSessionDescription(offerSdp));
         phase.value = 'connecting';
+        logStep('start.connecting');
     } catch (err) {
+        logStep('start.failed', {
+            status: err?.response?.status,
+            diag_trace: err?.response?.data?.diag_trace,
+        });
         await abortOutgoingCall();
-        const detail = extractCallError(err);
-        settleIdle(detail || 'تعذّر بدء المكالمة.');
+        settleIdle(buildErrorMessage(err, extractCallError(err) || 'تعذّر بدء المكالمة.'), err);
     }
 }
 
@@ -641,22 +671,31 @@ async function acceptCall() {
     error.value = '';
     const callId = call.value.id;
     const type = call.value?.type || 'voice';
+    startTrace('accept_call', { call_id: callId, type });
 
     try {
+        logStep('accept.wait_offer');
         const hasOffer = await waitForPendingOffer();
+        logStep('accept.offer_ready', { has_offer: hasOffer, has_pending: Boolean(pendingOffer) });
         if (!hasOffer) {
             settleIdle('لم تصل إشارة الاتصال. تأكد أن الطرف المتصل ما زال على الخط.');
             return;
         }
 
         phase.value = 'connecting';
+        logStep('accept.api_request', { call_id: callId });
         const res = await api().post(route('chat.calls.accept', callId), {}, { headers: { Accept: 'application/json' } });
+        logStep('accept.api_ok', {
+            diag_trace: res.data?.diag_trace,
+            has_server_offer: Boolean(res.data?.offer_sdp),
+        });
         call.value = res.data.call || call.value;
         peer.value = call.value.caller || call.value.peer;
 
         if (!pendingOffer && res.data?.offer_sdp) {
             pendingOffer = normalizeSdpInit(res.data.offer_sdp);
             pendingOfferType = type;
+            logStep('accept.offer_from_server');
         }
 
         const offerSdp = pendingOffer;
@@ -666,14 +705,21 @@ async function acceptCall() {
             return;
         }
 
+        logStep('accept.webrtc_setup');
         await ensureLocalStream(type === 'video');
         createPeerConnection(callId);
         pendingOffer = null;
         pendingOfferType = null;
         await handleRemoteOffer(callId, offerSdp, offerType);
+        logStep('accept.webrtc_answer_sent');
         flushBufferedSignals(callId, { skipOffers: true });
     } catch (err) {
-        settleIdle(extractCallError(err) || 'تعذّر قبول المكالمة.');
+        logStep('accept.failed', {
+            status: err?.response?.status,
+            diag_trace: err?.response?.data?.diag_trace,
+            diag_debug: err?.response?.data?.diag_debug,
+        });
+        settleIdle(buildErrorMessage(err, extractCallError(err) || 'تعذّر قبول المكالمة.'), err);
     }
 }
 
@@ -879,7 +925,9 @@ function initEmployeeCalls(userId) {
     subscribeToUserChannel(userId);
     void releaseStaleOnServer();
     void syncPendingIncomingFromServer();
+    void fetchServerStatus();
     startPendingCallPoll();
+    logStep('init', { user_id: userId, echo: employeeCallRealtimeEnabled() });
 
     if (typeof window !== 'undefined' && typeof Notification !== 'undefined' && Notification.permission === 'default') {
         void Notification.requestPermission();
@@ -907,6 +955,10 @@ function teardownEmployeeCalls() {
     }
 }
 
+async function copyDiagnostics() {
+    return copyTraceToClipboard();
+}
+
 export function useEmployeeCall() {
     return {
         phase,
@@ -914,6 +966,8 @@ export function useEmployeeCall() {
         peer,
         contactPerson,
         error,
+        diagnosticDetail,
+        copyDiagnostics,
         isMuted,
         isVideoOff,
         localStream,
