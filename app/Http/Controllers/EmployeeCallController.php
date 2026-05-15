@@ -37,13 +37,14 @@ class EmployeeCallController extends Controller
         $data = $request->validate([
             'callee_id' => ['required', 'integer', 'exists:users,id'],
             'type' => ['sometimes', 'string', 'in:voice,video'],
+            'sdp' => ['nullable', 'array'],
         ]);
 
         $caller = $request->user();
         $callee = User::query()->findOrFail((int) $data['callee_id']);
         $type = $data['type'] ?? EmployeeCall::TYPE_VOICE;
 
-        $call = $this->calls->initiate($caller, $callee, $type);
+        $call = $this->calls->initiate($caller, $callee, $type, $data['sdp'] ?? null);
 
         return response()->json([
             'call' => $call->toPayload($caller),

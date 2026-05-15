@@ -191,6 +191,13 @@ function createPeerConnection(callId) {
 
     syncLocalTracksToPeerConnection();
 
+    if (pc.getSenders().length === 0) {
+        pc.addTransceiver('audio', { direction: 'sendrecv' });
+        if (isVideoCall.value) {
+            pc.addTransceiver('video', { direction: 'sendrecv' });
+        }
+    }
+
     return pc;
 }
 
@@ -399,10 +406,44 @@ function extractCallError(err) {
     if (err?.name === 'NotReadableError') {
         return 'الميكروفون مستخدم من تطبيق آخر.';
     }
+    if (err?.response?.status === 419) {
+        return 'انتهت الجلسة. حدّث الصفحة ثم أعد المحاولة.';
+    }
+    if (err?.response?.status === 401) {
+        return 'انتهت صلاحية الدخول. سجّل الدخول مجدداً.';
+    }
+    if (err?.response?.status === 404) {
+        return 'مسار المكالمة غير متاح. حدّث الصفحة أو أعد نشر السيرفر.';
+    }
     if (err?.response?.status >= 500) {
         return 'خطأ في الخادم. تحقق من تشغيل Reverb ثم أعد المحاولة.';
     }
+    if (err?.message) {
+        return String(err.message);
+    }
     return '';
+}
+
+async function buildLocalOffer(wantVideo) {
+    await ensureLocalStream(wantVideo);
+    const tmp = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    localStream.value.getTracks().forEach((track) => {
+        tmp.addTrack(track, localStream.value);
+    });
+    if (tmp.getSenders().length === 0) {
+        tmp.addTransceiver('audio', { direction: 'sendrecv' });
+        if (wantVideo) {
+            tmp.addTransceiver('video', { direction: 'sendrecv' });
+        }
+    }
+    const offer = await tmp.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: wantVideo,
+    });
+    await tmp.setLocalDescription(offer);
+    const sdp = offer.toJSON();
+    tmp.close();
+    return sdp;
 }
 
 async function abortOutgoingCall() {
@@ -504,22 +545,17 @@ async function startCall(calleeId, type = 'voice') {
     try {
         await releaseStaleOnServer();
         const wantVideo = type === 'video';
-        await ensureLocalStream(wantVideo);
+        const offerSdp = await buildLocalOffer(wantVideo);
 
         const res = await api().post(
             route('chat.calls.store'),
-            { callee_id: calleeId, type },
+            { callee_id: calleeId, type, sdp: offerSdp },
             { headers: { Accept: 'application/json' } },
         );
         call.value = res.data.call;
         peer.value = res.data.call?.callee || res.data.call?.peer;
         createPeerConnection(call.value.id);
-        const offer = await pc.createOffer({
-            offerToReceiveAudio: true,
-            offerToReceiveVideo: wantVideo,
-        });
-        await pc.setLocalDescription(offer);
-        await postSignal(call.value.id, 'offer', { sdp: offer.toJSON() });
+        await pc.setLocalDescription(new RTCSessionDescription(offerSdp));
         phase.value = 'connecting';
     } catch (err) {
         await abortOutgoingCall();
@@ -682,8 +718,8 @@ function onSignalingEvent(eventName, payload) {
             }
         }
         const messages = {
-            'employee-call.rejected': 'تم رفض المكالمة.',
-            'employee-call.ended': 'انتهت المكالمة.',
+            'employee-call.rejected': phase.value === 'incoming' ? '' : 'تم رفض المكالمة.',
+            'employee-call.ended': phase.value === 'incoming' ? '' : 'انتهت المكالمة.',
         };
         settleIdle(messages[eventName] || '');
     }

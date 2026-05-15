@@ -60,7 +60,10 @@ class EmployeeCallService
             ->first();
     }
 
-    public function initiate(User $caller, User $callee, string $type = EmployeeCall::TYPE_VOICE): EmployeeCall
+    /**
+     * @param  array<string, mixed>|null  $offerSdp
+     */
+    public function initiate(User $caller, User $callee, string $type = EmployeeCall::TYPE_VOICE, ?array $offerSdp = null): EmployeeCall
     {
         if ((int) $caller->id === (int) $callee->id) {
             throw ValidationException::withMessages([
@@ -96,6 +99,13 @@ class EmployeeCallService
             $this->broadcastToUser($callee, 'incoming', $call, $caller, [
                 'call' => $call->toPayload($callee),
             ]);
+
+            if ($offerSdp) {
+                $this->broadcastToUser($callee, 'offer', $call, $caller, [
+                    'sdp' => $offerSdp,
+                    'type' => $type,
+                ]);
+            }
 
             return $call->fresh(['caller:id,name,avatar_path', 'callee:id,name,avatar_path']);
         });
