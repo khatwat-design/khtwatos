@@ -216,17 +216,17 @@ function submitComplete() {
 
             <div
                 v-if="showFiltersModal"
-                class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+                class="mobile-sheet-backdrop"
                 @click.self="showFiltersModal = false"
             >
-                <div class="w-full max-w-4xl rounded-2xl border border-gray-200 bg-white p-4 shadow-xl">
-                    <div class="mb-3 flex items-center justify-between">
-                        <h3 class="text-lg font-semibold text-gray-900">فلترة الاجتماعات</h3>
-                        <button type="button" class="rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-gray-100" @click="showFiltersModal = false">
+                <div class="mobile-sheet-panel mobile-sheet-panel--xl p-0" @click.stop>
+                    <div class="mobile-sheet-header">
+                        <h3 class="mobile-sheet-title">فلترة الاجتماعات</h3>
+                        <button type="button" class="mobile-sheet-close-btn" @click="showFiltersModal = false">
                             إغلاق
                         </button>
                     </div>
-                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <div class="mobile-sheet-body grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <div class="space-y-1">
                         <label class="block text-xs font-medium text-black" for="host_filter">المضيف:</label>
                         <select

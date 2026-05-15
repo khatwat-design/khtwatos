@@ -21,14 +21,14 @@ const emit = defineEmits(['close', 'copy', 'forward', 'start-edit', 'remove']);
         >
             <div
                 v-if="open && msg"
-                class="fixed inset-0 z-[110] flex items-end justify-center bg-slate-950/50 backdrop-blur-[2px] sm:items-center"
+                class="mobile-sheet-backdrop z-[110] !bg-slate-950/50 p-3 backdrop-blur-[2px] sm:items-center"
                 role="dialog"
                 aria-modal="true"
                 aria-label="إجراءات الرسالة"
                 @click.self="emit('close')"
             >
                 <div
-                    class="w-full max-w-md rounded-t-3xl border border-slate-200 bg-white p-2 shadow-2xl sm:rounded-2xl sm:p-3"
+                    class="mobile-sheet-panel mobile-sheet-panel--sm w-full max-w-md p-2 shadow-2xl sm:p-3"
                     dir="rtl"
                     @click.stop
                 >

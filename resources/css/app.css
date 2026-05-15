@@ -394,24 +394,40 @@
         border-color: rgba(229, 72, 77, 0.36) !important;
     }
 
-    /* نوافذ منبثقة على الجوال — لوحة مضغوطة مع هامش */
+    /* نوافذ منبثقة على الجوال — لوحات مضغوطة (متزامنة مع mobileSheetClasses.js) */
     .mobile-sheet-backdrop {
-        @apply fixed inset-0 z-50 flex flex-col justify-end bg-black/40 p-3 pt-10 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] sm:items-center sm:justify-center sm:p-4 sm:pt-4;
+        @apply fixed inset-0 z-50 flex flex-col justify-end bg-black/45 p-4 pt-8 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] sm:items-center sm:justify-center sm:bg-black/40 sm:p-4 sm:pt-4;
     }
 
     .mobile-sheet-panel {
-        @apply w-full max-h-[min(80dvh,34rem)] overflow-y-auto overscroll-contain rounded-2xl border border-gray-200 bg-white shadow-xl sm:mx-auto sm:max-h-[90vh] sm:rounded-2xl;
+        @apply w-full max-h-[min(64dvh,26rem)] overflow-y-auto overscroll-contain rounded-2xl border border-gray-200 bg-white shadow-xl [-webkit-overflow-scrolling:touch] sm:mx-auto sm:max-h-[90vh] sm:rounded-2xl;
+    }
+
+    .mobile-sheet-panel--sm {
+        @apply max-h-[min(52dvh,20rem)] sm:max-w-sm;
     }
 
     .mobile-sheet-panel--md {
-        @apply max-h-[min(76dvh,28rem)] sm:max-w-md;
+        @apply max-h-[min(58dvh,22rem)] sm:max-w-md;
     }
 
     .mobile-sheet-panel--lg {
-        @apply sm:max-w-2xl;
+        @apply max-h-[min(64dvh,26rem)] sm:max-w-lg;
     }
 
     .mobile-sheet-panel--xl {
-        @apply max-h-[min(82dvh,36rem)] sm:max-w-xl;
+        @apply max-h-[min(68dvh,28rem)] sm:max-w-xl;
+    }
+
+    .mobile-sheet-panel--2xl {
+        @apply max-h-[min(72dvh,30rem)] sm:max-w-2xl;
+    }
+
+    .mobile-sheet-header {
+        @apply sticky top-0 z-10 flex shrink-0 items-center justify-between gap-2 border-b border-gray-100 bg-white px-3.5 py-2 sm:px-4 sm:py-2.5;
+    }
+
+    .mobile-sheet-footer {
+        @apply sticky bottom-0 z-10 flex shrink-0 flex-col-reverse gap-2 border-t border-gray-100 bg-white px-3.5 py-2.5 sm:flex-row sm:justify-end sm:px-4 sm:py-3;
     }
 }

@@ -423,17 +423,18 @@ onUnmounted(() => {
 
         <div
             v-if="showSalesModal"
-            class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+            class="mobile-sheet-backdrop"
             @click.self="showSalesModal = false"
         >
             <div
-                class="glass-modal portal-light-modal flex max-h-[min(92dvh,56rem)] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl shadow-2xl sm:mx-auto sm:max-h-[90vh] sm:rounded-2xl"
+                class="glass-modal portal-light-modal mobile-sheet-panel mobile-sheet-panel--lg flex flex-col overflow-hidden p-0 shadow-2xl"
+                @click.stop
             >
-                <div class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur-sm sm:px-5 sm:py-4">
-                    <h3 class="text-base font-bold leading-snug text-slate-900 sm:text-lg">إضافة المبيعات</h3>
-                    <button type="button" class="min-h-10 shrink-0 rounded-xl px-3 text-sm font-medium text-slate-500 transition hover:bg-slate-100" @click="showSalesModal = false">إغلاق</button>
+                <div class="mobile-sheet-header !border-slate-100">
+                    <h3 class="mobile-sheet-title">إضافة المبيعات</h3>
+                    <button type="button" class="mobile-sheet-close-btn" @click="showSalesModal = false">إغلاق</button>
                 </div>
-                <form class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-y-contain px-4 py-4 sm:px-5 sm:py-5" @submit.prevent="submitSales">
+                <form class="mobile-sheet-body min-h-0 flex-1 space-y-3 overflow-y-auto sm:space-y-4" @submit.prevent="submitSales">
                     <div>
                         <InputLabel for="sales_date" value="تاريخ المبيعات" />
                         <TextInput id="sales_date" v-model="salesForm.sales_date" type="date" class="mt-1 block min-h-11 w-full text-base sm:text-sm" required />
@@ -461,8 +462,8 @@ onUnmounted(() => {
                         <InputLabel for="notes" value="ملاحظات (اختياري)" />
                         <textarea id="notes" v-model="salesForm.notes" rows="3" class="mt-1 block min-h-[5.5rem] w-full rounded-xl border-slate-200 text-base shadow-sm sm:text-sm" />
                     </div>
-                    <div class="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
-                        <button type="button" class="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto" @click="showSalesModal = false">إلغاء</button>
+                    <div class="mobile-sheet-footer !border-slate-100">
+                        <button type="button" class="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto" @click="showSalesModal = false">إلغاء</button>
                         <PrimaryButton class="w-full justify-center sm:w-auto" :disabled="salesForm.processing || !products?.length">حفظ المبيعات</PrimaryButton>
                     </div>
                 </form>
@@ -471,22 +472,23 @@ onUnmounted(() => {
 
         <div
             v-if="showMeetingModal"
-            class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+            class="mobile-sheet-backdrop"
             @click.self="showMeetingModal = false"
         >
             <div
-                class="glass-modal portal-light-modal flex max-h-[min(92dvh,56rem)] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl shadow-2xl sm:mx-auto sm:max-h-[90vh] sm:rounded-2xl"
+                class="glass-modal portal-light-modal mobile-sheet-panel mobile-sheet-panel--xl flex flex-col overflow-hidden p-0 shadow-2xl"
+                @click.stop
             >
-                <div class="flex shrink-0 flex-col gap-1 border-b border-slate-100 bg-white/95 px-4 py-3 backdrop-blur-sm sm:px-5 sm:py-4">
-                    <div class="flex items-start justify-between gap-3">
-                        <h3 class="text-base font-bold leading-snug text-slate-900 sm:text-lg">حجز اجتماع مع الفريق</h3>
-                        <button type="button" class="min-h-10 shrink-0 rounded-xl px-3 text-sm font-medium text-slate-500 transition hover:bg-slate-100" @click="showMeetingModal = false">إغلاق</button>
+                <div class="mobile-sheet-header !border-slate-100">
+                    <div class="min-w-0 flex-1">
+                        <h3 class="mobile-sheet-title">حجز اجتماع مع الفريق</h3>
+                        <p class="mt-0.5 text-[11px] leading-relaxed text-slate-600 sm:text-xs">
+                            بيانات العميل تُربط تلقائيًا بملفه، ولا حاجة لإدخال الاسم والبريد كل مرة.
+                        </p>
                     </div>
-                    <p class="text-xs leading-relaxed text-slate-600">
-                        بيانات العميل تُربط تلقائيًا بملفه، ولا حاجة لإدخال الاسم والبريد كل مرة.
-                    </p>
+                    <button type="button" class="mobile-sheet-close-btn shrink-0" @click="showMeetingModal = false">إغلاق</button>
                 </div>
-                <form class="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-y-contain px-4 py-4 sm:px-5 sm:py-5" @submit.prevent="submitMeeting">
+                <form class="mobile-sheet-body min-h-0 flex-1 space-y-3 overflow-y-auto sm:space-y-4" @submit.prevent="submitMeeting">
                     <div>
                         <InputLabel for="meeting_team_slug" value="القسم" />
                         <select
@@ -585,8 +587,8 @@ onUnmounted(() => {
                         />
                         <InputError class="mt-1" :message="meetingForm.errors.reason" />
                     </div>
-                    <div class="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
-                        <button type="button" class="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto" @click="showMeetingModal = false">إلغاء</button>
+                    <div class="mobile-sheet-footer !border-slate-100">
+                        <button type="button" class="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto" @click="showMeetingModal = false">إلغاء</button>
                         <PrimaryButton class="w-full justify-center sm:w-auto" :disabled="meetingForm.processing || !availableSlots.length">تأكيد الحجز</PrimaryButton>
                     </div>
                 </form>

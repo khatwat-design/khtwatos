@@ -326,7 +326,7 @@ function statusClass(status) {
             @click.self="showCreateModal = false"
         >
             <div
-                class="mobile-sheet-panel mobile-sheet-panel--lg sm:p-5"
+                class="mobile-sheet-panel mobile-sheet-panel--md sm:p-5"
             >
                 <div class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3 sm:border-0 sm:px-0 sm:pb-4 sm:pt-0">
                     <h3 class="text-base font-bold text-gray-900 sm:text-lg">إضافة عميل لقسم البضاعة</h3>

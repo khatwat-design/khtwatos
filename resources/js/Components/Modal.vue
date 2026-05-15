@@ -1,8 +1,9 @@
 <script setup>
 import { Capacitor } from '@capacitor/core';
+import { modalMobilePanelByMaxWidth } from '@/utils/mobileSheetClasses.js';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
-/** في WebView الأصلي نعرض اللوحة كـ bottom sheet بدل نافذة عائمة ضيقة */
+/** في WebView الأصلي نعرض اللوحة كـ bottom sheet */
 const isNativeShell = Capacitor.isNativePlatform();
 
 const props = defineProps({
@@ -67,54 +68,34 @@ onUnmounted(() => {
     document.body.style.overflow = '';
 });
 
-const maxWidthClass = computed(() => {
-    return {
-        sm: 'sm:max-w-sm',
-        md: 'sm:max-w-md',
-        lg: 'sm:max-w-lg',
-        xl: 'sm:max-w-xl',
-        '2xl': 'sm:max-w-2xl',
-    }[props.maxWidth];
-});
-
-const shellClass = computed(() =>
-    isNativeShell
-        ? 'flex flex-col justify-end overflow-hidden p-3 pt-10 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]'
-        : 'overflow-y-auto px-4 py-6 sm:px-0 max-lg:flex max-lg:flex-col max-lg:justify-end max-lg:px-3 max-lg:pt-10 max-lg:pb-4 max-lg:py-0',
+const mobilePanelClass = computed(
+    () => modalMobilePanelByMaxWidth[props.maxWidth] ?? modalMobilePanelByMaxWidth['2xl'],
 );
 
 const panelTransitionEnterFrom = isNativeShell
     ? 'opacity-0 translate-y-full'
-    : 'opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95';
+    : 'opacity-0 translate-y-6 sm:translate-y-0 sm:scale-95';
 
-const panelTransitionEnterTo = isNativeShell
-    ? 'opacity-100 translate-y-0'
-    : 'opacity-100 translate-y-0 sm:scale-100';
+const panelTransitionEnterTo = isNativeShell ? 'opacity-100 translate-y-0' : 'opacity-100 translate-y-0 sm:scale-100';
 
 const panelTransitionLeaveTo = isNativeShell
     ? 'opacity-0 translate-y-full'
-    : 'opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95';
+    : 'opacity-0 translate-y-6 sm:translate-y-0 sm:scale-95';
 
-const panelTransitionLeaveFrom = isNativeShell
-    ? 'opacity-100 translate-y-0'
-    : 'opacity-100 translate-y-0 sm:scale-100';
+const panelTransitionLeaveFrom = isNativeShell ? 'opacity-100 translate-y-0' : 'opacity-100 translate-y-0 sm:scale-100';
 
 const panelBoxClass = computed(() => {
-    const mobilePanel =
-        'max-h-[min(80dvh,34rem)] overflow-y-auto overscroll-contain rounded-2xl pb-[max(1rem,env(safe-area-inset-bottom))] max-lg:mx-auto max-lg:w-full max-lg:max-w-[calc(100%-0.5rem)]';
+    const safeBottom = 'pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]';
 
     if (isNativeShell) {
-        return [
-            'modal-content-light w-full max-w-none mx-0 mb-0 shadow-xl transition-all transform',
-            mobilePanel,
-        ];
+        return ['modal-content-light w-full max-w-none mx-0 mb-0 shadow-xl transition-all transform', mobilePanelClass.value, safeBottom];
     }
 
     return [
-        'modal-content-light mb-6 overflow-hidden rounded-lg shadow-xl transition-all transform sm:mx-auto sm:w-full',
-        'max-lg:mb-2 max-lg:overflow-y-auto max-lg:rounded-2xl',
-        mobilePanel,
-        maxWidthClass.value,
+        'modal-content-light mb-6 overflow-hidden transition-all transform sm:mx-auto sm:mb-6 sm:w-full sm:overflow-hidden sm:rounded-lg',
+        'max-lg:mb-0 max-lg:mx-auto max-lg:w-full max-lg:max-w-[calc(100%-0.25rem)]',
+        mobilePanelClass.value,
+        safeBottom,
     ];
 });
 </script>
@@ -124,7 +105,10 @@ const panelBoxClass = computed(() => {
         class="z-50 m-0 min-h-full min-w-full overflow-y-auto bg-transparent backdrop:bg-transparent"
         ref="dialog"
     >
-        <div class="fixed inset-0 z-50" :class="shellClass" scroll-region>
+        <div
+            class="fixed inset-0 z-50 max-lg:flex max-lg:flex-col max-lg:justify-end max-lg:overflow-hidden max-lg:bg-black/45 max-lg:p-4 max-lg:pt-8 max-lg:pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] sm:block sm:overflow-y-auto sm:px-4 sm:py-6 sm:pt-6"
+            scroll-region
+        >
             <Transition
                 enter-active-class="ease-out duration-300"
                 enter-from-class="opacity-0"
@@ -135,12 +119,10 @@ const panelBoxClass = computed(() => {
             >
                 <div
                     v-show="show"
-                    class="fixed inset-0 transform transition-all"
+                    class="fixed inset-0 transform transition-all max-lg:pointer-events-auto"
                     @click="close"
                 >
-                    <div
-                        class="absolute inset-0 bg-gray-500 opacity-75"
-                    />
+                    <div class="absolute inset-0 bg-gray-500/75 max-lg:bg-black/45" />
                 </div>
             </Transition>
 
@@ -152,12 +134,7 @@ const panelBoxClass = computed(() => {
                 :leave-from-class="panelTransitionLeaveFrom"
                 :leave-to-class="panelTransitionLeaveTo"
             >
-                <div
-                    v-show="show"
-                    class="bg-white"
-                    :class="panelBoxClass"
-                    @click.stop
-                >
+                <div v-show="show" class="bg-white max-lg:relative max-lg:shrink-0" :class="panelBoxClass" @click.stop>
                     <slot v-if="showSlot" />
                 </div>
             </Transition>
@@ -206,5 +183,14 @@ const panelBoxClass = computed(() => {
 .modal-content-light :deep(input::placeholder),
 .modal-content-light :deep(textarea::placeholder) {
     color: #6b7280 !important;
+}
+
+.modal-content-light :deep(.glass-modal) {
+    background: transparent !important;
+    backdrop-filter: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
 }
 </style>

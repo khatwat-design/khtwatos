@@ -101,11 +101,15 @@ watch(
 <template>
     <div
         v-if="open"
-        class="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/70 px-3 py-4 backdrop-blur-sm"
+        class="mobile-sheet-backdrop z-[120] !bg-slate-900/70 sm:items-center"
         role="dialog"
         aria-modal="true"
+        @click.self="emit('close')"
     >
-        <div class="relative flex w-full max-w-2xl max-h-[92vh] flex-col overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-200">
+        <div
+            class="mobile-sheet-panel mobile-sheet-panel--lg relative flex w-full max-w-2xl flex-col overflow-hidden p-0 shadow-2xl ring-1 ring-slate-200"
+            @click.stop
+        >
             <!-- Header -->
             <div class="shrink-0 border-b border-slate-200/80 bg-white px-5 py-4">
                 <div class="flex items-center justify-between gap-3">

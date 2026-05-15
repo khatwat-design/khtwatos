@@ -32,14 +32,14 @@ const filteredTargets = computed(() => {
         >
             <div
                 v-if="open"
-                class="fixed inset-0 z-[111] flex items-end justify-center bg-slate-950/55 p-2 backdrop-blur-[2px] sm:items-center"
+                class="mobile-sheet-backdrop z-[111] !bg-slate-950/55 p-3 backdrop-blur-[2px] sm:items-center"
                 role="dialog"
                 aria-modal="true"
                 aria-label="تحويل الرسالة"
                 @click.self="emit('close')"
             >
                 <div
-                    class="flex max-h-[min(85vh,560px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                    class="mobile-sheet-panel mobile-sheet-panel--md flex max-w-md flex-col overflow-hidden p-0 shadow-2xl"
                     dir="rtl"
                     @click.stop
                 >
