@@ -13,10 +13,11 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import { employeeCallRealtimeEnabled, teamChatRealtimeEnabled } from '@/echo.js';
 import { useEmployeeCall } from '@/composables/useEmployeeCall.js';
 import { useKeyboardViewportInset } from '@/composables/useKeyboardViewportInset.js';
+import { chatMobileChromeHidden } from '@/state/chatMobileChrome.js';
 import { CHAT_MOBILE_MEDIA, isChatMobileViewport } from '@/utils/chatMobileViewport.js';
 import { buildOptimisticAttachment, isVoiceFile } from '@/utils/chatVoiceAttachment.js';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
-import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
     chatTab: { type: String, default: 'all' },
@@ -85,7 +86,6 @@ const teamSidebarFilter = ref('');
 /** يحدّث ترتيب القائمة فور إرسال رسالة قبل استلام تحديث الخادم */
 const activityOverrides = ref({});
 const mobilePanel = ref('list');
-const concealMobilePageHeader = inject('concealMobilePageHeader', null);
 const mobileSearchOpen = ref(false);
 const mobileSearchInputRef = ref(null);
 
@@ -117,9 +117,7 @@ function toggleMobileSearch() {
 watch(
     mobileImmersiveChat,
     (immersive) => {
-        if (concealMobilePageHeader) {
-            concealMobilePageHeader.value = immersive;
-        }
+        chatMobileChromeHidden.value = immersive;
         if (typeof document !== 'undefined') {
             document.body.classList.toggle('chat-mobile-immersive', immersive);
         }
@@ -596,6 +594,7 @@ function onAllInboxClick(item) {
 
 function showTeamListPanel() {
     mobilePanel.value = 'list';
+    chatMobileChromeHidden.value = false;
 }
 
 function submitMessage() {
@@ -1597,9 +1596,7 @@ watch(
 
 onBeforeUnmount(() => {
     window.removeEventListener('employee-call-settled', onEmployeeCallSettled);
-    if (concealMobilePageHeader) {
-        concealMobilePageHeader.value = false;
-    }
+    chatMobileChromeHidden.value = false;
     if (typeof document !== 'undefined') {
         document.body.classList.remove('chat-mobile-immersive');
     }

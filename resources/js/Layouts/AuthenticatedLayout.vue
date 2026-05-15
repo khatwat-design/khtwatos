@@ -9,26 +9,29 @@ import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import TeamNotebookDock from '@/Components/TeamNotebookDock.vue';
 import { usePresenceHeartbeat } from '@/composables/usePresenceHeartbeat';
+import { chatMobileChromeHidden } from '@/state/chatMobileChrome.js';
 import { CHAT_MOBILE_MEDIA } from '@/utils/chatMobileViewport.js';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 
 const page = usePage();
-/** صفحات مثل الدردشة تخفي شريط العنوان على الجوال لعدم حجب أزرار المحادثة */
-const concealMobilePageHeader = ref(false);
+/** @deprecated استخدم chatMobileChromeHidden — يُبقى للتوافق مع صفحة الدردشة */
+const concealMobilePageHeader = chatMobileChromeHidden;
 provide('concealMobilePageHeader', concealMobilePageHeader);
 
 const layoutMobileViewport = ref(
     typeof window !== 'undefined' && window.matchMedia(CHAT_MOBILE_MEDIA).matches,
 );
 
-/** على الجوال: إخفاء كامل (DOM) وليس فقط تحريك الهيدر */
-const showAppHeader = computed(
-    () => !layoutMobileViewport.value || !concealMobilePageHeader.value,
+/** على الجوال: إخفاء كامل لهيدر التطبيق والشريط السفلي */
+const hideMobileAppChrome = computed(
+    () => layoutMobileViewport.value && chatMobileChromeHidden.value,
 );
 
+const showAppHeader = computed(() => !hideMobileAppChrome.value);
+
 const showMobileBottomNav = computed(
-    () => layoutMobileViewport.value && !concealMobilePageHeader.value,
+    () => layoutMobileViewport.value && !hideMobileAppChrome.value,
 );
 
 let layoutMobileMq = null;
@@ -605,7 +608,7 @@ async function openNotification(note) {
                 <main
                     class="relative z-10 flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-ops-4 py-ops-4 md:px-ops-5 md:py-ops-5 md:pb-ops-5"
                     :class="
-                        concealMobilePageHeader
+                        hideMobileAppChrome
                             ? 'max-lg:!overflow-hidden max-lg:!p-0 max-lg:!pb-0'
                             : showMobileBottomNav
                               ? 'pb-[calc(5rem+env(safe-area-inset-bottom,0px))]'
