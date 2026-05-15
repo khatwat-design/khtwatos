@@ -111,6 +111,36 @@ function formatDuration(seconds) {
     return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+/** تحويل SDP آمن على iOS/Safari حيث toJSON قد لا يكون متاحاً */
+function sdpToPayload(desc) {
+    const source = desc && typeof desc.toJSON === 'function' ? desc : desc?.localDescription ?? desc;
+    if (!source) {
+        return null;
+    }
+    if (typeof source.toJSON === 'function') {
+        return source.toJSON();
+    }
+    if (source.type && source.sdp) {
+        return { type: source.type, sdp: source.sdp };
+    }
+    return null;
+}
+
+function iceCandidateToPayload(candidate) {
+    if (!candidate) {
+        return null;
+    }
+    if (typeof candidate.toJSON === 'function') {
+        return candidate.toJSON();
+    }
+    return {
+        candidate: candidate.candidate,
+        sdpMid: candidate.sdpMid ?? null,
+        sdpMLineIndex: candidate.sdpMLineIndex ?? null,
+        usernameFragment: candidate.usernameFragment ?? null,
+    };
+}
+
 async function postSignal(callId, signalType, extra = {}) {
     await api().post(
         route('chat.calls.signal', callId),
@@ -185,7 +215,7 @@ function createPeerConnection(callId) {
             return;
         }
         postSignal(callId, 'ice', {
-            candidate: event.candidate.toJSON(),
+            candidate: iceCandidateToPayload(event.candidate),
         }).catch(() => {});
     };
 
@@ -220,7 +250,7 @@ async function handleRemoteOffer(callId, sdp, offerType = null) {
     await drainIceQueue();
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
-    await postSignal(callId, 'answer', { sdp: answer.toJSON() });
+    await postSignal(callId, 'answer', { sdp: sdpToPayload(answer) });
 
     if (!wasActive) {
         phase.value = 'active';
@@ -441,8 +471,11 @@ async function buildLocalOffer(wantVideo) {
         offerToReceiveVideo: wantVideo,
     });
     await tmp.setLocalDescription(offer);
-    const sdp = offer.toJSON();
+    const sdp = sdpToPayload(tmp.localDescription) ?? sdpToPayload(offer);
     tmp.close();
+    if (!sdp?.type || !sdp?.sdp) {
+        throw new Error('تعذّر تجهيز إشارة الاتصال على هذا الجهاز.');
+    }
     return sdp;
 }
 
@@ -501,7 +534,7 @@ async function renegotiateWithMode(targetType) {
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    await postSignal(callId, 'offer', { sdp: offer.toJSON() });
+    await postSignal(callId, 'offer', { sdp: sdpToPayload(offer) });
 
     try {
         await api().patch(
