@@ -85,9 +85,17 @@ const teamSidebarFilter = ref('');
 const activityOverrides = ref({});
 const mobilePanel = ref('list');
 const concealMobilePageHeader = inject('concealMobilePageHeader', null);
-const MOBILE_BOTTOM_NAV_PX = 68;
+const mobileSearchOpen = ref(false);
+const mobileSearchInputRef = ref(null);
 
 const isMobileChatOpen = computed(() => mobilePanel.value === 'chat');
+
+function toggleMobileSearch() {
+    mobileSearchOpen.value = !mobileSearchOpen.value;
+    if (mobileSearchOpen.value) {
+        nextTick(() => mobileSearchInputRef.value?.focus());
+    }
+}
 
 watch(
     isMobileChatOpen,
@@ -114,7 +122,7 @@ const mobileChatShellStyle = computed(() => {
         return undefined;
     }
 
-    const visibleHeight = Math.max(280, viewportHeight.value - MOBILE_BOTTOM_NAV_PX);
+    const visibleHeight = Math.max(280, viewportHeight.value);
 
     return {
         top: `${offsetTop.value}px`,
@@ -126,6 +134,8 @@ const mobileChatShellStyle = computed(() => {
 watch(isMobileChatOpen, (open) => {
     if (open) {
         nextTick(() => readKeyboardViewport());
+    } else {
+        mobileSearchOpen.value = false;
     }
 });
 const selectedTeamSlug = ref(props.selectedTeam?.slug || '');
@@ -1598,13 +1608,14 @@ watch(
             class="team-chat-inbox flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col self-stretch overflow-x-hidden overflow-y-hidden max-md:max-h-[calc(100dvh-8.25rem)] max-md:h-[calc(100dvh-8.25rem)] md:max-h-[calc(100dvh-9.5rem)] md:h-[calc(100dvh-9.5rem)] lg:mx-auto lg:h-[min(42rem,calc(100svh-13.5rem))] lg:max-h-[min(42rem,calc(100svh-13.5rem))] lg:w-full lg:max-w-7xl xl:h-[min(46rem,calc(100svh-12.5rem))] xl:max-h-[min(46rem,calc(100svh-12.5rem))]"
             :class="
                 mobilePanel === 'chat'
-                    ? 'team-chat-inbox--mobile-thread max-md:fixed max-md:inset-x-0 max-md:z-30 max-md:px-0 max-md:pt-[env(safe-area-inset-top,0px)]'
+                    ? 'team-chat-inbox--mobile-thread max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-[35] max-md:px-0'
                     : ''
             "
             :style="mobileChatShellStyle"
         >
             <div
-                class="grid h-full min-h-0 min-w-0 w-full max-w-full flex-1 grid-cols-1 grid-rows-1 overflow-hidden rounded-2xl border border-app-surface-border/90 bg-app-surface/90 shadow-xl shadow-slate-900/[0.06] ring-1 ring-black/[0.03] backdrop-blur-md auto-rows-[minmax(0,1fr)] sm:rounded-3xl lg:grid-cols-[minmax(260px,1fr)_minmax(0,2.2fr)] xl:grid-cols-[320px_minmax(0,1fr)]"
+                class="grid h-full min-h-0 min-w-0 w-full max-w-full flex-1 grid-cols-1 grid-rows-1 overflow-hidden rounded-2xl border border-app-surface-border/90 bg-app-surface/90 shadow-xl shadow-slate-900/[0.06] ring-1 ring-black/[0.03] backdrop-blur-md auto-rows-[minmax(0,1fr)] sm:rounded-3xl max-md:rounded-none max-md:border-0 max-md:shadow-none max-md:ring-0 lg:grid-cols-[minmax(260px,1fr)_minmax(0,2.2fr)] xl:grid-cols-[320px_minmax(0,1fr)]"
+                :class="mobilePanel === 'chat' ? 'max-md:h-full' : ''"
             >
                 <!-- قائمة الغرف (مثل صندوق الوارد في الخارج) -->
                 <aside
@@ -1949,7 +1960,7 @@ watch(
                 >
                     <template v-if="hasActiveConversation">
                         <header
-                            class="flex shrink-0 items-center gap-1.5 border-b border-slate-200/80 bg-white/90 px-2 py-2 shadow-sm backdrop-blur-md max-md:pt-[max(0.25rem,env(safe-area-inset-top,0px))] sm:gap-3 sm:px-4 sm:py-3"
+                            class="flex shrink-0 items-center gap-1.5 border-b border-slate-200/80 bg-white/90 px-2 py-1.5 shadow-sm backdrop-blur-md max-md:pt-[max(0.35rem,env(safe-area-inset-top,0px))] sm:gap-3 sm:px-4 sm:py-3"
                         >
                             <button
                                 type="button"
@@ -1964,7 +1975,7 @@ watch(
                             <ChatUserAvatar
                                 :name="chatHeaderTitle"
                                 :avatar-url="chatHeaderAvatarUrl"
-                                size-class="h-11 w-11 sm:h-12 sm:w-12"
+                                size-class="h-10 w-10 sm:h-12 sm:w-12"
                                 rounded-class="rounded-2xl"
                                 gradient-class="from-brand-500 to-brand-700"
                                 text-class="text-sm"
@@ -1973,21 +1984,32 @@ watch(
                                 <h2 class="truncate text-[15px] font-bold text-slate-900 sm:text-lg">
                                     {{ chatHeaderTitle }}
                                 </h2>
-                                <p v-if="viewKind === 'team'" class="truncate text-[11px] text-slate-500 sm:text-xs">
+                                <p v-if="viewKind === 'team'" class="hidden truncate text-[11px] text-slate-500 sm:block sm:text-xs">
                                     رسائل الفريق الداخلية
                                 </p>
-                                <p v-else-if="viewKind === 'private_room'" class="truncate text-[11px] text-slate-500 sm:text-xs">
+                                <p v-else-if="viewKind === 'private_room'" class="hidden truncate text-[11px] text-slate-500 sm:block sm:text-xs">
                                     غرفة خاصة · للمدعوين فقط
                                 </p>
-                                <p v-else class="truncate text-[11px] text-slate-500 sm:text-xs">
+                                <p v-else class="hidden truncate text-[11px] text-slate-500 sm:block sm:text-xs">
                                     محادثة خاصة بين الموظفين
                                 </p>
                             </div>
-                            <div
-                                v-if="viewKind === 'direct' && selectedDirect?.peer && employeeCallsEnabled"
-                                class="flex shrink-0 items-center gap-1 sm:gap-2"
-                            >
+                            <div class="flex shrink-0 items-center gap-1 sm:gap-2">
                                 <button
+                                    type="button"
+                                    class="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 md:hidden"
+                                    :class="mobileSearchOpen ? 'border-brand-400 bg-brand-50 text-brand-700' : ''"
+                                    title="بحث في الرسائل"
+                                    aria-label="بحث في الرسائل"
+                                    :aria-expanded="mobileSearchOpen"
+                                    @click="toggleMobileSearch"
+                                >
+                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </button>
+                                <button
+                                    v-if="viewKind === 'direct' && selectedDirect?.peer && employeeCallsEnabled"
                                     type="button"
                                     class="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-white shadow-md shadow-emerald-900/25 transition hover:bg-emerald-500 active:scale-95 sm:h-11 sm:w-auto sm:gap-2 sm:px-4"
                                     title="اتصال صوتي"
@@ -2000,6 +2022,7 @@ watch(
                                     <span class="hidden sm:inline">اتصال</span>
                                 </button>
                                 <button
+                                    v-if="viewKind === 'direct' && selectedDirect?.peer && employeeCallsEnabled"
                                     type="button"
                                     class="flex h-10 w-10 items-center justify-center rounded-full border border-violet-200 bg-violet-50 text-violet-700 shadow-sm transition hover:bg-violet-100 sm:h-11 sm:w-11"
                                     title="مكالمة فيديو"
@@ -2031,7 +2054,28 @@ watch(
                             </div>
                         </header>
 
-                        <div class="shrink-0 border-b border-slate-200/60 bg-white/80 px-3 py-2 sm:px-4 sm:py-2.5">
+                        <div
+                            v-if="mobileSearchOpen"
+                            class="shrink-0 border-b border-slate-200/60 bg-white/95 px-2 py-1.5 md:hidden"
+                        >
+                            <div class="relative">
+                                <span class="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-400">
+                                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </span>
+                                <input
+                                    ref="mobileSearchInputRef"
+                                    v-model="searchTerm"
+                                    type="search"
+                                    autocomplete="off"
+                                    class="block w-full rounded-xl border-slate-200/90 bg-slate-50/90 py-2 ps-9 pe-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20"
+                                    placeholder="بحث في الرسائل…"
+                                >
+                            </div>
+                        </div>
+
+                        <div class="hidden shrink-0 border-b border-slate-200/60 bg-white/80 px-3 py-2 sm:px-4 sm:py-2.5 md:block">
                             <div class="relative">
                                 <span class="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-400">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -2108,6 +2152,7 @@ watch(
                         <TeamChatComposer
                             v-model="composerBody"
                             class="z-10 shrink-0"
+                            :keyboard-lift="false"
                             :placeholder="composerPlaceholder"
                             :processing="composerProcessing()"
                             :attachment="activeComposerAttachment()"

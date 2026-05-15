@@ -576,7 +576,12 @@ async function openNotification(note) {
                 </div>
 
                 <main
-                    class="relative z-10 flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-ops-4 py-ops-4 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] md:px-ops-5 md:py-ops-5 md:pb-ops-5"
+                    class="relative z-10 flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-ops-4 py-ops-4 md:px-ops-5 md:py-ops-5 md:pb-ops-5"
+                    :class="
+                        concealMobilePageHeader
+                            ? 'max-md:overflow-hidden max-md:!p-0 max-md:!pb-0'
+                            : 'pb-[calc(5rem+env(safe-area-inset-bottom,0px))]'
+                    "
                 >
                     <slot />
                 </main>
@@ -591,6 +596,7 @@ async function openNotification(note) {
 
                 <TeamNotebookDock v-if="showTeamNotebookDock" :key="teamNotebook.team_id" :notebook="teamNotebook" />
                 <nav
+                    v-show="!concealMobilePageHeader"
                     class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white px-2 py-1 ps-[max(0.5rem,env(safe-area-inset-left,0px))] pe-[max(0.5rem,env(safe-area-inset-right,0px))] md:hidden"
                 >
                     <div class="grid gap-1" :style="{ gridTemplateColumns: `repeat(${Math.max(mobileBottomNav.length, 1)}, minmax(0, 1fr))` }">

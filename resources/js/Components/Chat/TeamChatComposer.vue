@@ -14,6 +14,8 @@ const props = defineProps({
     bodyError: { type: String, default: '' },
     typingHint: { type: String, default: '' },
     disabled: { type: Boolean, default: false },
+    /** عند false يعتمد الأب على visualViewport (شاشة دردشة جوال) */
+    keyboardLift: { type: Boolean, default: true },
 });
 
 const emit = defineEmits([
@@ -27,7 +29,10 @@ const emit = defineEmits([
 
 const textareaRef = ref(null);
 const { composerStyle: keyboardLiftStyle } = useKeyboardViewportInset(
-    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches,
+    () =>
+        props.keyboardLift
+        && typeof window !== 'undefined'
+        && window.matchMedia('(max-width: 767px)').matches,
 );
 const fileInputRef = ref(null);
 const canSend = ref(false);
@@ -351,7 +356,7 @@ watch(
 
 <template>
     <div
-        class="team-chat-composer shrink-0 border-t border-slate-200/80 bg-white/95 backdrop-blur-xl supports-[backdrop-filter]:bg-white/88"
+        class="team-chat-composer shrink-0 border-t border-slate-200/80 bg-white/95 backdrop-blur-xl supports-[backdrop-filter]:bg-white/88 max-md:pb-[env(safe-area-inset-bottom,0px)]"
         :style="keyboardLiftStyle"
         aria-label="كتابة رسالة"
     >
@@ -504,6 +509,6 @@ watch(
         >
             الميكروفون للتسجيل · زر الإرسال أثناء التسجيل يرسل الصوت مباشرة
         </p>
-        <div class="pb-[max(0.35rem,env(safe-area-inset-bottom))] sm:hidden" aria-hidden="true" />
+        <div v-if="keyboardLift" class="pb-[max(0.35rem,env(safe-area-inset-bottom))] sm:hidden" aria-hidden="true" />
     </div>
 </template>
