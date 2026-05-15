@@ -97,6 +97,9 @@ function onInput(event) {
 }
 
 function onComposerFocus() {
+    if (!props.keyboardLift) {
+        return;
+    }
     nextTick(() => {
         textareaRef.value?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });

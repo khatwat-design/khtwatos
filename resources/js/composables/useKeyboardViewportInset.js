@@ -29,6 +29,11 @@ export function useKeyboardViewportInset(getEnabled = () => true) {
         offsetTop.value = vv.offsetTop;
         viewportHeight.value = vv.height;
         insetBottom.value = Math.max(0, window.innerHeight - vv.offsetTop - vv.height);
+
+        // iOS يمرّر الصفحة عند فتح لوحة المفاتيح — يُفسد top+bottom على العناصر الثابتة
+        if (getEnabled() && (window.scrollX !== 0 || window.scrollY !== 0)) {
+            window.scrollTo(0, 0);
+        }
     }
 
     function bind() {
@@ -67,11 +72,33 @@ export function useKeyboardViewportInset(getEnabled = () => true) {
         };
     });
 
+    /**
+     * لوحة fixed بملء visualViewport — translateY بدل top=offsetTop لتجنب قفز المُدخل على iOS.
+     */
+    const immersiveShellStyle = computed(() => {
+        if (!getEnabled() || typeof window === 'undefined') {
+            return undefined;
+        }
+
+        const height = Math.max(200, viewportHeight.value);
+
+        return {
+            top: '0',
+            left: '0',
+            right: '0',
+            bottom: 'auto',
+            height: `${height}px`,
+            maxHeight: `${height}px`,
+            transform: `translateY(${Math.max(0, offsetTop.value)}px)`,
+        };
+    });
+
     return {
         offsetTop,
         viewportHeight,
         insetBottom,
         composerStyle,
+        immersiveShellStyle,
         read,
         bind,
         unbind,

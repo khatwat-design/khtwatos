@@ -128,37 +128,22 @@ watch(
     { immediate: true },
 );
 
-const { offsetTop, insetBottom, read: readKeyboardViewport } = useKeyboardViewportInset(
+const { immersiveShellStyle, read: readKeyboardViewport } = useKeyboardViewportInset(
     () => mobileImmersiveChat.value,
 );
 
-/** لوحة المحادثة بارتفاع الشاشة المرئية (top/bottom) وليس height ثابت يُقصّ المُدخل */
-const mobileChatShellStyle = computed(() => {
-    if (!mobileImmersiveChat.value || typeof window === 'undefined') {
-        return undefined;
-    }
+const mobileChatShellStyle = computed(() =>
+    mobileImmersiveChat.value ? immersiveShellStyle.value : undefined,
+);
 
-    return {
-        top: `${Math.max(0, offsetTop.value)}px`,
-        bottom: `${Math.max(0, insetBottom.value)}px`,
-        height: 'auto',
-        maxHeight: 'none',
-    };
-});
-
+/** المسافة السفلية للـ safe-area فقط — ارتفاع اللوحة يتكيّف مع لوحة المفاتيح */
 const mobileComposerStyle = computed(() => {
     if (!mobileImmersiveChat.value) {
         return undefined;
     }
 
-    if (insetBottom.value > 0) {
-        return {
-            paddingBottom: `calc(${insetBottom.value}px + env(safe-area-inset-bottom, 0px))`,
-        };
-    }
-
     return {
-        paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
+        paddingBottom: 'max(0.35rem, env(safe-area-inset-bottom, 0px))',
     };
 });
 
@@ -2004,7 +1989,7 @@ watch(
                         mobilePanel === 'list' ? 'hidden lg:flex' : 'flex',
                         mobileImmersiveChat
                             ? 'max-lg:fixed max-lg:inset-x-0 max-lg:z-[100] max-lg:flex max-lg:min-h-0 max-lg:flex-col max-lg:overflow-hidden max-lg:shadow-2xl'
-                            : 'h-full',
+                            : 'flex h-full flex-col',
                     ]"
                     :style="mobileImmersiveChat ? mobileChatShellStyle : undefined"
                 >
@@ -2201,7 +2186,7 @@ watch(
 
                         <TeamChatComposer
                             v-model="composerBody"
-                            class="relative z-30 mt-auto shrink-0"
+                            class="relative z-30 shrink-0"
                             :keyboard-lift="false"
                             :footer-style="mobileComposerStyle"
                             :placeholder="composerPlaceholder"
