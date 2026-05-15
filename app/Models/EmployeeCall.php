@@ -29,6 +29,7 @@ class EmployeeCall extends Model
         'callee_id',
         'direct_conversation_id',
         'type',
+        'offer_sdp',
         'status',
         'answered_at',
         'ended_at',
@@ -38,6 +39,7 @@ class EmployeeCall extends Model
     protected function casts(): array
     {
         return [
+            'offer_sdp' => 'array',
             'answered_at' => 'datetime',
             'ended_at' => 'datetime',
             'chat_logged_at' => 'datetime',
@@ -90,6 +92,7 @@ class EmployeeCall extends Model
             'id' => $this->id,
             'type' => $this->type,
             'status' => $this->status,
+            'offer_sdp' => $this->offer_sdp,
             'is_caller' => $isCaller,
             'caller' => UserAvatar::chatUser($this->caller),
             'callee' => UserAvatar::chatUser($this->callee),

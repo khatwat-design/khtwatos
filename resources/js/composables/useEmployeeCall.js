@@ -126,6 +126,22 @@ function sdpToPayload(desc) {
     return null;
 }
 
+function normalizeSdpInit(sdp) {
+    if (!sdp) {
+        return null;
+    }
+    if (typeof sdp === 'string') {
+        return { type: 'offer', sdp };
+    }
+    if (sdp.type && sdp.sdp) {
+        return { type: sdp.type, sdp: sdp.sdp };
+    }
+    if (sdp.sdp?.type && sdp.sdp?.sdp) {
+        return { type: sdp.sdp.type, sdp: sdp.sdp.sdp };
+    }
+    return null;
+}
+
 function iceCandidateToPayload(candidate) {
     if (!candidate) {
         return null;
@@ -246,7 +262,11 @@ async function handleRemoteOffer(callId, sdp, offerType = null) {
         }
     }
 
-    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    const remoteInit = normalizeSdpInit(sdp);
+    if (!remoteInit) {
+        throw new Error('إشارة الاتصال غير صالحة.');
+    }
+    await pc.setRemoteDescription(new RTCSessionDescription(remoteInit));
     await drainIceQueue();
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
@@ -270,7 +290,11 @@ async function handleRemoteAnswer(sdp) {
     if (pc.signalingState !== 'have-local-offer') {
         return;
     }
-    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    const remoteInit = normalizeSdpInit(sdp);
+    if (!remoteInit) {
+        throw new Error('إشارة الرد غير صالحة.');
+    }
+    await pc.setRemoteDescription(new RTCSessionDescription(remoteInit));
     await drainIceQueue();
     phase.value = 'active';
     startDurationTimer();
@@ -357,8 +381,14 @@ async function waitForPendingOffer(timeoutMs = 12000) {
         }
         const bucket = callId ? signalBuffer.get(callId) : null;
         if (bucket?.offer?.sdp) {
-            pendingOffer = bucket.offer.sdp;
+            pendingOffer = normalizeSdpInit(bucket.offer.sdp);
             pendingOfferType = bucket.offer.type || call.value?.type || 'voice';
+            return true;
+        }
+        const fromCall = normalizeSdpInit(call.value?.offer_sdp);
+        if (fromCall) {
+            pendingOffer = fromCall;
+            pendingOfferType = call.value?.type || 'voice';
             return true;
         }
         await new Promise((resolve) => {
@@ -401,8 +431,12 @@ function applyIncomingCall(payload) {
     }
     call.value = next;
     peer.value = payload.call?.caller || payload.caller;
-    pendingOffer = null;
-    pendingOfferType = null;
+    const storedOffer = normalizeSdpInit(next?.offer_sdp);
+    pendingOffer = storedOffer;
+    pendingOfferType = storedOffer ? next?.type || 'voice' : null;
+    if (!pendingOffer) {
+        pendingOfferType = null;
+    }
     phase.value = 'incoming';
     notifyIncomingCall();
     flushBufferedSignals(Number(call.value?.id));
@@ -499,7 +533,10 @@ async function syncPendingIncomingFromServer() {
         const res = await api().get(route('chat.calls.pending'), { headers: { Accept: 'application/json' } });
         const pending = res?.data?.call;
         if (pending?.id) {
-            applyIncomingCall({ call: pending });
+            applyIncomingCall({
+                call: pending,
+                offer_sdp: res?.data?.offer_sdp ?? pending.offer_sdp,
+            });
         }
     } catch {
         /* ignore */
@@ -617,16 +654,26 @@ async function acceptCall() {
         call.value = res.data.call || call.value;
         peer.value = call.value.caller || call.value.peer;
 
-        await ensureLocalStream(type === 'video');
-        createPeerConnection(callId);
+        if (!pendingOffer && res.data?.offer_sdp) {
+            pendingOffer = normalizeSdpInit(res.data.offer_sdp);
+            pendingOfferType = type;
+        }
+
         const offerSdp = pendingOffer;
         const offerType = pendingOfferType || type;
+        if (!offerSdp) {
+            settleIdle('لم تصل إشارة الاتصال من المتصل.');
+            return;
+        }
+
+        await ensureLocalStream(type === 'video');
+        createPeerConnection(callId);
         pendingOffer = null;
         pendingOfferType = null;
         await handleRemoteOffer(callId, offerSdp, offerType);
         flushBufferedSignals(callId, { skipOffers: true });
-    } catch {
-        settleIdle('تعذّر قبول المكالمة.');
+    } catch (err) {
+        settleIdle(extractCallError(err) || 'تعذّر قبول المكالمة.');
     }
 }
 
@@ -710,7 +757,7 @@ function onSignalingEvent(eventName, payload) {
         }
         const offerType = payload.type || call.value?.type;
         if (phase.value === 'incoming') {
-            pendingOffer = payload.sdp;
+            pendingOffer = normalizeSdpInit(payload.sdp);
             pendingOfferType = offerType;
             return;
         }

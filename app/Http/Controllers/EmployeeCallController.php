@@ -29,6 +29,7 @@ class EmployeeCallController extends Controller
 
         return response()->json([
             'call' => $call ? $call->toPayload($request->user()) : null,
+            'offer_sdp' => $call?->offer_sdp,
         ]);
     }
 
@@ -57,6 +58,7 @@ class EmployeeCallController extends Controller
 
         return response()->json([
             'call' => $call->toPayload($request->user()),
+            'offer_sdp' => $call->offer_sdp,
         ]);
     }
 

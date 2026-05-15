@@ -93,6 +93,7 @@ class EmployeeCallService
                 'callee_id' => $callee->id,
                 'direct_conversation_id' => $conversation->id,
                 'type' => $type,
+                'offer_sdp' => $offerSdp,
                 'status' => EmployeeCall::STATUS_RINGING,
             ]);
 
