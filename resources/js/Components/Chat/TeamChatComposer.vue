@@ -4,6 +4,7 @@ import InputError from '@/Components/InputError.vue';
 import { pickRecorderMimeType, voiceFileFromBlob } from '@/utils/chatRecorder.js';
 import { isVoiceFile } from '@/utils/chatVoiceAttachment.js';
 import { useKeyboardViewportInset } from '@/composables/useKeyboardViewportInset.js';
+import { isChatMobileViewport } from '@/utils/chatMobileViewport.js';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -29,10 +30,7 @@ const emit = defineEmits([
 
 const textareaRef = ref(null);
 const { composerStyle: keyboardLiftStyle } = useKeyboardViewportInset(
-    () =>
-        props.keyboardLift
-        && typeof window !== 'undefined'
-        && window.matchMedia('(max-width: 767px)').matches,
+    () => props.keyboardLift && isChatMobileViewport(),
 );
 const fileInputRef = ref(null);
 const canSend = ref(false);
@@ -356,7 +354,7 @@ watch(
 
 <template>
     <div
-        class="team-chat-composer shrink-0 border-t border-slate-200/80 bg-white/95 backdrop-blur-xl supports-[backdrop-filter]:bg-white/88 max-md:pb-[env(safe-area-inset-bottom,0px)]"
+        class="team-chat-composer shrink-0 border-t border-slate-200/80 bg-white/95 backdrop-blur-xl supports-[backdrop-filter]:bg-white/88 max-lg:pb-[env(safe-area-inset-bottom,0px)]"
         :style="keyboardLiftStyle"
         aria-label="كتابة رسالة"
     >

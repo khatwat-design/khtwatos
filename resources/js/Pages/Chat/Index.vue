@@ -13,6 +13,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 import { employeeCallRealtimeEnabled, teamChatRealtimeEnabled } from '@/echo.js';
 import { useEmployeeCall } from '@/composables/useEmployeeCall.js';
 import { useKeyboardViewportInset } from '@/composables/useKeyboardViewportInset.js';
+import { CHAT_MOBILE_MEDIA, isChatMobileViewport } from '@/utils/chatMobileViewport.js';
 import { buildOptimisticAttachment, isVoiceFile } from '@/utils/chatVoiceAttachment.js';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -88,7 +89,21 @@ const concealMobilePageHeader = inject('concealMobilePageHeader', null);
 const mobileSearchOpen = ref(false);
 const mobileSearchInputRef = ref(null);
 
+const hasActiveConversation = computed(
+    () =>
+        props.viewKind !== 'none' &&
+        ((props.viewKind === 'team' && props.selectedTeam) ||
+            (props.viewKind === 'private_room' && props.selectedPrivateRoom) ||
+            (props.viewKind === 'direct' && props.selectedDirect)),
+);
+
 const isMobileChatOpen = computed(() => mobilePanel.value === 'chat');
+
+const chatMobileViewport = ref(false);
+
+const mobileImmersiveChat = computed(
+    () => isMobileChatOpen.value && hasActiveConversation.value && chatMobileViewport.value,
+);
 
 function toggleMobileSearch() {
     mobileSearchOpen.value = !mobileSearchOpen.value;
@@ -98,27 +113,24 @@ function toggleMobileSearch() {
 }
 
 watch(
-    isMobileChatOpen,
-    (open) => {
+    mobileImmersiveChat,
+    (immersive) => {
         if (concealMobilePageHeader) {
-            concealMobilePageHeader.value = open;
+            concealMobilePageHeader.value = immersive;
+        }
+        if (typeof document !== 'undefined') {
+            document.body.classList.toggle('chat-mobile-immersive', immersive);
         }
     },
     { immediate: true },
 );
 
 const { viewportHeight, offsetTop, read: readKeyboardViewport } = useKeyboardViewportInset(
-    () =>
-        typeof window !== 'undefined'
-        && window.matchMedia('(max-width: 767px)').matches
-        && mobilePanel.value === 'chat',
+    () => mobileImmersiveChat.value,
 );
 
 const mobileChatShellStyle = computed(() => {
-    if (!isMobileChatOpen.value) {
-        return undefined;
-    }
-    if (typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches) {
+    if (!mobileImmersiveChat.value || typeof window === 'undefined') {
         return undefined;
     }
 
@@ -138,6 +150,16 @@ watch(isMobileChatOpen, (open) => {
         mobileSearchOpen.value = false;
     }
 });
+
+watch(
+    () => hasActiveConversation.value,
+    (active) => {
+        if (active && isChatMobileViewport()) {
+            mobilePanel.value = 'chat';
+        }
+    },
+    { immediate: true },
+);
 const selectedTeamSlug = ref(props.selectedTeam?.slug || '');
 const editingMessageId = ref(null);
 const editingBody = ref('');
@@ -404,14 +426,6 @@ const chatHeaderTitle = computed(() => {
     }
     return 'دردشة';
 });
-
-const hasActiveConversation = computed(
-    () =>
-        props.viewKind !== 'none' &&
-        ((props.viewKind === 'team' && props.selectedTeam) ||
-            (props.viewKind === 'private_room' && props.selectedPrivateRoom) ||
-            (props.viewKind === 'direct' && props.selectedDirect)),
-);
 
 function setChatTab(tab) {
     router.get(route('chat.index'), { tab }, { preserveState: false });
@@ -1481,6 +1495,9 @@ function onEmployeeCallSettled() {
     }
 }
 
+let chatMobileMq = null;
+let syncChatMobileViewport = null;
+
 onMounted(() => {
     chatUnreadState.value = normalizeChatUnreadPayload({
         ...(props.chatUnread || {}),
@@ -1488,9 +1505,15 @@ onMounted(() => {
     });
     chatNotificationsUnread.value = Number(page.props.notifications?.chat_notifications_unread || 0);
     selectedTeamSlug.value = props.selectedTeam?.slug || '';
-    const mobile =
-        typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches;
-    if (mobile && hasActiveConversation.value) {
+    if (typeof window !== 'undefined') {
+        chatMobileMq = window.matchMedia(CHAT_MOBILE_MEDIA);
+        syncChatMobileViewport = () => {
+            chatMobileViewport.value = chatMobileMq.matches;
+        };
+        syncChatMobileViewport();
+        chatMobileMq.addEventListener('change', syncChatMobileViewport);
+    }
+    if (isChatMobileViewport() && hasActiveConversation.value) {
         mobilePanel.value = 'chat';
     }
     pullUnreadSummary();
@@ -1575,6 +1598,12 @@ onBeforeUnmount(() => {
     if (concealMobilePageHeader) {
         concealMobilePageHeader.value = false;
     }
+    if (typeof document !== 'undefined') {
+        document.body.classList.remove('chat-mobile-immersive');
+    }
+    if (chatMobileMq && syncChatMobileViewport) {
+        chatMobileMq.removeEventListener('change', syncChatMobileViewport);
+    }
     stopPolling();
     unsubscribeTeamEcho();
     if (typingTimer) {
@@ -1605,17 +1634,11 @@ watch(
         <template #title>دردشة الفريق</template>
 
         <div
-            class="team-chat-inbox flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col self-stretch overflow-x-hidden overflow-y-hidden max-md:max-h-[calc(100dvh-8.25rem)] max-md:h-[calc(100dvh-8.25rem)] md:max-h-[calc(100dvh-9.5rem)] md:h-[calc(100dvh-9.5rem)] lg:mx-auto lg:h-[min(42rem,calc(100svh-13.5rem))] lg:max-h-[min(42rem,calc(100svh-13.5rem))] lg:w-full lg:max-w-7xl xl:h-[min(46rem,calc(100svh-12.5rem))] xl:max-h-[min(46rem,calc(100svh-12.5rem))]"
-            :class="
-                mobilePanel === 'chat'
-                    ? 'team-chat-inbox--mobile-thread max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-[35] max-md:px-0'
-                    : ''
-            "
-            :style="mobileChatShellStyle"
+            class="team-chat-inbox flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col self-stretch overflow-x-hidden overflow-y-hidden max-lg:max-h-[calc(100dvh-8.25rem)] max-lg:h-[calc(100dvh-8.25rem)] lg:mx-auto lg:h-[min(42rem,calc(100svh-13.5rem))] lg:max-h-[min(42rem,calc(100svh-13.5rem))] lg:w-full lg:max-w-7xl xl:h-[min(46rem,calc(100svh-12.5rem))] xl:max-h-[min(46rem,calc(100svh-12.5rem))]"
         >
             <div
-                class="grid h-full min-h-0 min-w-0 w-full max-w-full flex-1 grid-cols-1 grid-rows-1 overflow-hidden rounded-2xl border border-app-surface-border/90 bg-app-surface/90 shadow-xl shadow-slate-900/[0.06] ring-1 ring-black/[0.03] backdrop-blur-md auto-rows-[minmax(0,1fr)] sm:rounded-3xl max-md:rounded-none max-md:border-0 max-md:shadow-none max-md:ring-0 lg:grid-cols-[minmax(260px,1fr)_minmax(0,2.2fr)] xl:grid-cols-[320px_minmax(0,1fr)]"
-                :class="mobilePanel === 'chat' ? 'max-md:h-full' : ''"
+                class="grid h-full min-h-0 min-w-0 w-full max-w-full flex-1 grid-cols-1 grid-rows-1 overflow-hidden rounded-2xl border border-app-surface-border/90 bg-app-surface/90 shadow-xl shadow-slate-900/[0.06] ring-1 ring-black/[0.03] backdrop-blur-md auto-rows-[minmax(0,1fr)] sm:rounded-3xl max-lg:rounded-none max-lg:border-0 max-lg:shadow-none max-lg:ring-0 lg:grid-cols-[minmax(260px,1fr)_minmax(0,2.2fr)] xl:grid-cols-[320px_minmax(0,1fr)]"
+                :class="mobilePanel === 'chat' ? 'max-lg:h-full' : ''"
             >
                 <!-- قائمة الغرف (مثل صندوق الوارد في الخارج) -->
                 <aside
@@ -1954,9 +1977,13 @@ watch(
                 <!-- المحادثة -->
                 <section
                     :class="[
-                        'team-chat-thread flex h-full min-h-0 min-w-0 w-full max-w-full flex-col overflow-hidden bg-gradient-to-b from-slate-100 via-slate-50 to-white',
+                        'team-chat-thread flex min-h-0 min-w-0 w-full max-w-full flex-col overflow-hidden bg-gradient-to-b from-slate-100 via-slate-50 to-white',
                         mobilePanel === 'list' ? 'hidden lg:flex' : 'flex',
+                        mobileImmersiveChat
+                            ? 'max-lg:fixed max-lg:inset-x-0 max-lg:z-[100] max-lg:flex max-lg:flex-col max-lg:shadow-2xl'
+                            : 'h-full',
                     ]"
+                    :style="mobileImmersiveChat ? mobileChatShellStyle : undefined"
                 >
                     <template v-if="hasActiveConversation">
                         <header
@@ -1997,7 +2024,7 @@ watch(
                             <div class="flex shrink-0 items-center gap-1 sm:gap-2">
                                 <button
                                     type="button"
-                                    class="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 md:hidden"
+                                    class="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 lg:hidden"
                                     :class="mobileSearchOpen ? 'border-brand-400 bg-brand-50 text-brand-700' : ''"
                                     title="بحث في الرسائل"
                                     aria-label="بحث في الرسائل"
@@ -2056,7 +2083,7 @@ watch(
 
                         <div
                             v-if="mobileSearchOpen"
-                            class="shrink-0 border-b border-slate-200/60 bg-white/95 px-2 py-1.5 md:hidden"
+                            class="shrink-0 border-b border-slate-200/60 bg-white/95 px-2 py-1.5 lg:hidden"
                         >
                             <div class="relative">
                                 <span class="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-400">
@@ -2075,7 +2102,7 @@ watch(
                             </div>
                         </div>
 
-                        <div class="hidden shrink-0 border-b border-slate-200/60 bg-white/80 px-3 py-2 sm:px-4 sm:py-2.5 md:block">
+                        <div class="hidden shrink-0 border-b border-slate-200/60 bg-white/80 px-3 py-2 sm:px-4 sm:py-2.5 lg:block">
                             <div class="relative">
                                 <span class="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-400">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -2366,10 +2393,12 @@ watch(
     scroll-behavior: smooth;
 }
 
-@supports (height: 100dvh) {
-    .team-chat-inbox:not(.team-chat-inbox--mobile-thread).max-md\:fixed {
-        max-height: calc(100dvh - 3.25rem - 4.25rem - env(safe-area-inset-bottom, 0px));
-    }
+</style>
+
+<style>
+body.chat-mobile-immersive {
+    overflow: hidden;
+    overscroll-behavior: none;
 }
 </style>
 
