@@ -121,25 +121,44 @@ watch(
         if (typeof document !== 'undefined') {
             document.body.classList.toggle('chat-mobile-immersive', immersive);
         }
+        if (immersive) {
+            nextTick(() => readKeyboardViewport());
+        }
     },
     { immediate: true },
 );
 
-const { viewportHeight, offsetTop, read: readKeyboardViewport } = useKeyboardViewportInset(
+const { offsetTop, insetBottom, read: readKeyboardViewport } = useKeyboardViewportInset(
     () => mobileImmersiveChat.value,
 );
 
+/** لوحة المحادثة بارتفاع الشاشة المرئية (top/bottom) وليس height ثابت يُقصّ المُدخل */
 const mobileChatShellStyle = computed(() => {
     if (!mobileImmersiveChat.value || typeof window === 'undefined') {
         return undefined;
     }
 
-    const visibleHeight = Math.max(280, viewportHeight.value);
+    return {
+        top: `${Math.max(0, offsetTop.value)}px`,
+        bottom: `${Math.max(0, insetBottom.value)}px`,
+        height: 'auto',
+        maxHeight: 'none',
+    };
+});
+
+const mobileComposerStyle = computed(() => {
+    if (!mobileImmersiveChat.value) {
+        return undefined;
+    }
+
+    if (insetBottom.value > 0) {
+        return {
+            paddingBottom: `calc(${insetBottom.value}px + env(safe-area-inset-bottom, 0px))`,
+        };
+    }
 
     return {
-        top: `${offsetTop.value}px`,
-        height: `${visibleHeight}px`,
-        maxHeight: `${visibleHeight}px`,
+        paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
     };
 });
 
@@ -1633,7 +1652,12 @@ watch(
         <template #title>دردشة الفريق</template>
 
         <div
-            class="team-chat-inbox flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col self-stretch overflow-x-hidden overflow-y-hidden max-lg:max-h-[calc(100dvh-8.25rem)] max-lg:h-[calc(100dvh-8.25rem)] lg:mx-auto lg:h-[min(42rem,calc(100svh-13.5rem))] lg:max-h-[min(42rem,calc(100svh-13.5rem))] lg:w-full lg:max-w-7xl xl:h-[min(46rem,calc(100svh-12.5rem))] xl:max-h-[min(46rem,calc(100svh-12.5rem))]"
+            class="team-chat-inbox flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col self-stretch overflow-x-hidden overflow-y-hidden lg:mx-auto lg:h-[min(42rem,calc(100svh-13.5rem))] lg:max-h-[min(42rem,calc(100svh-13.5rem))] lg:w-full lg:max-w-7xl xl:h-[min(46rem,calc(100svh-12.5rem))] xl:max-h-[min(46rem,calc(100svh-12.5rem))]"
+            :class="
+                mobileImmersiveChat
+                    ? 'max-lg:h-[100dvh] max-lg:max-h-[100dvh]'
+                    : 'max-lg:max-h-[calc(100dvh-8.25rem)] max-lg:h-[calc(100dvh-8.25rem)]'
+            "
         >
             <div
                 class="grid h-full min-h-0 min-w-0 w-full max-w-full flex-1 grid-cols-1 grid-rows-1 overflow-hidden rounded-2xl border border-app-surface-border/90 bg-app-surface/90 shadow-xl shadow-slate-900/[0.06] ring-1 ring-black/[0.03] backdrop-blur-md auto-rows-[minmax(0,1fr)] sm:rounded-3xl max-lg:rounded-none max-lg:border-0 max-lg:shadow-none max-lg:ring-0 lg:grid-cols-[minmax(260px,1fr)_minmax(0,2.2fr)] xl:grid-cols-[320px_minmax(0,1fr)]"
@@ -1979,7 +2003,7 @@ watch(
                         'team-chat-thread flex min-h-0 min-w-0 w-full max-w-full flex-col overflow-hidden bg-gradient-to-b from-slate-100 via-slate-50 to-white',
                         mobilePanel === 'list' ? 'hidden lg:flex' : 'flex',
                         mobileImmersiveChat
-                            ? 'max-lg:fixed max-lg:inset-x-0 max-lg:z-[100] max-lg:flex max-lg:flex-col max-lg:shadow-2xl'
+                            ? 'max-lg:fixed max-lg:inset-x-0 max-lg:z-[100] max-lg:flex max-lg:min-h-0 max-lg:flex-col max-lg:overflow-hidden max-lg:shadow-2xl'
                             : 'h-full',
                     ]"
                     :style="mobileImmersiveChat ? mobileChatShellStyle : undefined"
@@ -2118,7 +2142,7 @@ watch(
                             </div>
                         </div>
 
-                        <div class="relative min-h-0 flex-1">
+                        <div class="relative min-h-0 flex-1 overflow-hidden">
                             <div
                                 ref="messagesContainerRef"
                                 dir="ltr"
@@ -2177,8 +2201,9 @@ watch(
 
                         <TeamChatComposer
                             v-model="composerBody"
-                            class="z-10 shrink-0"
+                            class="relative z-30 mt-auto shrink-0"
                             :keyboard-lift="false"
+                            :footer-style="mobileComposerStyle"
                             :placeholder="composerPlaceholder"
                             :processing="composerProcessing()"
                             :attachment="activeComposerAttachment()"
@@ -2398,6 +2423,16 @@ watch(
 body.chat-mobile-immersive {
     overflow: hidden;
     overscroll-behavior: none;
+}
+
+body.chat-mobile-immersive .team-chat-thread.max-lg\:fixed {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+body.chat-mobile-immersive .team-chat-composer {
+    flex-shrink: 0;
 }
 </style>
 

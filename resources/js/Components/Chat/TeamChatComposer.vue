@@ -17,6 +17,8 @@ const props = defineProps({
     disabled: { type: Boolean, default: false },
     /** عند false يعتمد الأب على visualViewport (شاشة دردشة جوال) */
     keyboardLift: { type: Boolean, default: true },
+    /** أنماط إضافية من الأب (مثلاً safe-area ولوحة المفاتيح في الوضع الغامر) */
+    footerStyle: { type: Object, default: null },
 });
 
 const emit = defineEmits([
@@ -53,6 +55,11 @@ const MAX_RECORD_SECONDS = 120;
 const WAVEFORM_BARS = 28;
 
 const isVoiceAttachment = computed(() => isVoiceFile(props.attachment));
+
+const rootComposerStyle = computed(() => ({
+    ...(props.footerStyle || {}),
+    ...(keyboardLiftStyle.value || {}),
+}));
 
 const recordTimeLabel = computed(() => {
     const m = Math.floor(recordSeconds.value / 60);
@@ -354,8 +361,9 @@ watch(
 
 <template>
     <div
-        class="team-chat-composer shrink-0 border-t border-slate-200/80 bg-white/95 backdrop-blur-xl supports-[backdrop-filter]:bg-white/88 max-lg:pb-[env(safe-area-inset-bottom,0px)]"
-        :style="keyboardLiftStyle"
+        class="team-chat-composer shrink-0 border-t border-slate-200/80 bg-white/95 backdrop-blur-xl supports-[backdrop-filter]:bg-white/88"
+        :class="!footerStyle && 'max-lg:pb-[env(safe-area-inset-bottom,0px)]'"
+        :style="rootComposerStyle"
         aria-label="كتابة رسالة"
     >
         <p

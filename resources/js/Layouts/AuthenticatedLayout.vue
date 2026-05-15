@@ -138,16 +138,21 @@ const nav = computed(() => {
     return list.filter((item) => allow.has(item.routeName));
 });
 
+/** على الجوال: المشاكل والدعم في الشريط السفلي؛ التحليلات والإعدادات في القائمة العلوية */
 const mobileBottomNav = computed(() =>
     nav.value.filter(
-        (item) => !['academy.index', 'employees.index', 'settings.index', 'tickets.index'].includes(item.routeName),
+        (item) => !['academy.index', 'employees.index', 'settings.index', 'sales.analytics'].includes(item.routeName),
     ),
 );
 
 const mobileDropdownNav = computed(() =>
     nav.value.filter((item) =>
-        ['academy.index', 'employees.index', 'settings.index', 'tickets.index'].includes(item.routeName),
+        ['academy.index', 'employees.index', 'settings.index'].includes(item.routeName),
     ),
+);
+
+const showMobileAnalyticsHeaderLink = computed(
+    () => Boolean(page.props.auth?.can?.viewSalesAnalytics) && layoutMobileViewport.value,
 );
 
 // نافذة تسجيل الحضور اليومية + قياس النشاط
@@ -479,6 +484,20 @@ async function openNotification(note) {
                         </h1>
                     </div>
                     <div class="ms-auto flex items-center gap-2">
+                        <Link
+                            v-if="showMobileAnalyticsHeaderLink"
+                            :href="route('sales.analytics')"
+                            prefetch
+                            class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-800 transition-colors hover:bg-slate-50 lg:hidden"
+                            :class="active('sales.*') ? 'ring-1 ring-brand-200 bg-brand-50 text-brand-700' : ''"
+                            title="تحليلات المبيعات"
+                            aria-label="تحليلات المبيعات"
+                        >
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                <path d="M3 20h18" />
+                                <path d="M6 17V9M11 17V5M16 17v-7M21 17v-3" />
+                            </svg>
+                        </Link>
                         <div class="relative">
                             <button
                                 type="button"
@@ -694,7 +713,19 @@ async function openNotification(note) {
                                 <circle cx="12" cy="12" r="3" />
                                 <path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
                             </svg>
+                            <svg v-else-if="navIcon(item) === 'tickets'" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <circle cx="12" cy="12" r="9" />
+                                <circle cx="12" cy="12" r="4" />
+                                <path d="M12 3v2M12 19v2M3 12h2M19 12h2" />
+                            </svg>
                             <span v-else class="h-2 w-2 rounded-full bg-current" />
+                            <span
+                                v-if="item.routeName === 'tickets.index' && openTicketsCount > 0"
+                                class="absolute -top-0.5 end-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-rose-600 px-0.5 text-[9px] font-bold leading-none text-white shadow-sm ring-2 ring-white"
+                                :title="`${openTicketsCount} تذكرة مفتوحة`"
+                            >
+                                {{ openTicketsCount > 99 ? '99+' : openTicketsCount }}
+                            </span>
                             <span
                                 v-if="
                                     item.routeName === 'chat.index' &&
