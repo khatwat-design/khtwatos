@@ -251,6 +251,10 @@ class EmployeeCallService
             return;
         }
 
+        if ($signalType === 'offer' && $sdp) {
+            $call->update(['offer_sdp' => $sdp]);
+        }
+
         $target = $call->otherUser($from);
         if (! $target) {
             return;

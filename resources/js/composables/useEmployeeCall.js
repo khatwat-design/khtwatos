@@ -636,12 +636,11 @@ async function startCall(calleeId, type = 'voice') {
         logStep('start.release_stale_done');
         const wantVideo = type === 'video';
         logStep('start.get_user_media', { video: wantVideo });
-        const offerSdp = await buildLocalOffer(wantVideo);
-        logStep('start.offer_built', { has_sdp: Boolean(offerSdp?.sdp) });
+        await ensureLocalStream(wantVideo);
 
         const res = await api().post(
             route('chat.calls.store'),
-            { callee_id: calleeId, type, sdp: offerSdp },
+            { callee_id: calleeId, type },
             { headers: { Accept: 'application/json' } },
         );
         logStep('start.store_ok', {
@@ -651,7 +650,13 @@ async function startCall(calleeId, type = 'voice') {
         call.value = res.data.call;
         peer.value = res.data.call?.callee || res.data.call?.peer;
         createPeerConnection(call.value.id);
-        await pc.setLocalDescription(new RTCSessionDescription(offerSdp));
+        const offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: wantVideo,
+        });
+        await pc.setLocalDescription(offer);
+        logStep('start.offer_built', { has_sdp: Boolean(offer?.sdp) });
+        await postSignal(call.value.id, 'offer', { sdp: sdpToPayload(offer) });
         phase.value = 'connecting';
         logStep('start.connecting');
     } catch (err) {
