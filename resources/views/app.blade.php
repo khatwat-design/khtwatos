@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl" class="scroll-smooth">
     <head>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <meta name="theme-color" content="#f2f4f8" media="(prefers-color-scheme: light)">
         <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">

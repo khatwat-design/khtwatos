@@ -1,7 +1,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 /**
- * Tracks visualViewport so fixed chat UI and composers stay above the mobile keyboard.
+ * Tracks visualViewport for mobile chat: dock composer above keyboard without resizing the full shell.
  */
 export function useKeyboardViewportInset(getEnabled = () => true) {
     const offsetTop = ref(0);
@@ -9,8 +9,9 @@ export function useKeyboardViewportInset(getEnabled = () => true) {
     const insetBottom = ref(0);
 
     let cleanup = null;
+    let rafId = 0;
 
-    function read() {
+    function readNow() {
         if (typeof window === 'undefined' || !getEnabled()) {
             offsetTop.value = 0;
             viewportHeight.value = window?.innerHeight ?? 0;
@@ -26,14 +27,33 @@ export function useKeyboardViewportInset(getEnabled = () => true) {
             return;
         }
 
-        offsetTop.value = vv.offsetTop;
-        viewportHeight.value = vv.height;
-        insetBottom.value = Math.max(0, window.innerHeight - vv.offsetTop - vv.height);
+        const nextInset = Math.max(0, window.innerHeight - vv.offsetTop - vv.height);
+        const nextHeight = vv.height;
 
-        // iOS يمرّر الصفحة عند فتح لوحة المفاتيح — يُفسد top+bottom على العناصر الثابتة
-        if (getEnabled() && (window.scrollX !== 0 || window.scrollY !== 0)) {
-            window.scrollTo(0, 0);
+        if (
+            Math.abs(insetBottom.value - nextInset) < 2 &&
+            Math.abs(viewportHeight.value - nextHeight) < 2 &&
+            Math.abs(offsetTop.value - vv.offsetTop) < 2
+        ) {
+            return;
         }
+
+        offsetTop.value = vv.offsetTop;
+        viewportHeight.value = nextHeight;
+        insetBottom.value = nextInset;
+    }
+
+    function read() {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        if (rafId) {
+            return;
+        }
+        rafId = requestAnimationFrame(() => {
+            rafId = 0;
+            readNow();
+        });
     }
 
     function bind() {
@@ -41,7 +61,7 @@ export function useKeyboardViewportInset(getEnabled = () => true) {
         if (typeof window === 'undefined') {
             return;
         }
-        read();
+        readNow();
         const vv = window.visualViewport;
         const handler = () => read();
         vv?.addEventListener('resize', handler);
@@ -51,6 +71,10 @@ export function useKeyboardViewportInset(getEnabled = () => true) {
             vv?.removeEventListener('resize', handler);
             vv?.removeEventListener('scroll', handler);
             window.removeEventListener('resize', handler);
+            if (rafId) {
+                cancelAnimationFrame(rafId);
+                rafId = 0;
+            }
             cleanup = null;
         };
     }
@@ -72,24 +96,21 @@ export function useKeyboardViewportInset(getEnabled = () => true) {
         };
     });
 
-    /**
-     * لوحة fixed بملء visualViewport — translateY بدل top=offsetTop لتجنب قفز المُدخل على iOS.
-     */
-    const immersiveShellStyle = computed(() => {
+    /** شريط الكتابة ثابت أسفل الشاشة — يتحرك مع لوحة المفاتيح فقط */
+    const composerDockStyle = computed(() => {
         if (!getEnabled() || typeof window === 'undefined') {
             return undefined;
         }
 
-        const height = Math.max(200, viewportHeight.value);
+        const kb = insetBottom.value;
 
         return {
-            top: '0',
+            position: 'fixed',
             left: '0',
             right: '0',
-            bottom: 'auto',
-            height: `${height}px`,
-            maxHeight: `${height}px`,
-            transform: `translateY(${Math.max(0, offsetTop.value)}px)`,
+            bottom: `${kb}px`,
+            zIndex: 110,
+            transform: 'translateZ(0)',
         };
     });
 
@@ -98,7 +119,7 @@ export function useKeyboardViewportInset(getEnabled = () => true) {
         viewportHeight,
         insetBottom,
         composerStyle,
-        immersiveShellStyle,
+        composerDockStyle,
         read,
         bind,
         unbind,

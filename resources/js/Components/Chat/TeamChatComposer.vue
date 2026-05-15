@@ -364,7 +364,7 @@ watch(
 
 <template>
     <div
-        class="team-chat-composer shrink-0 border-t border-slate-200/80 bg-white/95 backdrop-blur-xl supports-[backdrop-filter]:bg-white/88"
+        class="team-chat-composer shrink-0 border-t border-slate-200/80 bg-white/95 backdrop-blur-xl supports-[backdrop-filter]:bg-white/88 max-lg:!bg-white max-lg:backdrop-blur-none"
         :class="!footerStyle && 'max-lg:pb-[env(safe-area-inset-bottom,0px)]'"
         :style="rootComposerStyle"
         aria-label="كتابة رسالة"
