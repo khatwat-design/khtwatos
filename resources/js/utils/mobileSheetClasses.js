@@ -4,7 +4,7 @@
  */
 
 export const mobileSheetBackdrop =
-    'fixed inset-0 z-50 flex flex-col justify-end bg-black/45 p-4 pt-8 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] sm:items-center sm:justify-center sm:bg-black/40 sm:p-4 sm:pt-4';
+    'fixed inset-0 z-[100] flex flex-col justify-end bg-black/50 p-4 pt-6 pb-[max(0.5rem,env(safe-area-inset-bottom,0px))] sm:z-50 sm:items-center sm:justify-center sm:bg-black/40 sm:p-4 sm:pt-4 sm:pb-4';
 
 export const mobileSheetPanelBase =
     'w-full overflow-y-auto overscroll-contain rounded-2xl border border-gray-200 bg-white shadow-xl [-webkit-overflow-scrolling:touch] sm:mx-auto sm:rounded-2xl';
@@ -16,7 +16,7 @@ export const mobileSheetMaxSm = 'max-h-[min(52dvh,20rem)] sm:max-h-[90vh] sm:max
 export const mobileSheetMaxMd = 'max-h-[min(58dvh,22rem)] sm:max-h-[90vh] sm:max-w-md';
 
 /** إضافة عميل، تذكرة، غرفة */
-export const mobileSheetMaxLg = 'max-h-[min(64dvh,26rem)] sm:max-h-[90vh] sm:max-w-lg';
+export const mobileSheetMaxLg = 'max-h-[min(55dvh,21rem)] sm:max-h-[90vh] sm:max-w-lg';
 
 /** نماذج متوسطة */
 export const mobileSheetMaxXl = 'max-h-[min(68dvh,28rem)] sm:max-h-[90vh] sm:max-w-xl';

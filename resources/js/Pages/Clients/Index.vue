@@ -4,13 +4,8 @@ import InputLabel from '@/Components/InputLabel.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import {
-    mobileSheetBackdrop,
-    mobileSheetForm,
-    mobileSheetHeader,
-    mobileSheetPanelLg,
-    mobileSheetPanelMd,
-} from '@/utils/mobileSheetClasses.js';
+import MobileSheet from '@/Components/MobileSheet.vue';
+import { mobileSheetForm } from '@/utils/mobileSheetClasses.js';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
@@ -261,127 +256,105 @@ function deleteClient(clientId) {
             </div>
         </div>
 
-        <div
-            v-if="showFilterModal"
-            :class="mobileSheetBackdrop"
-            @click.self="showFilterModal = false"
-        >
-            <div :class="[mobileSheetPanelMd, 'p-4 sm:p-5']">
-                <div class="mb-3 flex items-center justify-between">
-                    <h3 class="text-lg font-semibold text-gray-900">فلترة العملاء</h3>
-                    <button type="button" class="rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-gray-100" @click="showFilterModal = false">
-                        إغلاق
-                    </button>
-                </div>
-                <form class="space-y-3" @submit.prevent="applyFilterModal">
-                    <div>
-                        <InputLabel for="stage_filter_modal" value="المرحلة" />
-                        <select
-                            id="stage_filter_modal"
-                            v-model="filterForm.stage_id"
-                            class="mt-1 block w-full rounded-md border-gray-300 bg-white text-sm text-black shadow-sm"
-                        >
-                            <option value="">كل المراحل</option>
-                            <option v-for="stage in stages || []" :key="`f-stage-${stage.id}`" :value="stage.id">
-                                {{ stage.label }}
-                            </option>
-                        </select>
-                    </div>
-                    <div class="flex justify-end">
-                        <PrimaryButton type="submit">تطبيق</PrimaryButton>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <div
-            v-if="showCreateModal"
-            :class="mobileSheetBackdrop"
-            @click.self="showCreateModal = false"
-        >
-            <div :class="mobileSheetPanelLg">
-                <div :class="mobileSheetHeader">
-                    <h3 class="text-base font-bold text-gray-900 sm:text-lg">إضافة عميل</h3>
-                    <button
-                        type="button"
-                        class="min-h-10 min-w-10 rounded-xl px-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
-                        @click="showCreateModal = false"
+        <MobileSheet :show="showFilterModal" size="md" @close="showFilterModal = false">
+            <template #title>فلترة العملاء</template>
+            <form class="space-y-3 px-3.5 py-2 sm:px-4" @submit.prevent="applyFilterModal">
+                <div>
+                    <InputLabel for="stage_filter_modal" value="المرحلة" />
+                    <select
+                        id="stage_filter_modal"
+                        v-model="filterForm.stage_id"
+                        class="mt-1 block w-full rounded-md border-gray-300 bg-white text-sm text-black shadow-sm"
                     >
-                        إغلاق
-                    </button>
+                        <option value="">كل المراحل</option>
+                        <option v-for="stage in stages || []" :key="`f-stage-${stage.id}`" :value="stage.id">
+                            {{ stage.label }}
+                        </option>
+                    </select>
                 </div>
-                <form :class="mobileSheetForm" @submit.prevent="submitCreateClient">
-                    <div class="md:col-span-2">
-                        <InputLabel for="new_client_name" value="الاسم" />
-                        <TextInput id="new_client_name" v-model="createForm.name" class="mt-1 block w-full" required />
-                        <InputError class="mt-1" :message="createForm.errors.name" />
-                    </div>
-                    <div>
-                        <InputLabel for="new_client_company" value="الشركة" />
-                        <TextInput id="new_client_company" v-model="createForm.company" class="mt-1 block w-full" />
-                    </div>
-                    <div>
-                        <InputLabel for="new_client_email" value="البريد الإلكتروني" />
-                        <TextInput id="new_client_email" v-model="createForm.email" type="email" class="mt-1 block w-full" />
-                    </div>
-                    <div>
-                        <InputLabel for="new_client_phone" value="الهاتف" />
-                        <TextInput id="new_client_phone" v-model="createForm.phone" class="mt-1 block w-full" />
-                    </div>
-                    <div>
-                        <InputLabel for="new_client_stage" value="المرحلة الابتدائية" />
-                        <select
-                            id="new_client_stage"
-                            v-model="createForm.current_pipeline_stage_id"
-                            class="mt-1 block w-full rounded-md border-gray-300 bg-white text-sm text-black shadow-sm"
-                            required
-                        >
-                            <option v-for="s in stages || []" :key="`c-stage-${s.id}`" :value="s.id">{{ s.label }}</option>
-                        </select>
-                        <InputError class="mt-1" :message="createForm.errors.current_pipeline_stage_id" />
-                    </div>
-                    <div>
-                        <InputLabel for="new_client_am" value="مدير الحساب" />
-                        <select
-                            id="new_client_am"
-                            v-model="createForm.account_manager_id"
-                            class="mt-1 block w-full rounded-md border-gray-300 bg-white text-sm text-black shadow-sm"
-                        >
-                            <option :value="null">—</option>
-                            <option v-for="u in accountManagers || []" :key="`am-${u.id}`" :value="u.id">{{ u.name }}</option>
-                        </select>
-                    </div>
-                    <div>
-                        <InputLabel for="new_client_cm" value="مدير الحملة" />
-                        <select
-                            id="new_client_cm"
-                            v-model="createForm.campaign_manager_id"
-                            class="mt-1 block w-full rounded-md border-gray-300 bg-white text-sm text-black shadow-sm"
-                        >
-                            <option :value="null">—</option>
-                            <option v-for="u in campaignManagers || []" :key="`cm-${u.id}`" :value="u.id">{{ u.name }}</option>
-                        </select>
-                    </div>
-                    <div class="md:col-span-2">
-                        <InputLabel for="new_client_notes" value="ملاحظات" />
-                        <textarea
-                            id="new_client_notes"
-                            v-model="createForm.notes"
-                            rows="3"
-                            class="mt-1 block w-full rounded-md border-gray-300 text-black shadow-sm"
-                        />
-                    </div>
-                    <div class="md:col-span-2 flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
-                        <PrimaryButton
-                            :disabled="createForm.processing"
-                            type="submit"
-                            class="w-full justify-center sm:w-auto"
-                        >
-                            حفظ العميل
-                        </PrimaryButton>
-                    </div>
-                </form>
-            </div>
-        </div>
+            </form>
+            <template #footer>
+                <PrimaryButton type="button" class="w-full justify-center sm:w-auto" @click="applyFilterModal">
+                    تطبيق
+                </PrimaryButton>
+            </template>
+        </MobileSheet>
+
+        <MobileSheet :show="showCreateModal" size="lg" @close="showCreateModal = false">
+            <template #title>إضافة عميل</template>
+            <form id="create-client-form" :class="mobileSheetForm" @submit.prevent="submitCreateClient">
+                <div class="md:col-span-2">
+                    <InputLabel for="new_client_name" value="الاسم" />
+                    <TextInput id="new_client_name" v-model="createForm.name" class="mt-1 block w-full" required />
+                    <InputError class="mt-1" :message="createForm.errors.name" />
+                </div>
+                <div>
+                    <InputLabel for="new_client_company" value="الشركة" />
+                    <TextInput id="new_client_company" v-model="createForm.company" class="mt-1 block w-full" />
+                </div>
+                <div>
+                    <InputLabel for="new_client_email" value="البريد الإلكتروني" />
+                    <TextInput id="new_client_email" v-model="createForm.email" type="email" class="mt-1 block w-full" />
+                </div>
+                <div>
+                    <InputLabel for="new_client_phone" value="الهاتف" />
+                    <TextInput id="new_client_phone" v-model="createForm.phone" class="mt-1 block w-full" />
+                </div>
+                <div>
+                    <InputLabel for="new_client_stage" value="المرحلة الابتدائية" />
+                    <select
+                        id="new_client_stage"
+                        v-model="createForm.current_pipeline_stage_id"
+                        class="mt-1 block w-full rounded-md border-gray-300 bg-white text-sm text-black shadow-sm"
+                        required
+                    >
+                        <option v-for="s in stages || []" :key="`c-stage-${s.id}`" :value="s.id">{{ s.label }}</option>
+                    </select>
+                    <InputError class="mt-1" :message="createForm.errors.current_pipeline_stage_id" />
+                </div>
+                <div>
+                    <InputLabel for="new_client_am" value="مدير الحساب" />
+                    <select
+                        id="new_client_am"
+                        v-model="createForm.account_manager_id"
+                        class="mt-1 block w-full rounded-md border-gray-300 bg-white text-sm text-black shadow-sm"
+                    >
+                        <option :value="null">—</option>
+                        <option v-for="u in accountManagers || []" :key="`am-${u.id}`" :value="u.id">{{ u.name }}</option>
+                    </select>
+                </div>
+                <div>
+                    <InputLabel for="new_client_cm" value="مدير الحملة" />
+                    <select
+                        id="new_client_cm"
+                        v-model="createForm.campaign_manager_id"
+                        class="mt-1 block w-full rounded-md border-gray-300 bg-white text-sm text-black shadow-sm"
+                    >
+                        <option :value="null">—</option>
+                        <option v-for="u in campaignManagers || []" :key="`cm-${u.id}`" :value="u.id">{{ u.name }}</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2">
+                    <InputLabel for="new_client_notes" value="ملاحظات" />
+                    <textarea
+                        id="new_client_notes"
+                        v-model="createForm.notes"
+                        rows="3"
+                        class="mt-1 block w-full rounded-md border-gray-300 text-black shadow-sm"
+                    />
+                </div>
+            </form>
+            <template #footer>
+                <PrimaryButton
+                    form="create-client-form"
+                    :disabled="createForm.processing"
+                    type="submit"
+                    class="w-full justify-center sm:w-auto"
+                >
+                    حفظ العميل
+                </PrimaryButton>
+            </template>
+        </MobileSheet>
+
     </AuthenticatedLayout>
 </template>

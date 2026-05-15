@@ -1,5 +1,6 @@
 <script setup>
 import { Capacitor } from '@capacitor/core';
+import { registerOverlayClose, registerOverlayOpen } from '@/state/overlayOpen.js';
 import { modalMobilePanelByMaxWidth } from '@/utils/mobileSheetClasses.js';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
@@ -29,12 +30,12 @@ watch(
     () => props.show,
     () => {
         if (props.show) {
-            document.body.style.overflow = 'hidden';
+            registerOverlayOpen();
             showSlot.value = true;
 
             dialog.value?.showModal();
         } else {
-            document.body.style.overflow = '';
+            registerOverlayClose();
 
             setTimeout(() => {
                 dialog.value?.close();
@@ -65,7 +66,9 @@ onMounted(() => document.addEventListener('keydown', closeOnEscape));
 onUnmounted(() => {
     document.removeEventListener('keydown', closeOnEscape);
 
-    document.body.style.overflow = '';
+    if (props.show) {
+        registerOverlayClose();
+    }
 });
 
 const mobilePanelClass = computed(
@@ -101,14 +104,15 @@ const panelBoxClass = computed(() => {
 </script>
 
 <template>
-    <dialog
-        class="z-50 m-0 min-h-full min-w-full overflow-y-auto bg-transparent backdrop:bg-transparent"
-        ref="dialog"
-    >
-        <div
-            class="fixed inset-0 z-50 max-lg:flex max-lg:flex-col max-lg:justify-end max-lg:overflow-hidden max-lg:bg-black/45 max-lg:p-4 max-lg:pt-8 max-lg:pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] sm:block sm:overflow-y-auto sm:px-4 sm:py-6 sm:pt-6"
-            scroll-region
+    <Teleport to="body">
+        <dialog
+            class="z-[100] m-0 min-h-full min-w-full overflow-y-auto bg-transparent backdrop:bg-transparent sm:z-50"
+            ref="dialog"
         >
+            <div
+                class="fixed inset-0 z-[100] max-lg:flex max-lg:flex-col max-lg:justify-end max-lg:overflow-hidden max-lg:bg-black/45 max-lg:p-4 max-lg:pt-8 max-lg:pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] sm:z-50 sm:block sm:overflow-y-auto sm:px-4 sm:py-6 sm:pt-6"
+                scroll-region
+            >
             <Transition
                 enter-active-class="ease-out duration-300"
                 enter-from-class="opacity-0"
@@ -138,8 +142,9 @@ const panelBoxClass = computed(() => {
                     <slot v-if="showSlot" />
                 </div>
             </Transition>
-        </div>
-    </dialog>
+            </div>
+        </dialog>
+    </Teleport>
 </template>
 
 <style scoped>

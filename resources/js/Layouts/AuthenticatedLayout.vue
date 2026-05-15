@@ -10,6 +10,7 @@ import DropdownLink from '@/Components/DropdownLink.vue';
 import TeamNotebookDock from '@/Components/TeamNotebookDock.vue';
 import { usePresenceHeartbeat } from '@/composables/usePresenceHeartbeat';
 import { chatMobileChromeHidden } from '@/state/chatMobileChrome.js';
+import { overlayOpenCount } from '@/state/overlayOpen.js';
 import { CHAT_MOBILE_MEDIA } from '@/utils/chatMobileViewport.js';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
@@ -31,7 +32,7 @@ const hideMobileAppChrome = computed(
 const showAppHeader = computed(() => !hideMobileAppChrome.value);
 
 const showMobileBottomNav = computed(
-    () => layoutMobileViewport.value && !hideMobileAppChrome.value,
+    () => layoutMobileViewport.value && !hideMobileAppChrome.value && overlayOpenCount.value === 0,
 );
 
 let layoutMobileMq = null;
