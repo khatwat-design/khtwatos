@@ -379,6 +379,44 @@ async function releaseStaleOnServer() {
     }
 }
 
+function extractCallError(err) {
+    const data = err?.response?.data;
+    if (data?.errors?.callee_id?.[0]) {
+        return String(data.errors.callee_id[0]);
+    }
+    if (data?.errors?.call?.[0]) {
+        return String(data.errors.call[0]);
+    }
+    if (data?.message) {
+        return String(data.message);
+    }
+    if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
+        return 'يجب السماح بالمايكروفون (والكاميرا للفيديو) من إعدادات المتصفح.';
+    }
+    if (err?.name === 'NotFoundError') {
+        return 'لم يُعثر على ميكروفون على هذا الجهاز.';
+    }
+    if (err?.name === 'NotReadableError') {
+        return 'الميكروفون مستخدم من تطبيق آخر.';
+    }
+    if (err?.response?.status >= 500) {
+        return 'خطأ في الخادم. تحقق من تشغيل Reverb ثم أعد المحاولة.';
+    }
+    return '';
+}
+
+async function abortOutgoingCall() {
+    const callId = call.value?.id;
+    if (!callId) {
+        return;
+    }
+    try {
+        await api().post(route('chat.calls.end', callId), {}, { headers: { Accept: 'application/json' } });
+    } catch {
+        /* ignore */
+    }
+}
+
 async function syncPendingIncomingFromServer() {
     if (!employeeCallRealtimeEnabled() || isActive.value) {
         return;
@@ -464,6 +502,10 @@ async function startCall(calleeId, type = 'voice') {
     phase.value = 'outgoing';
 
     try {
+        await releaseStaleOnServer();
+        const wantVideo = type === 'video';
+        await ensureLocalStream(wantVideo);
+
         const res = await api().post(
             route('chat.calls.store'),
             { callee_id: calleeId, type },
@@ -471,15 +513,18 @@ async function startCall(calleeId, type = 'voice') {
         );
         call.value = res.data.call;
         peer.value = res.data.call?.callee || res.data.call?.peer;
-        await ensureLocalStream(type === 'video');
         createPeerConnection(call.value.id);
-        const offer = await pc.createOffer();
+        const offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: wantVideo,
+        });
         await pc.setLocalDescription(offer);
         await postSignal(call.value.id, 'offer', { sdp: offer.toJSON() });
         phase.value = 'connecting';
     } catch (err) {
-        const msg = err?.response?.data?.message || err?.response?.data?.errors?.callee_id?.[0];
-        settleIdle(msg || 'تعذّر بدء المكالمة.');
+        await abortOutgoingCall();
+        const detail = extractCallError(err);
+        settleIdle(detail || 'تعذّر بدء المكالمة.');
     }
 }
 

@@ -73,6 +73,7 @@ class EmployeeCallService
         }
 
         return DB::transaction(function () use ($caller, $callee, $type) {
+            $this->releaseAbandonedOutgoingRinging($caller);
             $this->releaseStaleCallsForUser($caller);
             $this->releaseStaleCallsForUser($callee);
 
@@ -258,10 +259,20 @@ class EmployeeCallService
         }
     }
 
+    private function releaseAbandonedOutgoingRinging(User $caller): void
+    {
+        EmployeeCall::query()
+            ->where('caller_id', $caller->id)
+            ->where('status', EmployeeCall::STATUS_RINGING)
+            ->orderBy('id')
+            ->get()
+            ->each(fn (EmployeeCall $call) => $this->forceTerminate($call));
+    }
+
     private function callIsStale(EmployeeCall $call): bool
     {
         if ($call->status === EmployeeCall::STATUS_RINGING) {
-            return $call->created_at !== null && $call->created_at->lt(now()->subMinutes(2));
+            return $call->created_at !== null && $call->created_at->lt(now()->subSeconds(90));
         }
 
         if ($call->status === EmployeeCall::STATUS_ACTIVE) {
@@ -311,15 +322,19 @@ class EmployeeCallService
      */
     private function broadcastToUser(User $target, string $action, EmployeeCall $call, User $from, array $extra = []): void
     {
-        broadcast(new EmployeeCallSignaling(
-            targetUserId: (int) $target->id,
-            action: $action,
-            callId: (int) $call->id,
-            fromUserId: (int) $from->id,
-            payload: array_merge([
-                'call_id' => $call->id,
-                'type' => $call->type,
-            ], $extra),
-        ));
+        try {
+            broadcast(new EmployeeCallSignaling(
+                targetUserId: (int) $target->id,
+                action: $action,
+                callId: (int) $call->id,
+                fromUserId: (int) $from->id,
+                payload: array_merge([
+                    'call_id' => $call->id,
+                    'type' => $call->type,
+                ], $extra),
+            ));
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 }
