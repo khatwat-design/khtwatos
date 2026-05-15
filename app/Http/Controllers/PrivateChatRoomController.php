@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\PrivateChatMessage;
 use App\Models\PrivateChatRoom;
 use App\Models\User;
+use App\Services\ChatReadReceiptService;
+use App\Support\ChatAttachmentRules;
 use App\Services\ChatUnreadService;
 use App\Services\SmartNotificationService;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +19,7 @@ class PrivateChatRoomController extends Controller
     public function __construct(
         private readonly SmartNotificationService $smartNotifications,
         private readonly ChatUnreadService $chatUnread,
+        private readonly ChatReadReceiptService $readReceipts,
     ) {}
 
     public function store(Request $request): RedirectResponse
@@ -97,7 +100,8 @@ class PrivateChatRoomController extends Controller
 
         $data = $request->validate([
             'body' => ['nullable', 'string', 'max:4000', 'required_without:attachment'],
-            'attachment' => ['nullable', 'file', 'max:10240', 'required_without:body'],
+            'attachment' => ChatAttachmentRules::attachmentValidation(),
+            'voice_note' => ['sometimes', 'boolean'],
         ]);
 
         $attachmentPath = null;
@@ -106,11 +110,14 @@ class PrivateChatRoomController extends Controller
         $attachmentSize = null;
 
         if ($request->hasFile('attachment')) {
-            $file = $request->file('attachment');
-            $attachmentPath = $file->store('chat-attachments', 'public');
-            $attachmentName = $file->getClientOriginalName();
-            $attachmentMime = $file->getMimeType();
-            $attachmentSize = $file->getSize();
+            $stored = ChatAttachmentRules::storeUploadedFile(
+                $request->file('attachment'),
+                $request->boolean('voice_note'),
+            );
+            $attachmentPath = $stored['path'];
+            $attachmentName = $stored['name'];
+            $attachmentMime = $stored['mime'];
+            $attachmentSize = $stored['size'];
         }
 
         $message = PrivateChatMessage::query()->create([
@@ -122,7 +129,7 @@ class PrivateChatRoomController extends Controller
             'attachment_mime' => $attachmentMime,
             'attachment_size' => $attachmentSize,
         ]);
-        $message->load('user:id,name');
+        $message->load('user:id,name,avatar_path');
         $this->smartNotifications->notifyPrivateRoomMessage($privateChatRoom, $message, (int) $user->id);
         $this->chatUnread->markPrivateRoomAsRead($request, (int) $privateChatRoom->id);
 
@@ -138,7 +145,7 @@ class PrivateChatRoomController extends Controller
         ]);
 
         $query = PrivateChatMessage::query()
-            ->with('user:id,name')
+            ->with('user:id,name,avatar_path')
             ->where('private_chat_room_id', $privateChatRoom->id)
             ->orderBy('id');
 
@@ -155,8 +162,15 @@ class PrivateChatRoomController extends Controller
 
         $this->chatUnread->markPrivateRoomAsRead($request, (int) $privateChatRoom->id);
 
+        $viewerId = (int) $request->user()->id;
+        $enriched = $this->readReceipts->enrichPrivateRoomMessages(
+            $rows,
+            (int) $privateChatRoom->id,
+            $viewerId,
+        );
+
         return response()->json(array_merge([
-            'messages' => $rows->map(fn (PrivateChatMessage $msg) => $msg->toChatArray())->values(),
+            'messages' => $enriched->values(),
         ], $this->chatUnread->fullUnreadPayload($request->user())));
     }
 

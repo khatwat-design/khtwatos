@@ -1,9 +1,18 @@
 <script setup>
+import ChatForwardModal from '@/Components/Chat/ChatForwardModal.vue';
+import ChatMediaLightbox from '@/Components/Chat/ChatMediaLightbox.vue';
+import ChatMessageActionsSheet from '@/Components/Chat/ChatMessageActionsSheet.vue';
+import ChatUserAvatar from '@/Components/Chat/ChatUserAvatar.vue';
+import TeamChatComposer from '@/Components/Chat/TeamChatComposer.vue';
+import ChatCallLogRow from '@/Components/Chat/ChatCallLogRow.vue';
+import TeamChatMessageRow from '@/Components/Chat/TeamChatMessageRow.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
-import { teamChatRealtimeEnabled } from '@/echo.js';
+import { employeeCallRealtimeEnabled, teamChatRealtimeEnabled } from '@/echo.js';
+import { useEmployeeCall } from '@/composables/useEmployeeCall.js';
+import { buildOptimisticAttachment, isVoiceFile } from '@/utils/chatVoiceAttachment.js';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
@@ -39,16 +48,19 @@ const form = useForm({
     team_id: props.selectedTeam?.id ?? null,
     body: '',
     attachment: null,
+    voice_note: false,
 });
 
 const privateForm = useForm({
     body: '',
     attachment: null,
+    voice_note: false,
 });
 
 const directForm = useForm({
     body: '',
     attachment: null,
+    voice_note: false,
 });
 
 const createRoomForm = useForm({
@@ -64,7 +76,6 @@ const chatUnreadState = ref(
         unreadCounts: props.chatUnread?.unreadCounts ?? props.unreadCounts ?? {},
     }),
 );
-const attachmentInputRef = ref(null);
 const messagesContainerRef = ref(null);
 const typingUsers = ref([]);
 const searchTerm = ref('');
@@ -82,6 +93,13 @@ let typingUsersTimer = null;
 let echoSubscribedTeamId = null;
 let summaryPollTimer = null;
 let chatNotifPollTimer = null;
+let readReceiptsTimer = null;
+
+const mediaLightbox = ref({ open: false, url: '', name: '' });
+const messageActions = ref({ open: false, msg: null });
+const forwardModalOpen = ref(false);
+const forwardProcessing = ref(false);
+const forwardSourceMessage = ref(null);
 
 const chatNotificationsOpen = ref(false);
 const chatNotificationsLoading = ref(false);
@@ -187,13 +205,24 @@ function displayTeamName(team) {
     return String(team?.name || '').trim() === 'خطوات' ? 'خارج المخزون' : team?.name || 'غرفة';
 }
 
-/** خلفية نمطية للخيط (نفس قسم الخارج) */
-const threadBgStyle = {
-    backgroundImage:
-        'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23c8c8c8\' fill-opacity=\'0.14\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
-};
-
 const selfAvatarUrl = computed(() => page.props.auth?.user?.avatar_url || '/images/mobile-logo.png');
+
+const { startCall } = useEmployeeCall();
+const employeeCallsEnabled = employeeCallRealtimeEnabled();
+
+function startVoiceCallWithPeer() {
+    const peerId = props.selectedDirect?.peer?.id;
+    if (peerId) {
+        startCall(peerId, 'voice');
+    }
+}
+
+function startVideoCallWithPeer() {
+    const peerId = props.selectedDirect?.peer?.id;
+    if (peerId) {
+        startCall(peerId, 'video');
+    }
+}
 const selfName = computed(() => page.props.auth?.user?.name || 'أنت');
 
 const filteredPrivateRooms = computed(() => {
@@ -300,6 +329,13 @@ const filteredAllInboxItems = computed(() => {
 });
 
 const dmUserOptions = computed(() => (props.chatUsers || []).filter((u) => Number(u.id) !== Number(currentUserId.value)));
+
+const chatHeaderAvatarUrl = computed(() => {
+    if (props.viewKind === 'direct' && props.selectedDirect?.peer?.avatar_url) {
+        return props.selectedDirect.peer.avatar_url;
+    }
+    return '';
+});
 
 const chatHeaderTitle = computed(() => {
     if (props.viewKind === 'team' && props.selectedTeam) {
@@ -515,20 +551,19 @@ function submitTeamMessage() {
         id: tempId,
         body: form.body,
         created_at: new Date().toISOString(),
-        user: { id: currentUserId.value, name: page.props.auth?.user?.name || 'أنا' },
-        attachment: form.attachment
-            ? {
-                  name: form.attachment.name,
-                  mime: form.attachment.type || 'ملف',
-                  size: form.attachment.size || 0,
-                  is_image: String(form.attachment.type || '').startsWith('image/'),
-              }
-            : null,
+        user: {
+            id: currentUserId.value,
+            name: page.props.auth?.user?.name || 'أنا',
+            avatar_url: page.props.auth?.user?.avatar_url || null,
+        },
+        attachment: form.attachment ? buildOptimisticAttachment(form.attachment) : null,
         is_pending: true,
+        read_receipt: defaultSentReceipt(),
     };
     pendingMessages.value.push(optimisticMessage);
     nextTick(() => scrollToBottom());
 
+    form.voice_note = isVoiceFile(form.attachment);
     form.post(route('chat.store'), {
         preserveScroll: true,
         forceFormData: true,
@@ -536,9 +571,7 @@ function submitTeamMessage() {
             pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
             form.body = '';
             form.attachment = null;
-            if (attachmentInputRef.value) {
-                attachmentInputRef.value.value = '';
-            }
+            form.voice_note = false;
             if (props.selectedTeam?.id) {
                 bumpInboxActivity(`team:${props.selectedTeam.id}`);
             }
@@ -560,20 +593,19 @@ function submitPrivateMessage() {
         id: tempId,
         body: privateForm.body,
         created_at: new Date().toISOString(),
-        user: { id: currentUserId.value, name: page.props.auth?.user?.name || 'أنا' },
-        attachment: privateForm.attachment
-            ? {
-                  name: privateForm.attachment.name,
-                  mime: privateForm.attachment.type || 'ملف',
-                  size: privateForm.attachment.size || 0,
-                  is_image: String(privateForm.attachment.type || '').startsWith('image/'),
-              }
-            : null,
+        user: {
+            id: currentUserId.value,
+            name: page.props.auth?.user?.name || 'أنا',
+            avatar_url: page.props.auth?.user?.avatar_url || null,
+        },
+        attachment: privateForm.attachment ? buildOptimisticAttachment(privateForm.attachment) : null,
         is_pending: true,
+        read_receipt: defaultSentReceipt(),
     };
     pendingMessages.value.push(optimisticMessage);
     nextTick(() => scrollToBottom());
 
+    privateForm.voice_note = isVoiceFile(privateForm.attachment);
     privateForm.post(route('chat.private-rooms.messages.store', props.selectedPrivateRoom.id), {
         preserveScroll: true,
         forceFormData: true,
@@ -581,9 +613,7 @@ function submitPrivateMessage() {
             pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
             privateForm.body = '';
             privateForm.attachment = null;
-            if (attachmentInputRef.value) {
-                attachmentInputRef.value.value = '';
-            }
+            privateForm.voice_note = false;
             if (props.selectedPrivateRoom?.id) {
                 bumpInboxActivity(`private:${props.selectedPrivateRoom.id}`);
             }
@@ -605,20 +635,19 @@ function submitDirectMessage() {
         id: tempId,
         body: directForm.body,
         created_at: new Date().toISOString(),
-        user: { id: currentUserId.value, name: page.props.auth?.user?.name || 'أنا' },
-        attachment: directForm.attachment
-            ? {
-                  name: directForm.attachment.name,
-                  mime: directForm.attachment.type || 'ملف',
-                  size: directForm.attachment.size || 0,
-                  is_image: String(directForm.attachment.type || '').startsWith('image/'),
-              }
-            : null,
+        user: {
+            id: currentUserId.value,
+            name: page.props.auth?.user?.name || 'أنا',
+            avatar_url: page.props.auth?.user?.avatar_url || null,
+        },
+        attachment: directForm.attachment ? buildOptimisticAttachment(directForm.attachment) : null,
         is_pending: true,
+        read_receipt: defaultSentReceipt(),
     };
     pendingMessages.value.push(optimisticMessage);
     nextTick(() => scrollToBottom());
 
+    directForm.voice_note = isVoiceFile(directForm.attachment);
     directForm.post(route('chat.direct.messages.store', props.selectedDirect.id), {
         preserveScroll: true,
         forceFormData: true,
@@ -626,9 +655,7 @@ function submitDirectMessage() {
             pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
             directForm.body = '';
             directForm.attachment = null;
-            if (attachmentInputRef.value) {
-                attachmentInputRef.value.value = '';
-            }
+            directForm.voice_note = false;
             if (props.selectedDirect?.id) {
                 bumpInboxActivity(`direct:${props.selectedDirect.id}`);
             }
@@ -660,22 +687,38 @@ function formatFileSize(size) {
 
 function onAttachmentChange(event) {
     const file = event.target?.files?.[0] || null;
-    if (props.viewKind === 'team') {
-        form.attachment = file;
-    } else if (props.viewKind === 'private_room') {
-        privateForm.attachment = file;
-    } else if (props.viewKind === 'direct') {
-        directForm.attachment = file;
-    }
+    setActiveAttachment(file);
 }
 
 function clearAttachment() {
     form.attachment = null;
+    form.voice_note = false;
     privateForm.attachment = null;
+    privateForm.voice_note = false;
     directForm.attachment = null;
-    if (attachmentInputRef.value) {
-        attachmentInputRef.value.value = '';
+    directForm.voice_note = false;
+}
+
+function setActiveAttachment(file) {
+    if (props.viewKind === 'team') {
+        form.attachment = file;
+        form.voice_note = isVoiceFile(file);
+        return;
     }
+    if (props.viewKind === 'private_room') {
+        privateForm.attachment = file;
+        privateForm.voice_note = isVoiceFile(file);
+        return;
+    }
+    if (props.viewKind === 'direct') {
+        directForm.attachment = file;
+        directForm.voice_note = isVoiceFile(file);
+    }
+}
+
+function onSendVoice(file) {
+    setActiveAttachment(file);
+    nextTick(() => submitMessage());
 }
 
 function activeComposerAttachment() {
@@ -819,14 +862,7 @@ function pullMessages() {
             .then((res) => {
                 const rows = res?.data?.messages || [];
                 mergeChatUnreadFromResponse(res?.data);
-                if (!rows.length) {
-                    return;
-                }
-                const shouldAuto = shouldAutoScroll();
-                messagesState.value.push(...rows);
-                if (shouldAuto) {
-                    nextTick(() => scrollToBottom());
-                }
+                mergeMessageRowsFromApi(rows);
             })
             .catch(() => {});
         return;
@@ -841,14 +877,7 @@ function pullMessages() {
             .then((res) => {
                 const rows = res?.data?.messages || [];
                 mergeChatUnreadFromResponse(res?.data);
-                if (!rows.length) {
-                    return;
-                }
-                const shouldAuto = shouldAutoScroll();
-                messagesState.value.push(...rows);
-                if (shouldAuto) {
-                    nextTick(() => scrollToBottom());
-                }
+                mergeMessageRowsFromApi(rows);
             })
             .catch(() => {});
         return;
@@ -863,14 +892,7 @@ function pullMessages() {
             .then((res) => {
                 const rows = res?.data?.messages || [];
                 mergeChatUnreadFromResponse(res?.data);
-                if (!rows.length) {
-                    return;
-                }
-                const shouldAuto = shouldAutoScroll();
-                messagesState.value.push(...rows);
-                if (shouldAuto) {
-                    nextTick(() => scrollToBottom());
-                }
+                mergeMessageRowsFromApi(rows);
             })
             .catch(() => {});
     }
@@ -880,6 +902,8 @@ function startPolling() {
     stopPolling();
     const pollMs = teamChatRealtimeEnabled() ? POLL_MS_REALTIME : POLL_MS_FALLBACK;
     pollingTimer = setInterval(pullMessages, pollMs);
+    readReceiptsTimer = setInterval(pullReadReceipts, 5000);
+    pullReadReceipts();
     if (props.viewKind === 'team' && props.selectedTeam?.id) {
         typingUsersTimer = setInterval(pullTypingUsers, TYPING_POLL_MS);
     }
@@ -889,6 +913,10 @@ function stopPolling() {
     if (pollingTimer) {
         clearInterval(pollingTimer);
         pollingTimer = null;
+    }
+    if (readReceiptsTimer) {
+        clearInterval(readReceiptsTimer);
+        readReceiptsTimer = null;
     }
     if (typingUsersTimer) {
         clearInterval(typingUsersTimer);
@@ -929,6 +957,9 @@ function pullTypingUsers() {
 }
 
 function canManageMessage(msg) {
+    if (msg?.kind === 'call') {
+        return false;
+    }
     if (!msg?.user?.id || !currentUserId.value) {
         return false;
     }
@@ -1045,7 +1076,8 @@ const filteredMessages = computed(() => {
     return messagesState.value.filter((msg) => {
         const inBody = String(msg.body || '').toLowerCase().includes(term);
         const inName = String(msg.user?.name || '').toLowerCase().includes(term);
-        return inBody || inName;
+        const inCall = String(msg.call?.label || '').toLowerCase().includes(term);
+        return inBody || inName || inCall;
     });
 });
 
@@ -1064,6 +1096,336 @@ const displayedMessages = computed(() => {
     return [...filteredMessages.value, ...pendingMatches];
 });
 
+const composerBody = computed({
+    get() {
+        if (props.viewKind === 'team') {
+            return form.body;
+        }
+        if (props.viewKind === 'private_room') {
+            return privateForm.body;
+        }
+        if (props.viewKind === 'direct') {
+            return directForm.body;
+        }
+        return '';
+    },
+    set(value) {
+        if (props.viewKind === 'team') {
+            form.body = value;
+            return;
+        }
+        if (props.viewKind === 'private_room') {
+            privateForm.body = value;
+            return;
+        }
+        if (props.viewKind === 'direct') {
+            directForm.body = value;
+        }
+    },
+});
+
+const composerPlaceholder = computed(() => {
+    if (props.viewKind === 'team') {
+        return 'رسالة للفريق…';
+    }
+    if (props.viewKind === 'private_room') {
+        return 'رسالة للغرفة…';
+    }
+    if (props.viewKind === 'direct') {
+        return 'رسالة خاصة…';
+    }
+    return 'اكتب رسالة…';
+});
+
+const composerTypingHint = computed(() => {
+    if (props.viewKind !== 'team' || !typingUsers.value.length) {
+        return '';
+    }
+    return `${typingUsers.value.map((u) => u.name).join('، ')} يكتب الآن…`;
+});
+
+const chatTimelineItems = computed(() => {
+    const items = [];
+    let lastDayKey = '';
+
+    for (const msg of displayedMessages.value) {
+        const d = new Date(msg.created_at);
+        const dayKey = Number.isFinite(d.getTime())
+            ? d.toLocaleDateString('ar-SA', { year: 'numeric', month: '2-digit', day: '2-digit' })
+            : '';
+        if (dayKey && dayKey !== lastDayKey) {
+            const label = Number.isFinite(d.getTime())
+                ? d.toLocaleDateString('ar-SA', {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long',
+                  })
+                : '';
+            items.push({ type: 'separator', key: `sep-${dayKey}`, label });
+            lastDayKey = dayKey;
+        }
+        items.push({ type: 'message', key: String(msg.id), msg });
+    }
+
+    return items;
+});
+
+function showSenderHeader(msg, index) {
+    if (isMine(msg)) {
+        return false;
+    }
+    const list = displayedMessages.value;
+    const prev = list[index - 1];
+    if (!prev) {
+        return true;
+    }
+    return Number(prev.user?.id) !== Number(msg.user?.id);
+}
+
+function messageIndexForTimeline(msg) {
+    return displayedMessages.value.findIndex((row) => row.id === msg.id);
+}
+
+function defaultSentReceipt() {
+    return {
+        status: 'sent',
+        read_count: 0,
+        total_recipients: 0,
+        label: 'تم الإرسال',
+    };
+}
+
+function applyReadReceipts(receipts) {
+    if (!receipts || typeof receipts !== 'object') {
+        return;
+    }
+    messagesState.value = messagesState.value.map((row) => {
+        const patch = receipts[row.id];
+        if (!patch) {
+            return row;
+        }
+        return { ...row, read_receipt: patch };
+    });
+}
+
+function mergeMessageRowsFromApi(rows) {
+    if (!rows?.length) {
+        return;
+    }
+    const receipts = {};
+    for (const row of rows) {
+        if (row?.read_receipt) {
+            receipts[row.id] = row.read_receipt;
+        }
+    }
+    const shouldAuto = shouldAutoScroll();
+    messagesState.value.push(...rows);
+    if (Object.keys(receipts).length) {
+        applyReadReceipts(receipts);
+    }
+    if (shouldAuto) {
+        nextTick(() => scrollToBottom());
+    }
+}
+
+function readReceiptsRequestParams() {
+    if (props.viewKind === 'team' && props.selectedTeam?.id) {
+        return { kind: 'team', team_id: props.selectedTeam.id };
+    }
+    if (props.viewKind === 'private_room' && props.selectedPrivateRoom?.id) {
+        return { kind: 'private_room', private_room_id: props.selectedPrivateRoom.id };
+    }
+    if (props.viewKind === 'direct' && props.selectedDirect?.id) {
+        return { kind: 'direct', direct_conversation_id: props.selectedDirect.id };
+    }
+    return null;
+}
+
+async function pullReadReceipts() {
+    const params = readReceiptsRequestParams();
+    if (!params) {
+        return;
+    }
+    try {
+        const res = await window.axios.get(route('chat.read-receipts'), {
+            params,
+            headers: { Accept: 'application/json' },
+        });
+        applyReadReceipts(res?.data?.receipts);
+    } catch {
+        /* تجاهل في الخلفية */
+    }
+}
+
+function openMediaLightbox(payload) {
+    if (!payload?.url) {
+        return;
+    }
+    mediaLightbox.value = {
+        open: true,
+        url: payload.url,
+        name: payload.name || 'صورة',
+    };
+}
+
+function closeMediaLightbox() {
+    mediaLightbox.value = { open: false, url: '', name: '' };
+}
+
+const forwardTargets = computed(() => {
+    const rows = [];
+
+    for (const team of props.teams || []) {
+        if (props.viewKind === 'team' && Number(props.selectedTeam?.id) === Number(team.id)) {
+            continue;
+        }
+        const label = displayTeamName(team);
+        rows.push({
+            key: `team-${team.id}`,
+            kind: 'team',
+            id: team.id,
+            label,
+            hint: 'دردشة الفريق',
+            initial: userInitial(label),
+            badgeClass: 'bg-gradient-to-br from-slate-600 to-slate-800',
+        });
+    }
+
+    for (const room of props.privateRooms || []) {
+        if (props.viewKind === 'private_room' && Number(props.selectedPrivateRoom?.id) === Number(room.id)) {
+            continue;
+        }
+        const label = room.name || 'غرفة';
+        rows.push({
+            key: `room-${room.id}`,
+            kind: 'private_room',
+            id: room.id,
+            label,
+            hint: 'غرفة خاصة',
+            initial: userInitial(label),
+            badgeClass: 'bg-gradient-to-br from-violet-600 to-indigo-800',
+        });
+    }
+
+    for (const peer of props.directPeers || []) {
+        if (!peer.conversation_id) {
+            continue;
+        }
+        if (props.viewKind === 'direct' && Number(props.selectedDirect?.id) === Number(peer.conversation_id)) {
+            continue;
+        }
+        const label = peer.name || 'موظف';
+        rows.push({
+            key: `direct-${peer.conversation_id}`,
+            kind: 'direct',
+            id: peer.conversation_id,
+            label,
+            hint: 'رسالة خاصة',
+            initial: userInitial(label),
+            badgeClass: 'bg-gradient-to-br from-emerald-600 to-teal-800',
+        });
+    }
+
+    return rows.sort((a, b) => String(a.label).localeCompare(String(b.label), 'ar'));
+});
+
+function openMessageActions(msg) {
+    if (!msg || msg.is_pending || msg.kind === 'call') {
+        return;
+    }
+    messageActions.value = { open: true, msg };
+}
+
+function closeMessageActions() {
+    messageActions.value = { open: false, msg: null };
+}
+
+async function copyMessageText(msg) {
+    const chunks = [];
+    if (msg?.forward) {
+        const from = [msg.forward.from_user_name, msg.forward.from_context].filter(Boolean).join(' · ');
+        if (from) {
+            chunks.push(`[محوّلة من ${from}]`);
+        }
+    }
+    if (msg?.body) {
+        chunks.push(String(msg.body));
+    }
+    if (msg?.attachment?.url) {
+        chunks.push(String(msg.attachment.url));
+    }
+    const text = chunks.join('\n').trim();
+    if (!text) {
+        return;
+    }
+    try {
+        await navigator.clipboard.writeText(text);
+    } catch {
+        /* تجاهل */
+    }
+    closeMessageActions();
+}
+
+function openForwardFromActions() {
+    forwardSourceMessage.value = messageActions.value.msg;
+    closeMessageActions();
+    forwardModalOpen.value = true;
+}
+
+function closeForwardModal() {
+    forwardModalOpen.value = false;
+    forwardSourceMessage.value = null;
+}
+
+async function submitForwardTarget(target) {
+    const msg = forwardSourceMessage.value;
+    if (!msg?.id || !target?.kind || !target?.id) {
+        return;
+    }
+    forwardProcessing.value = true;
+    try {
+        const res = await window.axios.post(
+            route('chat.forward'),
+            {
+                source_kind: props.viewKind,
+                source_message_id: msg.id,
+                target_kind: target.kind,
+                target_id: target.id,
+            },
+            { headers: { Accept: 'application/json' } },
+        );
+        closeForwardModal();
+        const url = res?.data?.redirect_url;
+        if (url) {
+            router.visit(url);
+        }
+    } finally {
+        forwardProcessing.value = false;
+    }
+}
+
+function onMessageActionEdit() {
+    const msg = messageActions.value.msg;
+    closeMessageActions();
+    if (msg) {
+        startEdit(msg);
+    }
+}
+
+function onMessageActionRemove() {
+    const msg = messageActions.value.msg;
+    closeMessageActions();
+    if (msg) {
+        removeMessage(msg);
+    }
+}
+
+function onEmployeeCallSettled() {
+    if (props.viewKind === 'direct' && props.selectedDirect?.id) {
+        pullMessages();
+    }
+}
+
 onMounted(() => {
     chatUnreadState.value = normalizeChatUnreadPayload({
         ...(props.chatUnread || {}),
@@ -1080,6 +1442,7 @@ onMounted(() => {
     pullChatNotifications();
     summaryPollTimer = window.setInterval(pullUnreadSummary, 7000);
     chatNotifPollTimer = window.setInterval(() => pullChatNotifications({ silent: true }), 6000);
+    window.addEventListener('employee-call-settled', onEmployeeCallSettled);
 });
 
 watch(
@@ -1153,6 +1516,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+    window.removeEventListener('employee-call-settled', onEmployeeCallSettled);
     stopPolling();
     unsubscribeTeamEcho();
     if (typingTimer) {
@@ -1183,7 +1547,12 @@ watch(
         <template #title>دردشة الفريق</template>
 
         <div
-            class="team-chat-inbox flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col self-stretch overflow-x-hidden overflow-y-hidden max-md:h-[calc(100dvh-10.5rem)] max-md:max-h-[calc(100dvh-10.5rem)] md:max-h-[calc(100dvh-9.5rem)] md:h-[calc(100dvh-9.5rem)] lg:mx-auto lg:h-[min(42rem,calc(100svh-13.5rem))] lg:max-h-[min(42rem,calc(100svh-13.5rem))] lg:w-full lg:max-w-7xl xl:h-[min(46rem,calc(100svh-12.5rem))] xl:max-h-[min(46rem,calc(100svh-12.5rem))]"
+            class="team-chat-inbox flex min-h-0 w-full min-w-0 max-w-full flex-1 flex-col self-stretch overflow-x-hidden overflow-y-hidden max-md:max-h-[calc(100dvh-8.25rem)] max-md:h-[calc(100dvh-8.25rem)] md:max-h-[calc(100dvh-9.5rem)] md:h-[calc(100dvh-9.5rem)] lg:mx-auto lg:h-[min(42rem,calc(100svh-13.5rem))] lg:max-h-[min(42rem,calc(100svh-13.5rem))] lg:w-full lg:max-w-7xl xl:h-[min(46rem,calc(100svh-12.5rem))] xl:max-h-[min(46rem,calc(100svh-12.5rem))]"
+            :class="
+                mobilePanel === 'chat'
+                    ? 'max-md:fixed max-md:inset-x-0 max-md:top-[3.25rem] max-md:z-20 max-md:h-[calc(100dvh-3.25rem-4.25rem-env(safe-area-inset-bottom))] max-md:max-h-[calc(100dvh-3.25rem-4.25rem-env(safe-area-inset-bottom))] max-md:px-0'
+                    : ''
+            "
         >
             <div
                 class="grid h-full min-h-0 min-w-0 w-full max-w-full flex-1 grid-cols-1 grid-rows-1 overflow-hidden rounded-2xl border border-app-surface-border/90 bg-app-surface/90 shadow-xl shadow-slate-900/[0.06] ring-1 ring-black/[0.03] backdrop-blur-md auto-rows-[minmax(0,1fr)] sm:rounded-3xl lg:grid-cols-[minmax(260px,1fr)_minmax(0,2.2fr)] xl:grid-cols-[320px_minmax(0,1fr)]"
@@ -1308,23 +1677,29 @@ watch(
                                         @click="onAllInboxClick(item)"
                                     >
                                         <div class="relative shrink-0">
+                                            <ChatUserAvatar
+                                                v-if="item.kind === 'direct'"
+                                                :name="item.peer.name"
+                                                :avatar-url="item.peer.avatar_url || ''"
+                                                size-class="h-12 w-12 sm:h-[52px] sm:w-[52px]"
+                                                rounded-class="rounded-2xl"
+                                                gradient-class="from-emerald-600 to-teal-800"
+                                                text-class="text-sm"
+                                            />
                                             <div
+                                                v-else
                                                 class="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br text-sm font-bold text-white shadow-md ring-2 ring-white sm:h-[52px] sm:w-[52px]"
                                                 :class="
                                                     item.kind === 'team'
                                                         ? 'from-slate-600 to-slate-800'
-                                                        : item.kind === 'private_room'
-                                                          ? 'from-violet-600 to-indigo-800'
-                                                          : 'from-emerald-600 to-teal-800'
+                                                        : 'from-violet-600 to-indigo-800'
                                                 "
                                             >
                                                 {{
                                                     userInitial(
                                                         item.kind === 'team'
                                                             ? displayTeamName(item.team)
-                                                            : item.kind === 'private_room'
-                                                              ? item.room.name
-                                                              : item.peer.name,
+                                                            : item.room.name,
                                                     )
                                                 }}
                                             </div>
@@ -1457,11 +1832,14 @@ watch(
                                         @click="openDirectWithUser(peer)"
                                     >
                                         <div class="relative shrink-0">
-                                            <div
-                                                class="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-800 text-sm font-bold text-white shadow-md ring-2 ring-white sm:h-[52px] sm:w-[52px]"
-                                            >
-                                                {{ userInitial(peer.name) }}
-                                            </div>
+                                            <ChatUserAvatar
+                                                :name="peer.name"
+                                                :avatar-url="peer.avatar_url || ''"
+                                                size-class="h-12 w-12 sm:h-[52px] sm:w-[52px]"
+                                                rounded-class="rounded-2xl"
+                                                gradient-class="from-emerald-600 to-teal-800"
+                                                text-class="text-sm"
+                                            />
                                             <span
                                                 v-if="
                                                     peer.conversation_id && directUnreadCount(peer.conversation_id) > 0
@@ -1516,12 +1894,14 @@ watch(
                 <!-- المحادثة -->
                 <section
                     :class="[
-                        'flex h-full min-h-0 min-w-0 w-full max-w-full flex-col overflow-hidden bg-[#e5ddd5]',
+                        'team-chat-thread flex h-full min-h-0 min-w-0 w-full max-w-full flex-col overflow-hidden bg-gradient-to-b from-slate-100 via-slate-50 to-white',
                         mobilePanel === 'list' ? 'hidden lg:flex' : 'flex',
                     ]"
                 >
                     <template v-if="hasActiveConversation">
-                        <header class="flex shrink-0 items-center gap-2 border-b border-slate-200/60 bg-[#f0f2f5] px-2 py-2.5 shadow-sm sm:gap-3 sm:px-4 sm:py-3">
+                        <header
+                            class="flex shrink-0 items-center gap-2 border-b border-slate-200/80 bg-white/90 px-2 py-2.5 shadow-sm backdrop-blur-md sm:gap-3 sm:px-4 sm:py-3"
+                        >
                             <button
                                 type="button"
                                 class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200/80 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 lg:hidden"
@@ -1532,11 +1912,14 @@ watch(
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
                                 </svg>
                             </button>
-                            <div
-                                class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-md ring-2 ring-white sm:h-12 sm:w-12"
-                            >
-                                {{ userInitial(chatHeaderTitle) }}
-                            </div>
+                            <ChatUserAvatar
+                                :name="chatHeaderTitle"
+                                :avatar-url="chatHeaderAvatarUrl"
+                                size-class="h-11 w-11 sm:h-12 sm:w-12"
+                                rounded-class="rounded-2xl"
+                                gradient-class="from-brand-500 to-brand-700"
+                                text-class="text-sm"
+                            />
                             <div class="min-w-0 flex-1">
                                 <h2 class="truncate text-[15px] font-bold text-slate-900 sm:text-lg">
                                     {{ chatHeaderTitle }}
@@ -1550,6 +1933,34 @@ watch(
                                 <p v-else class="truncate text-[11px] text-slate-500 sm:text-xs">
                                     محادثة خاصة بين الموظفين
                                 </p>
+                            </div>
+                            <div
+                                v-if="viewKind === 'direct' && selectedDirect?.peer && employeeCallsEnabled"
+                                class="flex shrink-0 items-center gap-2"
+                            >
+                                <button
+                                    type="button"
+                                    class="flex h-11 items-center gap-2 rounded-full bg-emerald-600 px-4 text-sm font-bold text-white shadow-md shadow-emerald-900/25 transition hover:bg-emerald-500 active:scale-95"
+                                    title="اتصال صوتي"
+                                    aria-label="اتصال صوتي"
+                                    @click="startVoiceCallWithPeer"
+                                >
+                                    <svg class="h-5 w-5 shrink-0" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24c1.12.37 2.33.57 3.58.57a1 1 0 011 1V20a1 1 0 01-1 1C10.07 21 3 13.93 3 5a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.46.57 3.58a1 1 0 01-.24 1.01l-2.2 2.2z" />
+                                    </svg>
+                                    <span class="hidden sm:inline">اتصال</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="flex h-11 w-11 items-center justify-center rounded-full border border-violet-200 bg-violet-50 text-violet-700 shadow-sm transition hover:bg-violet-100"
+                                    title="مكالمة فيديو"
+                                    aria-label="مكالمة فيديو"
+                                    @click="startVideoCallWithPeer"
+                                >
+                                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 8h8a2 2 0 012 2v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4a2 2 0 012-2z" />
+                                    </svg>
+                                </button>
                             </div>
                             <div v-if="viewKind === 'private_room' && selectedPrivateRoom" class="flex shrink-0 flex-col gap-1 sm:flex-row sm:items-center">
                                 <button
@@ -1571,7 +1982,7 @@ watch(
                             </div>
                         </header>
 
-                        <div class="shrink-0 border-b border-slate-200/50 bg-[#f0f2f5]/95 px-3 py-2.5 sm:px-4">
+                        <div class="shrink-0 border-b border-slate-200/60 bg-white/80 px-3 py-2 sm:px-4 sm:py-2.5">
                             <div class="relative">
                                 <span class="pointer-events-none absolute inset-y-0 start-3 flex items-center text-slate-400">
                                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -1582,179 +1993,57 @@ watch(
                                     v-model="searchTerm"
                                     type="search"
                                     autocomplete="off"
-                                    class="block w-full rounded-xl border-slate-200/90 bg-white py-2.5 ps-9 pe-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                                    class="block w-full rounded-xl border-slate-200/90 bg-slate-50/90 py-2 ps-9 pe-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20"
                                     placeholder="بحث في الرسائل…"
                                 >
                             </div>
                         </div>
 
-                        <div
-                            ref="messagesContainerRef"
-                            dir="ltr"
-                            class="outside-thread flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain px-2 py-3 touch-pan-y [-webkit-overflow-scrolling:touch] sm:px-4 sm:py-4"
-                            :style="threadBgStyle"
-                        >
+                        <div class="relative min-h-0 flex-1">
                             <div
-                                v-for="msg in displayedMessages"
-                                :key="msg.id"
-                                class="flex w-full max-w-full items-end gap-2"
-                                :class="isMine(msg) ? 'justify-end' : 'justify-start'"
+                                ref="messagesContainerRef"
+                                dir="ltr"
+                                class="team-chat-messages absolute inset-0 flex flex-col gap-3 overflow-y-auto overscroll-y-contain px-3 py-4 touch-pan-y [-webkit-overflow-scrolling:touch] sm:gap-3.5 sm:px-5 sm:py-5"
                             >
-                                <template v-if="!isMine(msg)">
-                                    <div
-                                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-slate-500 to-slate-700 text-[11px] font-bold text-white shadow-md ring-2 ring-white sm:h-10 sm:w-10 sm:text-xs"
-                                    >
-                                        {{ userInitial(msg.user?.name) }}
-                                    </div>
-                                    <div class="max-w-[min(100%,18.5rem)] sm:max-w-[min(100%,24rem)]">
-                                        <div class="mb-1 flex items-center gap-1.5" dir="rtl">
-                                            <span class="text-[10px] font-semibold text-slate-600">{{ msg.user?.name || 'عضو' }}</span>
-                                        </div>
-                                        <div
-                                            class="rounded-2xl rounded-tl-sm border border-black/[0.06] bg-white px-3.5 py-2.5 text-[13px] leading-relaxed text-slate-900 shadow-sm sm:px-4 sm:py-3 sm:text-sm"
-                                            dir="rtl"
-                                        >
-                                            <div v-if="viewKind === 'team' && !msg.is_pending && editingMessageId === msg.id" class="mb-2 space-y-2">
-                                                <textarea
-                                                    v-model="editingBody"
-                                                    rows="3"
-                                                    class="block w-full rounded-xl border-slate-200 text-sm shadow-sm"
-                                                />
-                                                <div class="flex flex-wrap gap-2">
-                                                    <PrimaryButton type="button" class="text-xs" @click="saveEdit(msg)">حفظ</PrimaryButton>
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex items-center rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
-                                                        @click="cancelEdit"
-                                                    >
-                                                        إلغاء
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <p v-if="msg.body" class="whitespace-pre-wrap break-words">{{ msg.body }}</p>
-                                            <p v-if="msg.is_pending" class="mt-1 inline-flex items-center gap-1 text-[10px] text-sky-700">
-                                                <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-sky-600" />
-                                                جار الإرسال...
-                                            </p>
-                                            <div class="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-2 text-[10px] text-slate-500">
-                                                <span>{{ formatDt(msg.created_at) }}<span v-if="msg.edited_at"> · تم التعديل</span></span>
-                                                <button
-                                                    v-if="viewKind === 'team' && !msg.is_pending && canManageMessage(msg)"
-                                                    type="button"
-                                                    class="font-semibold text-brand-700 hover:underline"
-                                                    @click="startEdit(msg)"
-                                                >
-                                                    تعديل
-                                                </button>
-                                                <button
-                                                    v-if="viewKind === 'team' && !msg.is_pending && canManageMessage(msg)"
-                                                    type="button"
-                                                    class="font-semibold text-rose-600 hover:underline"
-                                                    @click="removeMessage(msg)"
-                                                >
-                                                    حذف
-                                                </button>
-                                            </div>
-                                            <div v-if="msg.attachment" class="mt-2 rounded-xl bg-slate-50 p-2 ring-1 ring-slate-200/70">
-                                                <a
-                                                    :href="msg.attachment.url"
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    class="text-xs font-medium text-brand-600 hover:underline"
-                                                >
-                                                    📎 {{ msg.attachment.name || 'مرفق' }}
-                                                </a>
-                                                <p class="mt-1 text-[10px] text-slate-500">
-                                                    {{ msg.attachment.mime || 'ملف' }} · {{ formatFileSize(msg.attachment.size) }}
-                                                </p>
-                                                <img
-                                                    v-if="msg.attachment.is_image && msg.attachment.url"
-                                                    :src="msg.attachment.url"
-                                                    alt="مرفق"
-                                                    class="mt-2 max-h-52 rounded-xl border border-slate-200/70"
-                                                >
-                                            </div>
-                                        </div>
-                                    </div>
-                                </template>
-                                <template v-else>
-                                    <div class="max-w-[min(100%,18.5rem)] sm:max-w-[min(100%,24rem)]">
-                                        <div class="mb-1 flex items-center justify-end gap-1.5" dir="rtl">
-                                            <span class="text-[10px] font-semibold text-slate-600">{{ selfName }}</span>
-                                        </div>
-                                        <div
-                                            class="rounded-2xl rounded-tr-sm bg-gradient-to-br from-[#d9fdd3] to-[#c8f5c0] px-3.5 py-2.5 text-[13px] leading-relaxed text-slate-900 shadow-sm ring-1 ring-black/[0.04] sm:px-4 sm:py-3 sm:text-sm"
-                                            dir="rtl"
-                                        >
-                                            <div v-if="viewKind === 'team' && !msg.is_pending && editingMessageId === msg.id" class="mb-2 space-y-2">
-                                                <textarea
-                                                    v-model="editingBody"
-                                                    rows="3"
-                                                    class="block w-full rounded-xl border-emerald-900/20 text-sm shadow-sm"
-                                                />
-                                                <div class="flex flex-wrap gap-2">
-                                                    <PrimaryButton type="button" class="text-xs" @click="saveEdit(msg)">حفظ</PrimaryButton>
-                                                    <button
-                                                        type="button"
-                                                        class="inline-flex items-center rounded-xl border border-emerald-900/15 bg-white/80 px-3 py-1.5 text-xs text-slate-800 hover:bg-white"
-                                                        @click="cancelEdit"
-                                                    >
-                                                        إلغاء
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <p v-if="msg.body" class="whitespace-pre-wrap break-words">{{ msg.body }}</p>
-                                            <p v-if="msg.is_pending" class="mt-1 inline-flex items-center gap-1 text-[10px] text-emerald-900/80">
-                                                <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-700" />
-                                                جار الإرسال...
-                                            </p>
-                                            <div class="mt-2 flex flex-wrap items-center gap-2 border-t border-emerald-900/10 pt-2 text-[10px] text-emerald-900/70">
-                                                <span>{{ formatDt(msg.created_at) }}<span v-if="msg.edited_at"> · تم التعديل</span></span>
-                                                <button
-                                                    v-if="viewKind === 'team' && !msg.is_pending && canManageMessage(msg)"
-                                                    type="button"
-                                                    class="font-semibold text-emerald-900 hover:underline"
-                                                    @click="startEdit(msg)"
-                                                >
-                                                    تعديل
-                                                </button>
-                                                <button
-                                                    v-if="viewKind === 'team' && !msg.is_pending && canManageMessage(msg)"
-                                                    type="button"
-                                                    class="font-semibold text-rose-700 hover:underline"
-                                                    @click="removeMessage(msg)"
-                                                >
-                                                    حذف
-                                                </button>
-                                            </div>
-                                            <div v-if="msg.attachment" class="mt-2 rounded-xl bg-white/60 p-2 ring-1 ring-emerald-900/10">
-                                                <a
-                                                    :href="msg.attachment.url"
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    class="text-xs font-medium text-emerald-900 hover:underline"
-                                                >
-                                                    📎 {{ msg.attachment.name || 'مرفق' }}
-                                                </a>
-                                                <p class="mt-1 text-[10px] text-emerald-900/70">
-                                                    {{ msg.attachment.mime || 'ملف' }} · {{ formatFileSize(msg.attachment.size) }}
-                                                </p>
-                                                <img
-                                                    v-if="msg.attachment.is_image && msg.attachment.url"
-                                                    :src="msg.attachment.url"
-                                                    alt="مرفق"
-                                                    class="mt-2 max-h-52 rounded-xl border border-emerald-900/10"
-                                                >
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <img
-                                        :src="selfAvatarUrl"
-                                        :alt="selfName"
-                                        class="h-9 w-9 shrink-0 rounded-full object-cover shadow-md ring-2 ring-white sm:h-10 sm:w-10"
-                                    >
-                                </template>
+                            <template v-for="item in chatTimelineItems" :key="item.key">
+                            <div
+                                v-if="item.type === 'separator'"
+                                class="flex justify-center py-1"
+                                dir="rtl"
+                            >
+                                <span
+                                    class="rounded-full bg-white/90 px-3 py-1 text-[10px] font-semibold text-slate-600 shadow-sm ring-1 ring-slate-200/80"
+                                >
+                                    {{ item.label }}
+                                </span>
                             </div>
+                            <ChatCallLogRow
+                                v-else-if="item.msg?.kind === 'call'"
+                                :msg="item.msg"
+                                :is-mine="isMine(item.msg)"
+                                :show-sender="showSenderHeader(item.msg, messageIndexForTimeline(item.msg))"
+                                :self-avatar-url="selfAvatarUrl"
+                                :self-name="selfName"
+                            />
+                            <TeamChatMessageRow
+                                v-else
+                                :msg="item.msg"
+                                :is-mine="isMine(item.msg)"
+                                :view-kind="viewKind"
+                                :show-sender="showSenderHeader(item.msg, messageIndexForTimeline(item.msg))"
+                                :can-manage="canManageMessage(item.msg)"
+                                :is-editing="editingMessageId === item.msg.id"
+                                v-model:editing-body="editingBody"
+                                :self-avatar-url="selfAvatarUrl"
+                                :self-name="selfName"
+                                @save-edit="saveEdit(item.msg)"
+                                @cancel-edit="cancelEdit"
+                                @start-edit="startEdit(item.msg)"
+                                @remove="removeMessage(item.msg)"
+                                @open-media="openMediaLightbox"
+                                @open-actions="openMessageActions"
+                            />
+                            </template>
 
                             <p
                                 v-if="!displayedMessages?.length"
@@ -1765,74 +2054,27 @@ watch(
                             </p>
                         </div>
 
-                        <div
-                            class="shrink-0 border-t border-slate-200/70 bg-[#f0f2f5] px-2 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] shadow-[0_-4px_24px_-2px_rgba(15,23,42,0.06)] sm:px-4 sm:py-3"
-                        >
-                            <p v-if="typingUsers.length && viewKind === 'team'" class="mb-2 text-center text-[11px] text-slate-600" dir="rtl">
-                                {{ typingUsers.map((u) => u.name).join('، ') }} يكتب الآن…
-                            </p>
-                            <form class="flex flex-col gap-2 sm:gap-2.5" @submit.prevent="submitMessage">
-                                <div class="relative flex items-end gap-2 rounded-[1.35rem] border border-slate-200/90 bg-white p-1.5 shadow-sm focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-500/15 sm:p-2">
-                                    <textarea
-                                        v-if="viewKind === 'team'"
-                                        v-model="form.body"
-                                        rows="1"
-                                        dir="rtl"
-                                        class="max-h-36 min-h-[44px] flex-1 resize-none rounded-2xl border-0 bg-transparent px-3 py-2.5 text-base leading-relaxed text-slate-900 placeholder:text-slate-400 focus:ring-0 sm:min-h-[48px] sm:text-sm"
-                                        placeholder="رسالة للفريق…"
-                                        @input="notifyComposerTyping"
-                                    />
-                                    <textarea
-                                        v-else-if="viewKind === 'private_room'"
-                                        v-model="privateForm.body"
-                                        rows="1"
-                                        dir="rtl"
-                                        class="max-h-36 min-h-[44px] flex-1 resize-none rounded-2xl border-0 bg-transparent px-3 py-2.5 text-base leading-relaxed text-slate-900 placeholder:text-slate-400 focus:ring-0 sm:min-h-[48px] sm:text-sm"
-                                        placeholder="رسالة للغرفة…"
-                                    />
-                                    <textarea
-                                        v-else-if="viewKind === 'direct'"
-                                        v-model="directForm.body"
-                                        rows="1"
-                                        dir="rtl"
-                                        class="max-h-36 min-h-[44px] flex-1 resize-none rounded-2xl border-0 bg-transparent px-3 py-2.5 text-base leading-relaxed text-slate-900 placeholder:text-slate-400 focus:ring-0 sm:min-h-[48px] sm:text-sm"
-                                        placeholder="رسالة خاصة…"
-                                    />
-                                    <PrimaryButton
-                                        type="submit"
-                                        class="mb-0.5 h-10 shrink-0 rounded-xl px-4 text-xs font-bold shadow-md sm:h-11 sm:rounded-2xl sm:px-5 sm:text-sm"
-                                        :disabled="composerProcessing()"
-                                    >
-                                        <span class="hidden sm:inline">إرسال</span>
-                                        <svg class="h-5 w-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                                        </svg>
-                                    </PrimaryButton>
-                                </div>
-                                <InputError :message="activeComposerErrors().body" />
-                                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                    <div class="min-w-0 flex-1">
-                                        <input
-                                            ref="attachmentInputRef"
-                                            type="file"
-                                            class="block w-full text-[11px] text-slate-600 file:me-2 file:rounded-xl file:border-0 file:bg-white file:px-2 file:py-1 file:text-[11px] file:font-medium file:shadow-sm"
-                                            @change="onAttachmentChange"
-                                        >
-                                        <div v-if="activeComposerAttachment()" class="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
-                                            <span class="truncate">المرفق: {{ activeComposerAttachment()?.name }}</span>
-                                            <button type="button" class="shrink-0 text-rose-600 hover:underline" @click="clearAttachment">
-                                                إزالة
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </form>
                         </div>
+
+                        <TeamChatComposer
+                            v-model="composerBody"
+                            class="z-10 shrink-0"
+                            :placeholder="composerPlaceholder"
+                            :processing="composerProcessing()"
+                            :attachment="activeComposerAttachment()"
+                            :body-error="activeComposerErrors().body || ''"
+                            :typing-hint="composerTypingHint"
+                            @submit="submitMessage"
+                            @typing="notifyComposerTyping"
+                            @attachment-change="onAttachmentChange"
+                            @clear-attachment="clearAttachment"
+                            @send-voice="onSendVoice"
+                        />
                     </template>
 
                     <div
                         v-else
-                        class="flex min-h-[50dvh] flex-1 flex-col items-center justify-center bg-[#e5ddd5] px-6 py-12 text-center lg:min-h-0"
+                        class="flex min-h-[50dvh] flex-1 flex-col items-center justify-center bg-gradient-to-b from-slate-100 to-slate-50 px-6 py-12 text-center lg:min-h-0"
                     >
                         <div class="max-w-md rounded-3xl bg-white p-8 shadow-xl ring-1 ring-black/5">
                             <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lg">
@@ -1977,6 +2219,33 @@ watch(
                 </div>
             </div>
         </Teleport>
+
+        <ChatMediaLightbox
+            :open="mediaLightbox.open"
+            :url="mediaLightbox.url"
+            :name="mediaLightbox.name"
+            @close="closeMediaLightbox"
+        />
+
+        <ChatMessageActionsSheet
+            :open="messageActions.open"
+            :msg="messageActions.msg"
+            :view-kind="viewKind"
+            :can-manage="messageActions.msg ? canManageMessage(messageActions.msg) : false"
+            @close="closeMessageActions"
+            @copy="copyMessageText(messageActions.msg)"
+            @forward="openForwardFromActions"
+            @start-edit="onMessageActionEdit"
+            @remove="onMessageActionRemove"
+        />
+
+        <ChatForwardModal
+            :open="forwardModalOpen"
+            :targets="forwardTargets"
+            :processing="forwardProcessing"
+            @close="closeForwardModal"
+            @select="submitForwardTarget"
+        />
     </AuthenticatedLayout>
 </template>
 
@@ -1991,6 +2260,23 @@ watch(
 .chat-tab-leave-to {
     opacity: 0;
     transform: translateY(8px);
+}
+
+.team-chat-thread {
+    background-image:
+        radial-gradient(ellipse 120% 80% at 50% -30%, rgb(var(--color-brand-500) / 0.09), transparent 55%),
+        linear-gradient(180deg, rgb(248 250 252) 0%, rgb(241 245 249) 100%);
+}
+
+.team-chat-messages {
+    scroll-behavior: smooth;
+}
+
+@supports (height: 100dvh) {
+    .team-chat-inbox.max-md\:fixed {
+        /* يمنع قفز التخطيط عند ظهور لوحة المفاتيح قدر الإمكان */
+        max-height: calc(100dvh - 3.25rem - 4.25rem - env(safe-area-inset-bottom, 0px));
+    }
 }
 </style>
 

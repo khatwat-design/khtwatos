@@ -1,12 +1,15 @@
 <?php
 
 use App\Http\Controllers\AcademyController;
+use App\Http\Controllers\ChatAttachmentController;
+use App\Http\Controllers\ChatForwardController;
 use App\Http\Controllers\ChatNotificationsController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientPortalController;
 use App\Http\Controllers\DatabaseBackupController;
 use App\Http\Controllers\DevicePushTokenController;
 use App\Http\Controllers\DirectChatController;
+use App\Http\Controllers\EmployeeCallController;
 use App\Http\Controllers\EmployeeAttendanceController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\GoodsCustomerController;
@@ -92,8 +95,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/device-push-tokens', [DevicePushTokenController::class, 'store'])->name('device-push-tokens.store');
     Route::delete('/device-push-tokens', [DevicePushTokenController::class, 'destroy'])->name('device-push-tokens.destroy');
     Route::get('/chat', [TeamChatController::class, 'index'])->name('chat.index');
+    Route::get('/chat/attachments/{path}', [ChatAttachmentController::class, 'show'])
+        ->where('path', '.*')
+        ->name('chat.attachments.show');
     Route::post('/chat', [TeamChatController::class, 'store'])->name('chat.store');
     Route::get('/chat/messages', [TeamChatController::class, 'messages'])->name('chat.messages.index');
+    Route::get('/chat/read-receipts', [TeamChatController::class, 'readReceipts'])->name('chat.read-receipts');
+    Route::post('/chat/forward', [ChatForwardController::class, 'store'])->name('chat.forward');
     Route::patch('/chat/messages/{teamChatMessage}', [TeamChatController::class, 'update'])->name('chat.messages.update');
     Route::delete('/chat/messages/{teamChatMessage}', [TeamChatController::class, 'destroy'])->name('chat.messages.destroy');
     Route::post('/chat/typing', [TeamChatController::class, 'typingUpdate'])->name('chat.typing.update');
@@ -103,6 +111,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/chat/private-rooms/{privateChatRoom}/leave', [PrivateChatRoomController::class, 'leave'])->name('chat.private-rooms.leave');
     Route::post('/chat/private-rooms/{privateChatRoom}/messages', [PrivateChatRoomController::class, 'storeMessage'])->name('chat.private-rooms.messages.store');
     Route::get('/chat/private-rooms/{privateChatRoom}/messages', [PrivateChatRoomController::class, 'messages'])->name('chat.private-rooms.messages.index');
+    Route::post('/chat/calls', [EmployeeCallController::class, 'store'])->name('chat.calls.store');
+    Route::post('/chat/calls/{employeeCall}/accept', [EmployeeCallController::class, 'accept'])->name('chat.calls.accept');
+    Route::post('/chat/calls/{employeeCall}/reject', [EmployeeCallController::class, 'reject'])->name('chat.calls.reject');
+    Route::post('/chat/calls/{employeeCall}/end', [EmployeeCallController::class, 'end'])->name('chat.calls.end');
+    Route::post('/chat/calls/{employeeCall}/signal', [EmployeeCallController::class, 'signal'])->name('chat.calls.signal');
+    Route::patch('/chat/calls/{employeeCall}/mode', [EmployeeCallController::class, 'updateMode'])->name('chat.calls.mode');
     Route::post('/chat/direct/open', [DirectChatController::class, 'open'])->name('chat.direct.open');
     Route::post('/chat/direct/{directConversation}/messages', [DirectChatController::class, 'storeMessage'])->name('chat.direct.messages.store');
     Route::get('/chat/direct/{directConversation}/messages', [DirectChatController::class, 'messages'])->name('chat.direct.messages.index');

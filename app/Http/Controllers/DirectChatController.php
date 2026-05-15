@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\DirectConversation;
 use App\Models\DirectMessage;
 use App\Models\User;
+use App\Services\ChatReadReceiptService;
+use App\Support\ChatAttachmentRules;
 use App\Services\ChatUnreadService;
 use App\Services\SmartNotificationService;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +18,7 @@ class DirectChatController extends Controller
     public function __construct(
         private readonly SmartNotificationService $smartNotifications,
         private readonly ChatUnreadService $chatUnread,
+        private readonly ChatReadReceiptService $readReceipts,
     ) {}
 
     public function open(Request $request): RedirectResponse
@@ -58,7 +61,8 @@ class DirectChatController extends Controller
 
         $data = $request->validate([
             'body' => ['nullable', 'string', 'max:4000', 'required_without:attachment'],
-            'attachment' => ['nullable', 'file', 'max:10240', 'required_without:body'],
+            'attachment' => ChatAttachmentRules::attachmentValidation(),
+            'voice_note' => ['sometimes', 'boolean'],
         ]);
 
         $attachmentPath = null;
@@ -67,11 +71,14 @@ class DirectChatController extends Controller
         $attachmentSize = null;
 
         if ($request->hasFile('attachment')) {
-            $file = $request->file('attachment');
-            $attachmentPath = $file->store('chat-attachments', 'public');
-            $attachmentName = $file->getClientOriginalName();
-            $attachmentMime = $file->getMimeType();
-            $attachmentSize = $file->getSize();
+            $stored = ChatAttachmentRules::storeUploadedFile(
+                $request->file('attachment'),
+                $request->boolean('voice_note'),
+            );
+            $attachmentPath = $stored['path'];
+            $attachmentName = $stored['name'];
+            $attachmentMime = $stored['mime'];
+            $attachmentSize = $stored['size'];
         }
 
         $message = DirectMessage::query()->create([
@@ -83,7 +90,7 @@ class DirectChatController extends Controller
             'attachment_mime' => $attachmentMime,
             'attachment_size' => $attachmentSize,
         ]);
-        $message->load('user:id,name');
+        $message->load('user:id,name,avatar_path');
         $this->smartNotifications->notifyDirectMessage($directConversation, $message, (int) $user->id);
         $this->chatUnread->markDirectAsRead($request, (int) $directConversation->id);
 
@@ -99,7 +106,7 @@ class DirectChatController extends Controller
         ]);
 
         $query = DirectMessage::query()
-            ->with('user:id,name')
+            ->with(['user:id,name,avatar_path', 'employeeCall'])
             ->where('direct_conversation_id', $directConversation->id)
             ->orderBy('id');
 
@@ -116,8 +123,15 @@ class DirectChatController extends Controller
 
         $this->chatUnread->markDirectAsRead($request, (int) $directConversation->id);
 
+        $viewerId = (int) $request->user()->id;
+        $enriched = $this->readReceipts->enrichDirectMessages(
+            $rows,
+            (int) $directConversation->id,
+            $viewerId,
+        );
+
         return response()->json(array_merge([
-            'messages' => $rows->map(fn (DirectMessage $msg) => $msg->toChatArray())->values(),
+            'messages' => $enriched->values(),
         ], $this->chatUnread->fullUnreadPayload($request->user())));
     }
 

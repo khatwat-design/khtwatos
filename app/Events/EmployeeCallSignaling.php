@@ -2,21 +2,26 @@
 
 namespace App\Events;
 
-use App\Models\TeamChatMessage;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class TeamChatMessageUpdated implements ShouldBroadcastNow
+class EmployeeCallSignaling implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public TeamChatMessage $message)
-    {
-        //
-    }
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function __construct(
+        public int $targetUserId,
+        public string $action,
+        public int $callId,
+        public int $fromUserId,
+        public array $payload = [],
+    ) {}
 
     /**
      * @return array<int, PrivateChannel>
@@ -24,13 +29,13 @@ class TeamChatMessageUpdated implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('team-chat.'.$this->message->team_id),
+            new PrivateChannel('App.Models.User.'.$this->targetUserId),
         ];
     }
 
     public function broadcastAs(): string
     {
-        return 'message.updated';
+        return 'employee-call.'.$this->action;
     }
 
     /**
@@ -38,9 +43,10 @@ class TeamChatMessageUpdated implements ShouldBroadcastNow
      */
     public function broadcastWith(): array
     {
-        return [
-            'team_id' => $this->message->team_id,
-            'message' => $this->message->fresh(['user:id,name,avatar_path'])->toChatArray(),
-        ];
+        return array_merge($this->payload, [
+            'call_id' => $this->callId,
+            'from_user_id' => $this->fromUserId,
+            'action' => $this->action,
+        ]);
     }
 }

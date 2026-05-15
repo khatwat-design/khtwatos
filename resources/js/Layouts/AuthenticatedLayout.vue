@@ -1,7 +1,10 @@
 <script setup>
 import { Capacitor } from '@capacitor/core';
 import { initNativePushForAuthenticatedSession } from '@/capacitor/native-push';
+import EmployeeCallOverlay from '@/Components/Chat/EmployeeCallOverlay.vue';
 import DailyAttendanceModal from '@/Components/DailyAttendanceModal.vue';
+import { employeeCallRealtimeEnabled } from '@/echo.js';
+import { useEmployeeCall } from '@/composables/useEmployeeCall.js';
 import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import TeamNotebookDock from '@/Components/TeamNotebookDock.vue';
@@ -21,6 +24,8 @@ const browserNotificationsEnabled = ref(false);
 let lastUnreadCount = Number(page.props.notifications?.unread_count || 0);
 const vapidPublicKey = computed(() => String(page.props.notifications?.webpush_public_key || ''));
 const avatarUrl = computed(() => page.props.auth?.user?.avatar_url || '/images/mobile-logo.png');
+
+const { initEmployeeCalls, teardownEmployeeCalls } = useEmployeeCall();
 
 const nativePushHintDismissed = ref(false);
 
@@ -192,9 +197,15 @@ onMounted(() => {
         deviceStoreUrl: route('device-push-tokens.store'),
         onSilentRefresh: () => fetchNotifications({ silent: true }),
     });
+
+    const userId = page.props.auth?.user?.id;
+    if (employeeCallRealtimeEnabled() && userId) {
+        initEmployeeCalls(userId);
+    }
 });
 
 onBeforeUnmount(() => {
+    teardownEmployeeCalls();
     removeFinishListener?.();
     if (notificationsTimer) {
         window.clearInterval(notificationsTimer);
@@ -553,6 +564,8 @@ async function openNotification(note) {
                 >
                     <slot />
                 </main>
+
+                <EmployeeCallOverlay />
 
                 <DailyAttendanceModal
                     :open="isAttendanceModalOpen && needsCheckIn"

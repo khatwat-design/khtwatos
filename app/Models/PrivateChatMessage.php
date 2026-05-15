@@ -4,7 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
+use App\Support\ChatMessagePayload;
+use App\Support\UserAvatar;
 
 class PrivateChatMessage extends Model
 {
@@ -12,6 +13,8 @@ class PrivateChatMessage extends Model
         'private_chat_room_id',
         'user_id',
         'body',
+        'forwarded_from_user_name',
+        'forwarded_from_context',
         'edited_at',
         'attachment_path',
         'attachment_name',
@@ -49,24 +52,21 @@ class PrivateChatMessage extends Model
      */
     public function toChatArray(): array
     {
-        $this->loadMissing('user:id,name');
+        $this->loadMissing('user:id,name,avatar_path');
 
         return [
             'id' => $this->id,
             'body' => $this->body,
             'created_at' => $this->created_at?->toIso8601String(),
             'edited_at' => $this->edited_at?->toIso8601String(),
-            'attachment' => $this->attachment_path ? [
-                'url' => Storage::disk('public')->url($this->attachment_path),
-                'name' => $this->attachment_name,
-                'mime' => $this->attachment_mime,
-                'size' => $this->attachment_size,
-                'is_image' => is_string($this->attachment_mime) && str_starts_with($this->attachment_mime, 'image/'),
-            ] : null,
-            'user' => $this->user ? [
-                'id' => $this->user->id,
-                'name' => $this->user->name,
-            ] : null,
+            'forward' => ChatMessagePayload::forwardMeta($this->forwarded_from_user_name, $this->forwarded_from_context),
+            'attachment' => ChatMessagePayload::attachmentPayload(
+                $this->attachment_path,
+                $this->attachment_name,
+                $this->attachment_mime,
+                $this->attachment_size,
+            ),
+            'user' => UserAvatar::chatUser($this->user),
         ];
     }
 }

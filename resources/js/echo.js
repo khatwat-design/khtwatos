@@ -38,3 +38,11 @@ if (reverbKey) {
 export function teamChatRealtimeEnabled() {
     return Boolean(reverbKey && typeof window !== 'undefined' && window.Echo);
 }
+
+export function employeeCallRealtimeEnabled() {
+    return teamChatRealtimeEnabled();
+}
+
+export function userPrivateChannel(userId) {
+    return `App.Models.User.${userId}`;
+}

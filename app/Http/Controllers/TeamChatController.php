@@ -13,7 +13,10 @@ use App\Models\Team;
 use App\Models\TeamChatMessage;
 use App\Models\TeamChatTypingState;
 use App\Models\User;
+use App\Support\ChatAttachmentRules;
+use App\Support\UserAvatar;
 use App\Services\ChatNotificationReadService;
+use App\Services\ChatReadReceiptService;
 use App\Services\ChatUnreadService;
 use App\Services\SmartNotificationService;
 use Carbon\Carbon;
@@ -30,6 +33,7 @@ class TeamChatController extends Controller
         private readonly SmartNotificationService $smartNotifications,
         private readonly ChatUnreadService $chatUnread,
         private readonly ChatNotificationReadService $chatNotificationRead,
+        private readonly ChatReadReceiptService $readReceipts,
     ) {}
 
     public function index(Request $request): Response
@@ -44,7 +48,16 @@ class TeamChatController extends Controller
 
         $privateRoomsPayload = $this->buildPrivateRoomsForUser($user);
         $directPeersPayload = $this->buildDirectPeersForUser($user);
-        $chatUsers = User::query()->orderBy('name')->get(['id', 'name']);
+        $chatUsers = User::query()
+            ->orderBy('name')
+            ->get(['id', 'name', 'avatar_path'])
+            ->map(fn (User $u) => [
+                'id' => $u->id,
+                'name' => $u->name,
+                'avatar_url' => UserAvatar::url($u),
+            ])
+            ->values()
+            ->all();
 
         $viewKind = 'none';
         $messages = collect();
@@ -62,15 +75,16 @@ class TeamChatController extends Controller
                     'creator_id' => $room->creator_id,
                     'is_creator' => (int) $room->creator_id === (int) $user->id,
                 ];
-                $messages = PrivateChatMessage::query()
-                    ->with('user:id,name')
+                $privateRows = PrivateChatMessage::query()
+                    ->with('user:id,name,avatar_path')
                     ->where('private_chat_room_id', $room->id)
                     ->latest()
                     ->limit(150)
                     ->get()
                     ->reverse()
-                    ->values()
-                    ->map(fn (PrivateChatMessage $msg) => $msg->toChatArray())
+                    ->values();
+                $messages = $this->readReceipts
+                    ->enrichPrivateRoomMessages($privateRows, (int) $room->id, (int) $user->id)
                     ->values();
             }
         } elseif ($request->filled('direct')) {
@@ -80,17 +94,22 @@ class TeamChatController extends Controller
                 $peer = $conversation->otherUser($user);
                 $selectedDirect = [
                     'id' => $conversation->id,
-                    'peer' => $peer ? ['id' => $peer->id, 'name' => $peer->name] : null,
+                    'peer' => $peer ? [
+                        'id' => $peer->id,
+                        'name' => $peer->name,
+                        'avatar_url' => UserAvatar::url($peer),
+                    ] : null,
                 ];
-                $messages = DirectMessage::query()
-                    ->with('user:id,name')
+                $directRows = DirectMessage::query()
+                    ->with(['user:id,name,avatar_path', 'employeeCall'])
                     ->where('direct_conversation_id', $conversation->id)
                     ->latest()
                     ->limit(150)
                     ->get()
                     ->reverse()
-                    ->values()
-                    ->map(fn (DirectMessage $msg) => $msg->toChatArray())
+                    ->values();
+                $messages = $this->readReceipts
+                    ->enrichDirectMessages($directRows, (int) $conversation->id, (int) $user->id)
                     ->values();
             }
         }
@@ -102,15 +121,16 @@ class TeamChatController extends Controller
             if ($selectedTeam) {
                 TeamNotebookController::rememberNotebookTeam($request, $selectedTeam);
                 $viewKind = 'team';
-                $messages = TeamChatMessage::query()
-                    ->with('user:id,name')
+                $teamRows = TeamChatMessage::query()
+                    ->with('user:id,name,avatar_path')
                     ->where('team_id', $selectedTeam->id)
                     ->latest()
                     ->limit(150)
                     ->get()
                     ->reverse()
-                    ->values()
-                    ->map(fn (TeamChatMessage $msg) => $this->mapMessage($msg))
+                    ->values();
+                $messages = $this->readReceipts
+                    ->enrichTeamMessages($teamRows, (int) $selectedTeam->id, (int) $user->id)
                     ->values();
             }
         }
@@ -170,7 +190,8 @@ class TeamChatController extends Controller
         $data = $request->validate([
             'team_id' => ['required', 'exists:teams,id'],
             'body' => ['nullable', 'string', 'max:4000', 'required_without:attachment'],
-            'attachment' => ['nullable', 'file', 'max:10240', 'required_without:body'],
+            'attachment' => ChatAttachmentRules::attachmentValidation(),
+            'voice_note' => ['sometimes', 'boolean'],
         ]);
 
         $attachmentPath = null;
@@ -179,11 +200,14 @@ class TeamChatController extends Controller
         $attachmentSize = null;
 
         if ($request->hasFile('attachment')) {
-            $file = $request->file('attachment');
-            $attachmentPath = $file->store('chat-attachments', 'public');
-            $attachmentName = $file->getClientOriginalName();
-            $attachmentMime = $file->getMimeType();
-            $attachmentSize = $file->getSize();
+            $stored = ChatAttachmentRules::storeUploadedFile(
+                $request->file('attachment'),
+                $request->boolean('voice_note'),
+            );
+            $attachmentPath = $stored['path'];
+            $attachmentName = $stored['name'];
+            $attachmentMime = $stored['mime'];
+            $attachmentSize = $stored['size'];
         }
 
         $message = TeamChatMessage::query()->create([
@@ -195,7 +219,7 @@ class TeamChatController extends Controller
             'attachment_mime' => $attachmentMime,
             'attachment_size' => $attachmentSize,
         ]);
-        $message->load('user:id,name');
+        $message->load('user:id,name,avatar_path');
         broadcast(new TeamChatMessageCreated($message));
         $this->smartNotifications->notifyTeamChatMessage($message, $request->user()?->id);
         $this->chatUnread->markTeamAsRead($request, (int) $data['team_id']);
@@ -216,7 +240,7 @@ class TeamChatController extends Controller
         ]);
 
         $query = TeamChatMessage::query()
-            ->with('user:id,name')
+            ->with('user:id,name,avatar_path')
             ->where('team_id', (int) $data['team_id'])
             ->orderBy('id');
 
@@ -232,9 +256,78 @@ class TeamChatController extends Controller
         }
         $this->chatUnread->markTeamAsRead($request, (int) $data['team_id']);
 
+        $userId = (int) $request->user()->id;
+        $teamId = (int) $data['team_id'];
+        $enriched = $this->readReceipts->enrichTeamMessages($rows, $teamId, $userId);
+
         return response()->json(array_merge([
-            'messages' => $rows->map(fn (TeamChatMessage $msg) => $this->mapMessage($msg))->values(),
+            'messages' => $enriched->values(),
         ], $this->chatUnread->fullUnreadPayload($request->user())));
+    }
+
+    public function readReceipts(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['receipts' => []]);
+        }
+
+        $data = $request->validate([
+            'kind' => ['required', 'string', 'in:team,private_room,direct'],
+            'team_id' => ['required_if:kind,team', 'integer', 'exists:teams,id'],
+            'private_room_id' => ['required_if:kind,private_room', 'integer', 'exists:private_chat_rooms,id'],
+            'direct_conversation_id' => ['required_if:kind,direct', 'integer', 'exists:direct_conversations,id'],
+        ]);
+
+        $viewerId = (int) $user->id;
+
+        if ($data['kind'] === 'team') {
+            $payload = $this->readReceipts->teamReceiptsPayload((int) $data['team_id'], $viewerId);
+
+            return response()->json($payload ?? ['receipts' => []]);
+        }
+
+        if ($data['kind'] === 'private_room') {
+            $roomId = (int) $data['private_room_id'];
+            $room = PrivateChatRoom::query()->findOrFail($roomId);
+            if (! $room->userIsMember($user)) {
+                abort(403);
+            }
+            $rows = PrivateChatMessage::query()
+                ->where('private_chat_room_id', $roomId)
+                ->where('user_id', $viewerId)
+                ->orderByDesc('id')
+                ->limit(80)
+                ->get();
+            $enriched = $this->readReceipts->enrichPrivateRoomMessages($rows, $roomId, $viewerId);
+
+            return response()->json([
+                'receipts' => $enriched
+                    ->filter(fn (array $row) => ! empty($row['read_receipt']))
+                    ->mapWithKeys(fn (array $row) => [(int) $row['id'] => $row['read_receipt']])
+                    ->all(),
+            ]);
+        }
+
+        $conversationId = (int) $data['direct_conversation_id'];
+        $conversation = DirectConversation::query()->findOrFail($conversationId);
+        if (! $conversation->userParticipates($user)) {
+            abort(403);
+        }
+        $rows = DirectMessage::query()
+            ->where('direct_conversation_id', $conversationId)
+            ->where('user_id', $viewerId)
+            ->orderByDesc('id')
+            ->limit(80)
+            ->get();
+        $enriched = $this->readReceipts->enrichDirectMessages($rows, $conversationId, $viewerId);
+
+        return response()->json([
+            'receipts' => $enriched
+                ->filter(fn (array $row) => ! empty($row['read_receipt']))
+                ->mapWithKeys(fn (array $row) => [(int) $row['id'] => $row['read_receipt']])
+                ->all(),
+        ]);
     }
 
     public function update(Request $request, TeamChatMessage $teamChatMessage): RedirectResponse
@@ -250,7 +343,7 @@ class TeamChatController extends Controller
             'edited_at' => now(),
         ]);
 
-        $teamChatMessage->load('user:id,name');
+        $teamChatMessage->load('user:id,name,avatar_path');
         broadcast(new TeamChatMessageUpdated($teamChatMessage));
 
         return redirect()->back();
@@ -296,7 +389,7 @@ class TeamChatController extends Controller
         ]);
 
         $users = TeamChatTypingState::query()
-            ->with('user:id,name')
+            ->with('user:id,name,avatar_path')
             ->where('team_id', (int) $data['team_id'])
             ->where('updated_at', '>=', now()->subSeconds(8))
             ->where('user_id', '!=', $request->user()->id)
@@ -368,13 +461,14 @@ class TeamChatController extends Controller
         return User::query()
             ->whereKeyNot($user->id)
             ->orderBy('name')
-            ->get(['id', 'name'])
+            ->get(['id', 'name', 'avatar_path'])
             ->map(function (User $peer) use ($conversationPeerMap, $lastMsgAtByConversation): array {
                 $conversationId = $conversationPeerMap[(int) $peer->id] ?? null;
 
                 return [
                     'user_id' => (int) $peer->id,
                     'name' => $peer->name,
+                    'avatar_url' => UserAvatar::url($peer),
                     'conversation_id' => $conversationId,
                     'last_activity_at' => $this->nullableIso8601(
                         $conversationId ? ($lastMsgAtByConversation[(int) $conversationId] ?? null) : null,
@@ -475,8 +569,19 @@ class TeamChatController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function mapMessage(TeamChatMessage $msg): array
+    private function mapMessage(TeamChatMessage $msg, ?int $viewerId = null): array
     {
-        return $msg->toChatArray();
+        $arr = $msg->toChatArray();
+        if ($viewerId === null) {
+            return $arr;
+        }
+
+        $enriched = $this->readReceipts->enrichTeamMessages(
+            collect([$msg]),
+            (int) $msg->team_id,
+            $viewerId,
+        )->first();
+
+        return is_array($enriched) ? $enriched : $arr;
     }
 }
