@@ -12,7 +12,7 @@ import Modal from '@/Components/Modal.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import { employeeCallRealtimeEnabled, teamChatRealtimeEnabled } from '@/echo.js';
 import { useEmployeeCall } from '@/composables/useEmployeeCall.js';
-import { useKeyboardViewportInset } from '@/composables/useKeyboardViewportInset.js';
+import { useChatImmersiveViewport } from '@/composables/useChatImmersiveViewport.js';
 import { chatMobileChromeHidden } from '@/state/chatMobileChrome.js';
 import { CHAT_MOBILE_MEDIA, isChatMobileViewport } from '@/utils/chatMobileViewport.js';
 import { buildOptimisticAttachment, isVoiceFile } from '@/utils/chatVoiceAttachment.js';
@@ -121,33 +121,16 @@ watch(
         if (typeof document !== 'undefined') {
             document.body.classList.toggle('chat-mobile-immersive', immersive);
         }
-        if (immersive) {
-            nextTick(() => readKeyboardViewport());
-        }
+        nextTick(() => readImmersiveViewport());
     },
     { immediate: true },
 );
 
-const MOBILE_COMPOSER_RESERVE_PX = 76;
-
-const { insetBottom, composerDockStyle, read: readKeyboardViewport } = useKeyboardViewportInset(
-    () => mobileImmersiveChat.value,
-);
-
-/** مساحة أسفل الرسائل لشريط الكتابة + لوحة المفاتيح */
-const mobileMessagesPadStyle = computed(() => {
-    if (!mobileImmersiveChat.value) {
-        return undefined;
-    }
-
-    return {
-        paddingBottom: `${MOBILE_COMPOSER_RESERVE_PX + insetBottom.value}px`,
-    };
-});
+const { read: readImmersiveViewport } = useChatImmersiveViewport(() => mobileImmersiveChat.value);
 
 watch(isMobileChatOpen, (open) => {
     if (open) {
-        nextTick(() => readKeyboardViewport());
+        nextTick(() => readImmersiveViewport());
     } else {
         mobileSearchOpen.value = false;
     }
@@ -1986,7 +1969,7 @@ watch(
                         'team-chat-thread flex min-h-0 min-w-0 w-full max-w-full flex-col overflow-hidden bg-gradient-to-b from-slate-100 via-slate-50 to-white',
                         mobilePanel === 'list' ? 'hidden lg:flex' : 'flex',
                         mobileImmersiveChat
-                            ? 'max-lg:fixed max-lg:inset-0 max-lg:z-[100] max-lg:flex max-lg:min-h-0 max-lg:flex-col max-lg:overflow-hidden max-lg:shadow-2xl max-lg:[contain:strict]'
+                            ? 'team-chat-thread--immersive max-lg:z-[100] max-lg:flex max-lg:min-h-0 max-lg:flex-col max-lg:overflow-hidden max-lg:shadow-2xl'
                             : 'flex h-full flex-col',
                     ]"
                 >
@@ -2129,7 +2112,6 @@ watch(
                                 ref="messagesContainerRef"
                                 dir="ltr"
                                 class="team-chat-messages absolute inset-0 flex flex-col gap-3 overflow-y-auto overscroll-y-contain px-3 py-4 touch-pan-y [-webkit-overflow-scrolling:touch] sm:gap-3.5 sm:px-5 sm:py-5"
-                                :style="mobileMessagesPadStyle"
                             >
                             <template v-for="item in chatTimelineItems" :key="item.key">
                             <div
@@ -2182,37 +2164,16 @@ watch(
 
                         </div>
 
-                        <div
-                            v-if="mobileImmersiveChat"
-                            :style="composerDockStyle"
-                            @focusin="readKeyboardViewport"
-                        >
-                            <TeamChatComposer
-                                v-model="composerBody"
-                                class="relative shrink-0 max-lg:border-t max-lg:border-slate-200/80 max-lg:bg-white max-lg:pb-[max(0.35rem,env(safe-area-inset-bottom,0px))] max-lg:shadow-[0_-4px_24px_rgba(15,23,42,0.08)]"
-                                :keyboard-lift="false"
-                                :placeholder="composerPlaceholder"
-                                :processing="composerProcessing()"
-                                :attachment="activeComposerAttachment()"
-                                :body-error="activeComposerErrors().body || ''"
-                                :typing-hint="composerTypingHint"
-                                @submit="submitMessage"
-                                @typing="notifyComposerTyping"
-                                @attachment-change="onAttachmentChange"
-                                @clear-attachment="clearAttachment"
-                                @send-voice="onSendVoice"
-                            />
-                        </div>
                         <TeamChatComposer
-                            v-else
                             v-model="composerBody"
-                            class="relative z-30 shrink-0"
+                            class="team-chat-composer-bar relative z-30 shrink-0"
                             :keyboard-lift="false"
                             :placeholder="composerPlaceholder"
                             :processing="composerProcessing()"
                             :attachment="activeComposerAttachment()"
                             :body-error="activeComposerErrors().body || ''"
                             :typing-hint="composerTypingHint"
+                            @focusin="readImmersiveViewport"
                             @submit="submitMessage"
                             @typing="notifyComposerTyping"
                             @attachment-change="onAttachmentChange"
@@ -2425,21 +2386,32 @@ watch(
 
 <style>
 body.chat-mobile-immersive {
+    position: fixed;
+    width: 100%;
     overflow: hidden;
     overscroll-behavior: none;
+    touch-action: manipulation;
 }
 
-body.chat-mobile-immersive .team-chat-thread.max-lg\:fixed {
+body.chat-mobile-immersive .team-chat-thread--immersive {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: var(--chat-vv-top, 0px);
+    height: var(--chat-vv-height, 100dvh);
+    max-height: var(--chat-vv-height, 100dvh);
+    width: 100%;
     display: flex;
     flex-direction: column;
     min-height: 0;
 }
 
+body.chat-mobile-immersive .team-chat-composer-bar,
 body.chat-mobile-immersive .team-chat-composer {
     flex-shrink: 0;
 }
 
-body.chat-mobile-immersive .team-chat-thread.max-lg\:fixed .team-chat-messages {
+body.chat-mobile-immersive .team-chat-thread--immersive .team-chat-messages {
     scroll-behavior: auto;
 }
 </style>

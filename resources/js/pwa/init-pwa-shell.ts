@@ -35,6 +35,9 @@ function bindVisualViewportHeight(): void {
     }
     const root = document.documentElement;
     const update = (): void => {
+        if (document.body.classList.contains('chat-mobile-immersive')) {
+            return;
+        }
         const vv = window.visualViewport;
         const h = vv?.height ?? window.innerHeight;
         if (h > 0) {

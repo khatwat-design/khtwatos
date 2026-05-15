@@ -482,7 +482,7 @@ watch(
                         dir="rtl"
                         :disabled="disabled || processing || isRecording"
                         :placeholder="isRecording ? 'جاري التسجيل…' : placeholder"
-                        class="max-h-32 min-h-[44px] w-full resize-none border-0 bg-transparent px-3.5 py-3 text-base leading-relaxed text-slate-900 placeholder:text-slate-400 focus:ring-0 disabled:opacity-60 sm:min-h-[48px] sm:py-3.5 sm:text-[15px]"
+                        class="max-h-32 min-h-[44px] w-full resize-none border-0 bg-transparent px-3.5 py-3 text-base leading-relaxed text-slate-900 placeholder:text-slate-400 focus:ring-0 disabled:opacity-60 touch-manipulation sm:min-h-[48px] sm:py-3.5 sm:text-[15px]"
                         @input="onInput"
                         @keydown="onKeydown"
                         @focus="onComposerFocus"
