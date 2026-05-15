@@ -24,6 +24,9 @@ let pendingOfferType = null;
 let currentUserId = null;
 let subscribed = false;
 let visibilityHandler = null;
+let pendingPollTimer = null;
+/** @type {object[]} */
+let iceQueue = [];
 /** @type {Map<number, { incoming?: object, offer?: object, answer?: object, ice: object[] }>} */
 const signalBuffer = new Map();
 
@@ -58,12 +61,31 @@ function resetStreams() {
     remoteStream.value = null;
 }
 
+function resetIceQueue() {
+    iceQueue = [];
+}
+
 function closePeerConnection() {
     if (pc) {
         pc.ontrack = null;
         pc.onicecandidate = null;
         pc.close();
         pc = null;
+    }
+    resetIceQueue();
+}
+
+async function drainIceQueue() {
+    if (!pc?.remoteDescription) {
+        return;
+    }
+    while (iceQueue.length > 0) {
+        const candidate = iceQueue.shift();
+        try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch {
+            /* ignore */
+        }
     }
 }
 
@@ -188,6 +210,7 @@ async function handleRemoteOffer(callId, sdp, offerType = null) {
     }
 
     await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    await drainIceQueue();
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
     await postSignal(callId, 'answer', { sdp: answer.toJSON() });
@@ -202,7 +225,16 @@ async function handleRemoteAnswer(sdp) {
     if (!pc) {
         return;
     }
+    if (pc.signalingState === 'stable' && pc.currentRemoteDescription) {
+        phase.value = 'active';
+        startDurationTimer();
+        return;
+    }
+    if (pc.signalingState !== 'have-local-offer') {
+        return;
+    }
     await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    await drainIceQueue();
     phase.value = 'active';
     startDurationTimer();
 }
@@ -211,10 +243,14 @@ async function handleRemoteIce(candidate) {
     if (!pc || !candidate) {
         return;
     }
+    if (!pc.remoteDescription) {
+        iceQueue.push(candidate);
+        return;
+    }
     try {
         await pc.addIceCandidate(new RTCIceCandidate(candidate));
     } catch {
-        /* ignore */
+        iceQueue.push(candidate);
     }
 }
 
@@ -255,7 +291,7 @@ function bufferSignal(callId, kind, payload) {
     bucket[kind] = payload;
 }
 
-function flushBufferedSignals(callId) {
+function flushBufferedSignals(callId, { skipOffers = false } = {}) {
     const id = Number(callId);
     const bucket = signalBuffer.get(id);
     if (!bucket) {
@@ -264,7 +300,7 @@ function flushBufferedSignals(callId) {
     if (bucket.incoming && phase.value === 'idle') {
         applyIncomingCall(bucket.incoming);
     }
-    if (bucket.offer?.sdp) {
+    if (!skipOffers && bucket.offer?.sdp) {
         onSignalingEvent('employee-call.offer', bucket.offer);
     }
     if (bucket.answer?.sdp) {
@@ -274,15 +310,64 @@ function flushBufferedSignals(callId) {
     signalBuffer.delete(id);
 }
 
+async function waitForPendingOffer(timeoutMs = 12000) {
+    const callId = Number(call.value?.id);
+    const deadline = Date.now() + timeoutMs;
+
+    while (Date.now() < deadline) {
+        if (pendingOffer) {
+            return true;
+        }
+        const bucket = callId ? signalBuffer.get(callId) : null;
+        if (bucket?.offer?.sdp) {
+            pendingOffer = bucket.offer.sdp;
+            pendingOfferType = bucket.offer.type || call.value?.type || 'voice';
+            return true;
+        }
+        await new Promise((resolve) => {
+            window.setTimeout(resolve, 150);
+        });
+    }
+
+    return Boolean(pendingOffer);
+}
+
+function notifyIncomingCall() {
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+        return;
+    }
+    if (Notification.permission !== 'granted') {
+        return;
+    }
+    if (document.visibilityState === 'visible' && phase.value === 'incoming') {
+        return;
+    }
+    const name = contactPerson.value?.name || 'موظف';
+    try {
+        new Notification('مكالمة واردة', {
+            body: `${name} يتصل بك`,
+            tag: 'employee-call-incoming',
+            requireInteraction: true,
+        });
+    } catch {
+        /* ignore */
+    }
+}
+
 function applyIncomingCall(payload) {
     if (isActive.value) {
         return;
     }
-    call.value = payload.call || payload;
+    const next = payload.call || payload;
+    if (phase.value === 'incoming' && Number(call.value?.id) === Number(next?.id)) {
+        return;
+    }
+    call.value = next;
     peer.value = payload.call?.caller || payload.caller;
     pendingOffer = null;
     pendingOfferType = null;
     phase.value = 'incoming';
+    notifyIncomingCall();
     flushBufferedSignals(Number(call.value?.id));
 }
 
@@ -403,21 +488,29 @@ async function acceptCall() {
         return;
     }
     error.value = '';
-    phase.value = 'connecting';
+    const callId = call.value.id;
+    const type = call.value?.type || 'voice';
+
     try {
-        const res = await api().post(route('chat.calls.accept', call.value.id), {}, { headers: { Accept: 'application/json' } });
+        const hasOffer = await waitForPendingOffer();
+        if (!hasOffer) {
+            settleIdle('لم تصل إشارة الاتصال. تأكد أن الطرف المتصل ما زال على الخط.');
+            return;
+        }
+
+        phase.value = 'connecting';
+        const res = await api().post(route('chat.calls.accept', callId), {}, { headers: { Accept: 'application/json' } });
         call.value = res.data.call || call.value;
         peer.value = call.value.caller || call.value.peer;
-        const type = call.value?.type || 'voice';
+
         await ensureLocalStream(type === 'video');
-        createPeerConnection(call.value.id);
-        if (pendingOffer) {
-            await handleRemoteOffer(call.value.id, pendingOffer, pendingOfferType || type);
-            pendingOffer = null;
-            pendingOfferType = null;
-        } else {
-            flushBufferedSignals(call.value.id);
-        }
+        createPeerConnection(callId);
+        const offerSdp = pendingOffer;
+        const offerType = pendingOfferType || type;
+        pendingOffer = null;
+        pendingOfferType = null;
+        await handleRemoteOffer(callId, offerSdp, offerType);
+        flushBufferedSignals(callId, { skipOffers: true });
     } catch {
         settleIdle('تعذّر قبول المكالمة.');
     }
@@ -498,6 +591,9 @@ function onSignalingEvent(eventName, payload) {
     }
 
     if (eventName === 'employee-call.offer' && payload.sdp) {
+        if (call.value?.is_caller && (phase.value === 'connecting' || phase.value === 'outgoing')) {
+            return;
+        }
         const offerType = payload.type || call.value?.type;
         if (phase.value === 'incoming') {
             pendingOffer = payload.sdp;
@@ -536,7 +632,7 @@ function onSignalingEvent(eventName, payload) {
             }
             if (phase.value === 'outgoing' || phase.value === 'connecting') {
                 phase.value = 'connecting';
-                flushBufferedSignals(callId);
+                flushBufferedSignals(callId, { skipOffers: true });
                 return;
             }
         }
@@ -588,21 +684,45 @@ function ensureEchoSubscription(userId) {
 }
 
 function onVisibilityOrFocus() {
-    if (typeof document === 'undefined' || document.visibilityState !== 'visible') {
-        return;
-    }
     if (!currentUserId) {
         return;
     }
     ensureEchoSubscription(currentUserId);
     void releaseStaleOnServer();
-    void syncPendingIncomingFromServer();
+    if (!isActive.value) {
+        void syncPendingIncomingFromServer();
+    }
+}
+
+function startPendingCallPoll() {
+    stopPendingCallPoll();
+    pendingPollTimer = window.setInterval(() => {
+        if (!currentUserId) {
+            return;
+        }
+        ensureEchoSubscription(currentUserId);
+        if (!isActive.value) {
+            void syncPendingIncomingFromServer();
+        }
+    }, 4000);
+}
+
+function stopPendingCallPoll() {
+    if (pendingPollTimer) {
+        window.clearInterval(pendingPollTimer);
+        pendingPollTimer = null;
+    }
 }
 
 function initEmployeeCalls(userId) {
     subscribeToUserChannel(userId);
     void releaseStaleOnServer();
     void syncPendingIncomingFromServer();
+    startPendingCallPoll();
+
+    if (typeof window !== 'undefined' && typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        void Notification.requestPermission();
+    }
 
     if (typeof document !== 'undefined' && !visibilityHandler) {
         visibilityHandler = () => onVisibilityOrFocus();
@@ -612,6 +732,7 @@ function initEmployeeCalls(userId) {
 }
 
 function teardownEmployeeCalls() {
+    stopPendingCallPoll();
     if (typeof document !== 'undefined' && visibilityHandler) {
         document.removeEventListener('visibilitychange', visibilityHandler);
         window.removeEventListener('focus', visibilityHandler);
@@ -644,6 +765,8 @@ export function useEmployeeCall() {
         formatDuration,
         initEmployeeCalls,
         teardownEmployeeCalls,
+        ensureEchoSubscription,
+        syncPendingIncomingFromServer,
         startCall,
         acceptCall,
         rejectCall,

@@ -25,7 +25,8 @@ let lastUnreadCount = Number(page.props.notifications?.unread_count || 0);
 const vapidPublicKey = computed(() => String(page.props.notifications?.webpush_public_key || ''));
 const avatarUrl = computed(() => page.props.auth?.user?.avatar_url || '/images/mobile-logo.png');
 
-const { initEmployeeCalls, teardownEmployeeCalls } = useEmployeeCall();
+const { initEmployeeCalls, teardownEmployeeCalls, ensureEchoSubscription, syncPendingIncomingFromServer } =
+    useEmployeeCall();
 
 const nativePushHintDismissed = ref(false);
 
@@ -178,6 +179,11 @@ onMounted(() => {
     }
     removeFinishListener = router.on('finish', () => {
         unreadCount.value = Number(page.props.notifications?.unread_count || unreadCount.value || 0);
+        const userId = page.props.auth?.user?.id;
+        if (employeeCallRealtimeEnabled() && userId) {
+            ensureEchoSubscription(userId);
+            void syncPendingIncomingFromServer();
+        }
     });
     notificationsTimer = window.setInterval(() => {
         if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
@@ -217,6 +223,11 @@ onBeforeUnmount(() => {
 
 function onWindowFocus() {
     fetchNotifications({ silent: true });
+    const userId = page.props.auth?.user?.id;
+    if (employeeCallRealtimeEnabled() && userId) {
+        ensureEchoSubscription(userId);
+        void syncPendingIncomingFromServer();
+    }
 }
 
 async function registerServiceWorker() {
