@@ -9,6 +9,7 @@ import Dropdown from '@/Components/Dropdown.vue';
 import DropdownLink from '@/Components/DropdownLink.vue';
 import TeamNotebookDock from '@/Components/TeamNotebookDock.vue';
 import { usePresenceHeartbeat } from '@/composables/usePresenceHeartbeat';
+import { CHAT_MOBILE_MEDIA } from '@/utils/chatMobileViewport.js';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 
@@ -16,6 +17,22 @@ const page = usePage();
 /** صفحات مثل الدردشة تخفي شريط العنوان على الجوال لعدم حجب أزرار المحادثة */
 const concealMobilePageHeader = ref(false);
 provide('concealMobilePageHeader', concealMobilePageHeader);
+
+const layoutMobileViewport = ref(
+    typeof window !== 'undefined' && window.matchMedia(CHAT_MOBILE_MEDIA).matches,
+);
+
+/** على الجوال: إخفاء كامل (DOM) وليس فقط تحريك الهيدر */
+const showAppHeader = computed(
+    () => !layoutMobileViewport.value || !concealMobilePageHeader.value,
+);
+
+const showMobileBottomNav = computed(
+    () => layoutMobileViewport.value && !concealMobilePageHeader.value,
+);
+
+let layoutMobileMq = null;
+let syncLayoutMobileViewport = null;
 
 const sidebarCollapsed = ref(false);
 let removeFinishListener = null;
@@ -212,6 +229,13 @@ onMounted(() => {
     if (employeeCallRealtimeEnabled() && userId) {
         initEmployeeCalls(userId);
     }
+
+    layoutMobileMq = window.matchMedia(CHAT_MOBILE_MEDIA);
+    syncLayoutMobileViewport = () => {
+        layoutMobileViewport.value = layoutMobileMq.matches;
+    };
+    syncLayoutMobileViewport();
+    layoutMobileMq.addEventListener('change', syncLayoutMobileViewport);
 });
 
 onBeforeUnmount(() => {
@@ -219,6 +243,9 @@ onBeforeUnmount(() => {
     removeFinishListener?.();
     if (notificationsTimer) {
         window.clearInterval(notificationsTimer);
+    }
+    if (layoutMobileMq && syncLayoutMobileViewport) {
+        layoutMobileMq.removeEventListener('change', syncLayoutMobileViewport);
     }
     if (typeof window !== 'undefined') {
         window.removeEventListener('focus', onWindowFocus);
@@ -437,12 +464,8 @@ async function openNotification(note) {
 
             <div class="flex min-h-0 min-w-0 flex-1 flex-col">
                 <header
-                    class="sticky top-0 z-20 flex min-h-12 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 shadow-[0_1px_0_rgba(15,23,42,0.04)] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform max-lg:min-h-[calc(3rem+env(safe-area-inset-top,0px))] max-lg:pt-[env(safe-area-inset-top,0px)] md:px-5"
-                    :class="
-                        concealMobilePageHeader
-                            ? 'max-lg:pointer-events-none max-lg:absolute max-lg:inset-x-0 max-lg:top-0 max-lg:-translate-y-full max-lg:opacity-0'
-                            : ''
-                    "
+                    v-if="showAppHeader"
+                    class="sticky top-0 z-20 flex min-h-12 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 shadow-[0_1px_0_rgba(15,23,42,0.04)] max-lg:min-h-[calc(3rem+env(safe-area-inset-top,0px))] max-lg:pt-[env(safe-area-inset-top,0px)] md:px-5"
                 >
                     <div class="flex min-w-0 flex-1 items-center gap-3 md:min-w-0 md:flex-initial md:gap-0">
                         <Link :href="route('dashboard')" class="shrink-0 md:hidden">
@@ -562,7 +585,7 @@ async function openNotification(note) {
                 </header>
 
                 <div
-                    v-if="showNativePushSetupBanner"
+                    v-if="showNativePushSetupBanner && showAppHeader"
                     class="relative z-10 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-b border-amber-200 bg-amber-50 px-3 py-2.5 text-center text-[11px] leading-snug text-amber-950 md:justify-between md:px-6 md:text-start md:text-xs"
                     role="status"
                 >
@@ -583,8 +606,10 @@ async function openNotification(note) {
                     class="relative z-10 flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-ops-4 py-ops-4 md:px-ops-5 md:py-ops-5 md:pb-ops-5"
                     :class="
                         concealMobilePageHeader
-                            ? 'max-lg:overflow-hidden max-lg:!p-0 max-lg:!pb-0'
-                            : 'pb-[calc(5rem+env(safe-area-inset-bottom,0px))]'
+                            ? 'max-lg:!overflow-hidden max-lg:!p-0 max-lg:!pb-0'
+                            : showMobileBottomNav
+                              ? 'pb-[calc(5rem+env(safe-area-inset-bottom,0px))]'
+                              : ''
                     "
                 >
                     <slot />
@@ -600,12 +625,8 @@ async function openNotification(note) {
 
                 <TeamNotebookDock v-if="showTeamNotebookDock" :key="teamNotebook.team_id" :notebook="teamNotebook" />
                 <nav
-                    class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white px-2 py-1 ps-[max(0.5rem,env(safe-area-inset-left,0px))] pe-[max(0.5rem,env(safe-area-inset-right,0px))] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform md:hidden"
-                    :class="
-                        concealMobilePageHeader
-                            ? 'max-lg:pointer-events-none max-lg:translate-y-full max-lg:opacity-0'
-                            : ''
-                    "
+                    v-if="showMobileBottomNav"
+                    class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white px-2 py-1 ps-[max(0.5rem,env(safe-area-inset-left,0px))] pe-[max(0.5rem,env(safe-area-inset-right,0px))] md:hidden"
                 >
                     <div class="grid gap-1" :style="{ gridTemplateColumns: `repeat(${Math.max(mobileBottomNav.length, 1)}, minmax(0, 1fr))` }">
                         <Link

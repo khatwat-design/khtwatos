@@ -99,7 +99,9 @@ const hasActiveConversation = computed(
 
 const isMobileChatOpen = computed(() => mobilePanel.value === 'chat');
 
-const chatMobileViewport = ref(false);
+const chatMobileViewport = ref(
+    typeof window !== 'undefined' && window.matchMedia(CHAT_MOBILE_MEDIA).matches,
+);
 
 const mobileImmersiveChat = computed(
     () => isMobileChatOpen.value && hasActiveConversation.value && chatMobileViewport.value,
