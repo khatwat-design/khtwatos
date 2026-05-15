@@ -4,6 +4,13 @@ import InputLabel from '@/Components/InputLabel.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
+import {
+    mobileSheetBackdrop,
+    mobileSheetForm,
+    mobileSheetHeader,
+    mobileSheetPanelLg,
+    mobileSheetPanelMd,
+} from '@/utils/mobileSheetClasses.js';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
@@ -256,12 +263,10 @@ function deleteClient(clientId) {
 
         <div
             v-if="showFilterModal"
-            class="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-4"
+            :class="mobileSheetBackdrop"
             @click.self="showFilterModal = false"
         >
-            <div
-                class="max-h-[85dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-gray-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl sm:mx-auto sm:max-h-[90vh] sm:max-w-md sm:rounded-2xl sm:p-5 sm:pb-5 native:max-h-[88dvh]"
-            >
+            <div :class="[mobileSheetPanelMd, 'p-4 sm:p-5']">
                 <div class="mb-3 flex items-center justify-between">
                     <h3 class="text-lg font-semibold text-gray-900">فلترة العملاء</h3>
                     <button type="button" class="rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-gray-100" @click="showFilterModal = false">
@@ -291,13 +296,11 @@ function deleteClient(clientId) {
 
         <div
             v-if="showCreateModal"
-            class="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-4"
+            :class="mobileSheetBackdrop"
             @click.self="showCreateModal = false"
         >
-            <div
-                class="max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-gray-200 bg-white shadow-xl sm:mx-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-2xl native:max-h-[min(93dvh,100dvh)]"
-            >
-                <div class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3 sm:px-5 sm:pt-5">
+            <div :class="mobileSheetPanelLg">
+                <div :class="mobileSheetHeader">
                     <h3 class="text-base font-bold text-gray-900 sm:text-lg">إضافة عميل</h3>
                     <button
                         type="button"
@@ -307,10 +310,7 @@ function deleteClient(clientId) {
                         إغلاق
                     </button>
                 </div>
-                <form
-                    class="grid grid-cols-1 gap-3 px-4 pb-6 pt-3 sm:gap-4 sm:px-5 sm:pb-5 md:grid-cols-2 native:pb-[max(1.5rem,env(safe-area-inset-bottom))]"
-                    @submit.prevent="submitCreateClient"
-                >
+                <form :class="mobileSheetForm" @submit.prevent="submitCreateClient">
                     <div class="md:col-span-2">
                         <InputLabel for="new_client_name" value="الاسم" />
                         <TextInput id="new_client_name" v-model="createForm.name" class="mt-1 block w-full" required />

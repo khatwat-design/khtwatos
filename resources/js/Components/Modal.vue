@@ -79,8 +79,8 @@ const maxWidthClass = computed(() => {
 
 const shellClass = computed(() =>
     isNativeShell
-        ? 'flex flex-col justify-end overflow-hidden p-0'
-        : 'overflow-y-auto px-4 py-6 sm:px-0',
+        ? 'flex flex-col justify-end overflow-hidden p-3 pt-10 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]'
+        : 'overflow-y-auto px-4 py-6 sm:px-0 max-lg:flex max-lg:flex-col max-lg:justify-end max-lg:px-3 max-lg:pt-10 max-lg:pb-4 max-lg:py-0',
 );
 
 const panelTransitionEnterFrom = isNativeShell
@@ -99,16 +99,24 @@ const panelTransitionLeaveFrom = isNativeShell
     ? 'opacity-100 translate-y-0'
     : 'opacity-100 translate-y-0 sm:scale-100';
 
-const panelBoxClass = computed(() =>
-    isNativeShell
-        ? [
-              'modal-content-light w-full max-w-none mx-0 mb-0 max-h-[min(92dvh,100dvh)] overflow-y-auto overscroll-contain rounded-t-3xl rounded-b-none pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl transition-all transform',
-          ]
-        : [
-              'modal-content-light mb-6 overflow-hidden rounded-lg shadow-xl transition-all transform sm:mx-auto sm:w-full',
-              maxWidthClass.value,
-          ],
-);
+const panelBoxClass = computed(() => {
+    const mobilePanel =
+        'max-h-[min(80dvh,34rem)] overflow-y-auto overscroll-contain rounded-2xl pb-[max(1rem,env(safe-area-inset-bottom))] max-lg:mx-auto max-lg:w-full max-lg:max-w-[calc(100%-0.5rem)]';
+
+    if (isNativeShell) {
+        return [
+            'modal-content-light w-full max-w-none mx-0 mb-0 shadow-xl transition-all transform',
+            mobilePanel,
+        ];
+    }
+
+    return [
+        'modal-content-light mb-6 overflow-hidden rounded-lg shadow-xl transition-all transform sm:mx-auto sm:w-full',
+        'max-lg:mb-2 max-lg:overflow-y-auto max-lg:rounded-2xl',
+        mobilePanel,
+        maxWidthClass.value,
+    ];
+});
 </script>
 
 <template>

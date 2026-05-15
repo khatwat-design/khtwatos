@@ -201,11 +201,11 @@ function removeProduct(product) {
 
         <div
             v-if="showAddModal"
-            class="fixed inset-0 z-50 flex flex-col justify-end bg-black/50 p-0 sm:items-center sm:justify-center sm:p-4"
+            class="mobile-sheet-backdrop bg-black/50"
             @click.self="showAddModal = false"
         >
             <div
-                class="max-h-[min(92dvh,40rem)] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-slate-200/90 bg-white p-5 shadow-2xl sm:mx-auto sm:max-h-[90vh] sm:max-w-md sm:rounded-3xl sm:p-6"
+                class="mobile-sheet-panel mobile-sheet-panel--md border-slate-200/90 p-5 shadow-2xl sm:rounded-3xl sm:p-6"
             >
                 <div class="sticky top-0 z-10 -mx-5 mb-4 flex items-center justify-between border-b border-slate-100 bg-white px-5 pb-3 sm:-mx-6 sm:mb-5 sm:px-6 sm:pb-4">
                     <h3 class="text-lg font-bold text-slate-900">إضافة منتج</h3>

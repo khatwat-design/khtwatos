@@ -322,11 +322,11 @@ function statusClass(status) {
 
         <div
             v-if="showCreateModal"
-            class="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-4"
+            class="mobile-sheet-backdrop"
             @click.self="showCreateModal = false"
         >
             <div
-                class="max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-3xl border border-gray-200 bg-white shadow-xl sm:mx-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-2xl sm:p-5"
+                class="mobile-sheet-panel mobile-sheet-panel--lg sm:p-5"
             >
                 <div class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3 sm:border-0 sm:px-0 sm:pb-4 sm:pt-0">
                     <h3 class="text-base font-bold text-gray-900 sm:text-lg">إضافة عميل لقسم البضاعة</h3>

@@ -393,4 +393,25 @@
         --tw-ring-color: rgba(229, 72, 77, 0.3) !important;
         border-color: rgba(229, 72, 77, 0.36) !important;
     }
+
+    /* نوافذ منبثقة على الجوال — لوحة مضغوطة مع هامش */
+    .mobile-sheet-backdrop {
+        @apply fixed inset-0 z-50 flex flex-col justify-end bg-black/40 p-3 pt-10 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] sm:items-center sm:justify-center sm:p-4 sm:pt-4;
+    }
+
+    .mobile-sheet-panel {
+        @apply w-full max-h-[min(80dvh,34rem)] overflow-y-auto overscroll-contain rounded-2xl border border-gray-200 bg-white shadow-xl sm:mx-auto sm:max-h-[90vh] sm:rounded-2xl;
+    }
+
+    .mobile-sheet-panel--md {
+        @apply max-h-[min(76dvh,28rem)] sm:max-w-md;
+    }
+
+    .mobile-sheet-panel--lg {
+        @apply sm:max-w-2xl;
+    }
+
+    .mobile-sheet-panel--xl {
+        @apply max-h-[min(82dvh,36rem)] sm:max-w-xl;
+    }
 }

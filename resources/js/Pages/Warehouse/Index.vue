@@ -588,11 +588,11 @@ const hasRoasData = computed(() =>
 
         <div
             v-if="showFilters"
-            class="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 p-0 sm:items-center sm:justify-center sm:p-4"
+            class="mobile-sheet-backdrop"
             @click.self="showFilters = false"
         >
             <div
-                class="max-h-[88dvh] w-full overflow-y-auto overscroll-contain rounded-t-2xl border border-gray-200 bg-white shadow-xl sm:mx-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-2xl"
+                class="mobile-sheet-panel mobile-sheet-panel--xl"
             >
                 <div class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-3 sm:px-5 sm:pt-5">
                     <h3 class="text-base font-bold text-gray-900 sm:text-lg">الفلاتر</h3>
