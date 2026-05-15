@@ -31,6 +31,7 @@ const {
 
 const localVideoRef = ref(null);
 const remoteVideoRef = ref(null);
+const remoteAudioRef = ref(null);
 
 const showRingingUi = computed(() => isIncoming.value || isOutgoing.value);
 const showActiveControls = computed(() => phase.value === 'active' || phase.value === 'connecting');
@@ -66,6 +67,12 @@ watch(remoteStream, (stream) => {
     if (remoteVideoRef.value) {
         remoteVideoRef.value.srcObject = stream;
     }
+    if (remoteAudioRef.value) {
+        remoteAudioRef.value.srcObject = stream;
+        if (stream) {
+            remoteAudioRef.value.play().catch(() => {});
+        }
+    }
 });
 </script>
 
@@ -76,6 +83,14 @@ watch(remoteStream, (stream) => {
             class="fixed inset-0 z-[200] flex flex-col bg-gradient-to-b from-slate-950 via-slate-900 to-brand-950 text-white"
             dir="rtl"
         >
+            <audio
+                v-if="!isVideoCall && isActive"
+                ref="remoteAudioRef"
+                autoplay
+                playsinline
+                class="sr-only"
+            />
+
             <!-- مكالمة نشطة بالفيديو -->
             <template v-if="isVideoCall && showActiveControls && !showRingingUi">
                 <video

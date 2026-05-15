@@ -23,6 +23,9 @@ let pendingOffer = null;
 let pendingOfferType = null;
 let currentUserId = null;
 let subscribed = false;
+let visibilityHandler = null;
+/** @type {Map<number, { incoming?: object, offer?: object, answer?: object, ice: object[] }>} */
+const signalBuffer = new Map();
 
 const isActive = computed(() => ['outgoing', 'incoming', 'connecting', 'active'].includes(phase.value));
 const isIncoming = computed(() => phase.value === 'incoming');
@@ -216,6 +219,7 @@ async function handleRemoteIce(candidate) {
 }
 
 function settleIdle(message = '') {
+    const endedId = call.value?.id;
     phase.value = 'idle';
     call.value = null;
     peer.value = null;
@@ -226,9 +230,82 @@ function settleIdle(message = '') {
     closePeerConnection();
     resetStreams();
     isMuted.value = false;
+    if (endedId) {
+        signalBuffer.delete(Number(endedId));
+    }
 
     if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('employee-call-settled'));
+    }
+}
+
+function bufferSignal(callId, kind, payload) {
+    const id = Number(callId);
+    if (!id) {
+        return;
+    }
+    if (!signalBuffer.has(id)) {
+        signalBuffer.set(id, { ice: [] });
+    }
+    const bucket = signalBuffer.get(id);
+    if (kind === 'ice') {
+        bucket.ice.push(payload);
+        return;
+    }
+    bucket[kind] = payload;
+}
+
+function flushBufferedSignals(callId) {
+    const id = Number(callId);
+    const bucket = signalBuffer.get(id);
+    if (!bucket) {
+        return;
+    }
+    if (bucket.incoming && phase.value === 'idle') {
+        applyIncomingCall(bucket.incoming);
+    }
+    if (bucket.offer?.sdp) {
+        onSignalingEvent('employee-call.offer', bucket.offer);
+    }
+    if (bucket.answer?.sdp) {
+        onSignalingEvent('employee-call.answer', bucket.answer);
+    }
+    bucket.ice.forEach((payload) => onSignalingEvent('employee-call.ice', payload));
+    signalBuffer.delete(id);
+}
+
+function applyIncomingCall(payload) {
+    if (isActive.value) {
+        return;
+    }
+    call.value = payload.call || payload;
+    peer.value = payload.call?.caller || payload.caller;
+    pendingOffer = null;
+    pendingOfferType = null;
+    phase.value = 'incoming';
+    flushBufferedSignals(Number(call.value?.id));
+}
+
+async function releaseStaleOnServer() {
+    try {
+        await api().post(route('chat.calls.release-stale'), {}, { headers: { Accept: 'application/json' } });
+    } catch {
+        /* ignore */
+    }
+}
+
+async function syncPendingIncomingFromServer() {
+    if (!employeeCallRealtimeEnabled() || isActive.value) {
+        return;
+    }
+    try {
+        const res = await api().get(route('chat.calls.pending'), { headers: { Accept: 'application/json' } });
+        const pending = res?.data?.call;
+        if (pending?.id) {
+            applyIncomingCall({ call: pending });
+        }
+    } catch {
+        /* ignore */
     }
 }
 
@@ -330,13 +407,16 @@ async function acceptCall() {
     try {
         const res = await api().post(route('chat.calls.accept', call.value.id), {}, { headers: { Accept: 'application/json' } });
         call.value = res.data.call || call.value;
-        peer.value = call.value.callee || call.value.peer;
+        peer.value = call.value.caller || call.value.peer;
         const type = call.value?.type || 'voice';
         await ensureLocalStream(type === 'video');
+        createPeerConnection(call.value.id);
         if (pendingOffer) {
             await handleRemoteOffer(call.value.id, pendingOffer, pendingOfferType || type);
             pendingOffer = null;
             pendingOfferType = null;
+        } else {
+            flushBufferedSignals(call.value.id);
         }
     } catch {
         settleIdle('تعذّر قبول المكالمة.');
@@ -385,15 +465,30 @@ function onSignalingEvent(eventName, payload) {
         if (isActive.value) {
             return;
         }
-        call.value = payload.call;
-        peer.value = payload.call?.caller;
-        pendingOffer = null;
-        pendingOfferType = null;
-        phase.value = 'incoming';
+        if (phase.value === 'idle') {
+            applyIncomingCall(payload);
+            return;
+        }
+        bufferSignal(callId, 'incoming', payload);
+        return;
+    }
+
+    if (phase.value === 'idle' && ['employee-call.offer', 'employee-call.answer', 'employee-call.ice'].includes(eventName)) {
+        const kind = eventName.replace('employee-call.', '');
+        bufferSignal(callId, kind, payload);
+        void syncPendingIncomingFromServer();
         return;
     }
 
     if (!call.value || Number(call.value.id) !== callId) {
+        if (['employee-call.offer', 'employee-call.answer', 'employee-call.ice', 'employee-call.ended', 'employee-call.rejected'].includes(eventName)) {
+            const kind = eventName.replace('employee-call.', '');
+            if (kind === 'ice') {
+                bufferSignal(callId, 'ice', payload);
+            } else {
+                bufferSignal(callId, kind, payload);
+            }
+        }
         return;
     }
 
@@ -435,9 +530,15 @@ function onSignalingEvent(eventName, payload) {
     }
 
     if (['employee-call.accepted', 'employee-call.rejected', 'employee-call.ended'].includes(eventName)) {
-        if (eventName === 'employee-call.accepted' && (phase.value === 'outgoing' || phase.value === 'connecting')) {
-            phase.value = 'connecting';
-            return;
+        if (eventName === 'employee-call.accepted') {
+            if (payload.call) {
+                call.value = { ...call.value, ...payload.call };
+            }
+            if (phase.value === 'outgoing' || phase.value === 'connecting') {
+                phase.value = 'connecting';
+                flushBufferedSignals(callId);
+                return;
+            }
         }
         const messages = {
             'employee-call.rejected': 'تم رفض المكالمة.',
@@ -448,9 +549,13 @@ function onSignalingEvent(eventName, payload) {
 }
 
 function subscribeToUserChannel(userId) {
-    if (!employeeCallRealtimeEnabled() || !userId || subscribed) {
+    if (!employeeCallRealtimeEnabled() || !userId) {
         return;
     }
+    if (subscribed && currentUserId === userId && echoChannel) {
+        return;
+    }
+    unsubscribeFromUserChannel();
     currentUserId = userId;
     subscribed = true;
     echoChannel = window.Echo.private(userPrivateChannel(userId));
@@ -472,11 +577,46 @@ function unsubscribeFromUserChannel() {
     currentUserId = null;
 }
 
+function ensureEchoSubscription(userId) {
+    if (!employeeCallRealtimeEnabled() || !userId) {
+        return;
+    }
+    const connection = window.Echo?.connector?.pusher?.connection;
+    if (!subscribed || !echoChannel || (connection && connection.state !== 'connected')) {
+        subscribeToUserChannel(userId);
+    }
+}
+
+function onVisibilityOrFocus() {
+    if (typeof document === 'undefined' || document.visibilityState !== 'visible') {
+        return;
+    }
+    if (!currentUserId) {
+        return;
+    }
+    ensureEchoSubscription(currentUserId);
+    void releaseStaleOnServer();
+    void syncPendingIncomingFromServer();
+}
+
 function initEmployeeCalls(userId) {
     subscribeToUserChannel(userId);
+    void releaseStaleOnServer();
+    void syncPendingIncomingFromServer();
+
+    if (typeof document !== 'undefined' && !visibilityHandler) {
+        visibilityHandler = () => onVisibilityOrFocus();
+        document.addEventListener('visibilitychange', visibilityHandler);
+        window.addEventListener('focus', visibilityHandler);
+    }
 }
 
 function teardownEmployeeCalls() {
+    if (typeof document !== 'undefined' && visibilityHandler) {
+        document.removeEventListener('visibilitychange', visibilityHandler);
+        window.removeEventListener('focus', visibilityHandler);
+        visibilityHandler = null;
+    }
     unsubscribeFromUserChannel();
     if (isActive.value) {
         endCallRemote();

@@ -14,6 +14,24 @@ class EmployeeCallController extends Controller
         private readonly EmployeeCallService $calls,
     ) {}
 
+    public function releaseStale(Request $request): JsonResponse
+    {
+        $released = $this->calls->releaseStaleCallsForUser($request->user());
+
+        return response()->json([
+            'released' => $released,
+        ]);
+    }
+
+    public function pending(Request $request): JsonResponse
+    {
+        $call = $this->calls->pendingIncomingForUser($request->user());
+
+        return response()->json([
+            'call' => $call ? $call->toPayload($request->user()) : null,
+        ]);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([

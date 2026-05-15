@@ -12,8 +12,45 @@ use Illuminate\Validation\ValidationException;
 
 class EmployeeCallService
 {
+    public function releaseStaleCallsForUser(User $user): int
+    {
+        $released = 0;
+
+        $calls = EmployeeCall::query()
+            ->whereIn('status', [EmployeeCall::STATUS_RINGING, EmployeeCall::STATUS_ACTIVE])
+            ->where(function ($q) use ($user) {
+                $q->where('caller_id', $user->id)->orWhere('callee_id', $user->id);
+            })
+            ->get();
+
+        foreach ($calls as $call) {
+            if (! $this->callIsStale($call)) {
+                continue;
+            }
+
+            $this->forceTerminate($call);
+            $released++;
+        }
+
+        return $released;
+    }
+
+    public function pendingIncomingForUser(User $user): ?EmployeeCall
+    {
+        $this->releaseStaleCallsForUser($user);
+
+        return EmployeeCall::query()
+            ->with(['caller:id,name,avatar_path', 'callee:id,name,avatar_path'])
+            ->where('callee_id', $user->id)
+            ->where('status', EmployeeCall::STATUS_RINGING)
+            ->latest('id')
+            ->first();
+    }
+
     public function activeCallForUser(User $user): ?EmployeeCall
     {
+        $this->releaseStaleCallsForUser($user);
+
         return EmployeeCall::query()
             ->whereIn('status', [EmployeeCall::STATUS_RINGING, EmployeeCall::STATUS_ACTIVE])
             ->where(function ($q) use ($user) {
@@ -36,6 +73,9 @@ class EmployeeCallService
         }
 
         return DB::transaction(function () use ($caller, $callee, $type) {
+            $this->releaseStaleCallsForUser($caller);
+            $this->releaseStaleCallsForUser($callee);
+
             if ($this->activeCallForUser($caller) || $this->activeCallForUser($callee)) {
                 throw ValidationException::withMessages([
                     'callee_id' => 'الطرف الآخر مشغول في مكالمة أخرى.',
@@ -215,6 +255,54 @@ class EmployeeCallService
     {
         if ((int) $call->callee_id !== (int) $user->id) {
             abort(403);
+        }
+    }
+
+    private function callIsStale(EmployeeCall $call): bool
+    {
+        if ($call->status === EmployeeCall::STATUS_RINGING) {
+            return $call->created_at !== null && $call->created_at->lt(now()->subMinutes(2));
+        }
+
+        if ($call->status === EmployeeCall::STATUS_ACTIVE) {
+            $anchor = $call->answered_at ?? $call->updated_at ?? $call->created_at;
+
+            return $anchor !== null && $anchor->lt(now()->subMinutes(30));
+        }
+
+        return false;
+    }
+
+    private function forceTerminate(EmployeeCall $call): void
+    {
+        if (in_array($call->status, [
+            EmployeeCall::STATUS_ENDED,
+            EmployeeCall::STATUS_MISSED,
+            EmployeeCall::STATUS_REJECTED,
+            EmployeeCall::STATUS_BUSY,
+        ], true)) {
+            return;
+        }
+
+        $status = $call->status === EmployeeCall::STATUS_RINGING
+            ? EmployeeCall::STATUS_MISSED
+            : EmployeeCall::STATUS_ENDED;
+
+        $call->update([
+            'status' => $status,
+            'ended_at' => now(),
+        ]);
+
+        $call = $call->fresh(['caller:id,name,avatar_path', 'callee:id,name,avatar_path']);
+
+        EmployeeCallChatLog::logToDirectChat($call);
+
+        foreach ([$call->caller, $call->callee] as $participant) {
+            if ($participant) {
+                $this->broadcastToUser($participant, 'ended', $call, $participant, [
+                    'call' => $call->toPayload($participant),
+                ]);
+            }
         }
     }
 
