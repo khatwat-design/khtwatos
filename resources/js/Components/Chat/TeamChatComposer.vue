@@ -3,6 +3,7 @@ import ChatRecordingWaveform from '@/Components/Chat/ChatRecordingWaveform.vue';
 import InputError from '@/Components/InputError.vue';
 import { pickRecorderMimeType, voiceFileFromBlob } from '@/utils/chatRecorder.js';
 import { isVoiceFile } from '@/utils/chatVoiceAttachment.js';
+import { useKeyboardViewportInset } from '@/composables/useKeyboardViewportInset.js';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -25,6 +26,9 @@ const emit = defineEmits([
 ]);
 
 const textareaRef = ref(null);
+const { composerStyle: keyboardLiftStyle } = useKeyboardViewportInset(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches,
+);
 const fileInputRef = ref(null);
 const canSend = ref(false);
 const isRecording = ref(false);
@@ -80,6 +84,12 @@ function onInput(event) {
     emit('update:modelValue', event.target.value);
     emit('typing');
     nextTick(resizeTextarea);
+}
+
+function onComposerFocus() {
+    nextTick(() => {
+        textareaRef.value?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
 }
 
 function onKeydown(event) {
@@ -342,6 +352,7 @@ watch(
 <template>
     <div
         class="team-chat-composer shrink-0 border-t border-slate-200/80 bg-white/95 backdrop-blur-xl supports-[backdrop-filter]:bg-white/88"
+        :style="keyboardLiftStyle"
         aria-label="كتابة رسالة"
     >
         <p
@@ -460,6 +471,7 @@ watch(
                         class="max-h-32 min-h-[44px] w-full resize-none border-0 bg-transparent px-3.5 py-3 text-base leading-relaxed text-slate-900 placeholder:text-slate-400 focus:ring-0 disabled:opacity-60 sm:min-h-[48px] sm:py-3.5 sm:text-[15px]"
                         @input="onInput"
                         @keydown="onKeydown"
+                        @focus="onComposerFocus"
                     />
                 </div>
 

@@ -10,9 +10,13 @@ import DropdownLink from '@/Components/DropdownLink.vue';
 import TeamNotebookDock from '@/Components/TeamNotebookDock.vue';
 import { usePresenceHeartbeat } from '@/composables/usePresenceHeartbeat';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 
 const page = usePage();
+/** صفحات مثل الدردشة تخفي شريط العنوان على الجوال لعدم حجب أزرار المحادثة */
+const concealMobilePageHeader = ref(false);
+provide('concealMobilePageHeader', concealMobilePageHeader);
+
 const sidebarCollapsed = ref(false);
 let removeFinishListener = null;
 let notificationsTimer = null;
@@ -433,6 +437,7 @@ async function openNotification(note) {
 
             <div class="flex min-h-0 min-w-0 flex-1 flex-col">
                 <header
+                    v-show="!concealMobilePageHeader"
                     class="sticky top-0 z-20 flex min-h-12 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 shadow-[0_1px_0_rgba(15,23,42,0.04)] max-md:min-h-[calc(3rem+env(safe-area-inset-top,0px))] max-md:pt-[env(safe-area-inset-top,0px)] md:px-5"
                 >
                     <div class="flex min-w-0 flex-1 items-center gap-3 md:min-w-0 md:flex-initial md:gap-0">
