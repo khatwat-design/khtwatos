@@ -75,7 +75,7 @@ class EmployeeCallService
             $type = EmployeeCall::TYPE_VOICE;
         }
 
-        return DB::transaction(function () use ($caller, $callee, $type) {
+        return DB::transaction(function () use ($caller, $callee, $type, $offerSdp) {
             $this->releaseAbandonedOutgoingRinging($caller);
             $this->releaseStaleCallsForUser($caller);
             $this->releaseStaleCallsForUser($callee);
