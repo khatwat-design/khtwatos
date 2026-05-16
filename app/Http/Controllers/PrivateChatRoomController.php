@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\PrivateChatMessage;
 use App\Models\PrivateChatRoom;
 use App\Models\User;
+use App\Models\ChatMentionRead;
 use App\Services\ChatMentionService;
+use App\Services\ChatMentionUnreadService;
 use App\Services\ChatReadReceiptService;
 use App\Services\ChatUnreadService;
 use App\Services\SmartNotificationService;
@@ -24,6 +26,7 @@ class PrivateChatRoomController extends Controller
         private readonly ChatUnreadService $chatUnread,
         private readonly ChatReadReceiptService $readReceipts,
         private readonly ChatMentionService $chatMentions,
+        private readonly ChatMentionUnreadService $mentionUnread,
     ) {}
 
     public function store(Request $request): RedirectResponse
@@ -165,7 +168,7 @@ class PrivateChatRoomController extends Controller
         return ChatStoreResponse::created(
             $request,
             $enriched ?? $message->toChatArray(),
-            $this->chatUnread->fullUnreadPayload($user),
+            $this->chatApiPayload($user, ChatMentionRead::CONTEXT_PRIVATE_ROOM, (int) $privateChatRoom->id),
         );
     }
 
@@ -175,36 +178,56 @@ class PrivateChatRoomController extends Controller
 
         $data = $request->validate([
             'after_id' => ['nullable', 'integer', 'min:0'],
+            'around_message_id' => ['nullable', 'integer', 'min:1'],
         ]);
 
+        $roomId = (int) $privateChatRoom->id;
         $query = PrivateChatMessage::query()
             ->with(['user:id,name,avatar_path', 'replyTo.user:id,name', 'mentions.user:id,name,username'])
-            ->where('private_chat_room_id', $privateChatRoom->id)
+            ->where('private_chat_room_id', $roomId)
             ->orderBy('id');
 
-        if (! empty($data['after_id'])) {
+        if (! empty($data['around_message_id'])) {
+            $anchor = (int) $data['around_message_id'];
+            $query->where('id', '>=', max(1, $anchor - 100))->limit(220);
+        } elseif (! empty($data['after_id'])) {
             $query->where('id', '>', (int) $data['after_id']);
         } else {
             $query->latest()->limit(150);
         }
 
         $rows = $query->get();
-        if (empty($data['after_id'])) {
+        if (empty($data['after_id']) && empty($data['around_message_id'])) {
             $rows = $rows->reverse()->values();
         }
 
-        $this->chatUnread->markPrivateRoomAsRead($request, (int) $privateChatRoom->id);
+        if (empty($data['around_message_id'])) {
+            $this->chatUnread->markPrivateRoomAsRead($request, $roomId);
+        }
 
         $viewerId = (int) $request->user()->id;
-        $enriched = $this->readReceipts->enrichPrivateRoomMessages(
-            $rows,
-            (int) $privateChatRoom->id,
-            $viewerId,
-        );
+        $enriched = $this->readReceipts->enrichPrivateRoomMessages($rows, $roomId, $viewerId);
 
         return response()->json(array_merge([
             'messages' => $enriched->values(),
-        ], $this->chatUnread->fullUnreadPayload($request->user())));
+        ], $this->chatApiPayload($request->user(), ChatMentionRead::CONTEXT_PRIVATE_ROOM, $roomId)));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chatApiPayload($user, ?string $activeContextType = null, ?int $activeContextId = null): array
+    {
+        $payload = array_merge(
+            $this->chatUnread->fullUnreadPayload($user),
+            $this->mentionUnread->summaryPayload($user),
+        );
+
+        if ($user && $activeContextType && $activeContextId) {
+            $payload['mentionInbox'] = $this->mentionUnread->inboxForContext($user, $activeContextType, $activeContextId);
+        }
+
+        return $payload;
     }
 
     private function assertMember(PrivateChatRoom $room, ?User $user): void

@@ -128,3 +128,15 @@ export function mentionHintForUser(user) {
 
     return 'منشن بالاسم';
 }
+
+/**
+ * @param {{ mentions?: Array<{ id?: number }> }} message
+ * @param {number|null|undefined} viewerId
+ */
+export function messageMentionsViewer(message, viewerId) {
+    if (!viewerId || !message?.mentions?.length) {
+        return false;
+    }
+
+    return message.mentions.some((m) => Number(m?.id) === Number(viewerId));
+}

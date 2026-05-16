@@ -9,6 +9,7 @@ use App\Models\DirectConversation;
 use App\Models\DirectMessage;
 use App\Models\PrivateChatMessage;
 use App\Models\PrivateChatRoom;
+use App\Models\ChatMentionRead;
 use App\Models\Team;
 use App\Models\TeamChatMessage;
 use App\Models\TeamChatTypingState;
@@ -18,6 +19,7 @@ use App\Services\ChatReadReceiptService;
 use App\Services\ChatUnreadService;
 use App\Services\SmartNotificationService;
 use App\Services\ChatMentionService;
+use App\Services\ChatMentionUnreadService;
 use App\Services\TeamChatMemberService;
 use App\Support\ChatAttachmentRules;
 use App\Support\ChatReplyResolver;
@@ -41,6 +43,7 @@ class TeamChatController extends Controller
         private readonly ChatReadReceiptService $readReceipts,
         private readonly TeamChatMemberService $teamChatMembers,
         private readonly ChatMentionService $chatMentions,
+        private readonly ChatMentionUnreadService $mentionUnread,
     ) {}
 
     public function index(Request $request): Response
@@ -164,7 +167,7 @@ class TeamChatController extends Controller
             $selectedDirect,
         );
 
-        $chatUnreadPayload = $this->chatUnread->fullUnreadPayload($user);
+        $chatUnreadPayload = $this->chatApiPayload($user);
 
         $teamLastChatAt = $this->lastTeamChatMessageAtByTeamId();
 
@@ -209,6 +212,7 @@ class TeamChatController extends Controller
                 $selectedPrivateRoom,
                 $selectedDirect,
             ),
+            'mentionInbox' => $this->activeMentionInbox($user, $viewKind, $selectedTeam, $selectedPrivateRoom, $selectedDirect),
         ]);
     }
 
@@ -286,13 +290,13 @@ class TeamChatController extends Controller
         return ChatStoreResponse::created(
             $request,
             $enriched ?? $message->toChatArray(),
-            $this->chatUnread->fullUnreadPayload($request->user()),
+            $this->chatApiPayload($request->user()),
         );
     }
 
     public function unreadSummary(Request $request): JsonResponse
     {
-        return response()->json($this->chatUnread->fullUnreadPayload($request->user()));
+        return response()->json($this->chatApiPayload($request->user()));
     }
 
     public function messages(Request $request): JsonResponse
@@ -300,6 +304,7 @@ class TeamChatController extends Controller
         $data = $request->validate([
             'team_id' => ['required', 'exists:teams,id'],
             'after_id' => ['nullable', 'integer', 'min:0'],
+            'around_message_id' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $teamId = (int) $data['team_id'];
@@ -313,24 +318,29 @@ class TeamChatController extends Controller
             ->where('team_id', $teamId)
             ->orderBy('id');
 
-        if (! empty($data['after_id'])) {
+        if (! empty($data['around_message_id'])) {
+            $anchor = (int) $data['around_message_id'];
+            $query->where('id', '>=', max(1, $anchor - 100))->limit(220);
+        } elseif (! empty($data['after_id'])) {
             $query->where('id', '>', (int) $data['after_id']);
         } else {
             $query->latest()->limit(150);
         }
 
         $rows = $query->get();
-        if (empty($data['after_id'])) {
+        if (empty($data['after_id']) && empty($data['around_message_id'])) {
             $rows = $rows->reverse()->values();
         }
-        $this->chatUnread->markTeamAsRead($request, $teamId);
+        if (empty($data['around_message_id'])) {
+            $this->chatUnread->markTeamAsRead($request, $teamId);
+        }
 
         $userId = (int) $request->user()->id;
         $enriched = $this->readReceipts->enrichTeamMessages($rows, $teamId, $userId);
 
         return response()->json(array_merge([
             'messages' => $enriched->values(),
-        ], $this->chatUnread->fullUnreadPayload($request->user())));
+        ], $this->chatApiPayload($request->user(), ChatMentionRead::CONTEXT_TEAM, $teamId)));
     }
 
     public function readReceipts(Request $request): JsonResponse
@@ -605,6 +615,60 @@ class TeamChatController extends Controller
     /**
      * @return list<array{id: int, name: string, username: string}>
      */
+    /**
+     * @return array<string, mixed>
+     */
+    private function chatApiPayload(?User $user, ?string $activeContextType = null, ?int $activeContextId = null): array
+    {
+        $payload = array_merge(
+            $this->chatUnread->fullUnreadPayload($user),
+            $this->mentionUnread->summaryPayload($user),
+        );
+
+        if ($user && $activeContextType && $activeContextId) {
+            $payload['mentionInbox'] = $this->mentionUnread->inboxForContext($user, $activeContextType, $activeContextId);
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @return array{count: int, message_ids: list<int>, first_message_id: int|null}
+     */
+    private function activeMentionInbox(
+        ?User $user,
+        string $viewKind,
+        ?Team $selectedTeam,
+        ?array $selectedPrivateRoom,
+        ?array $selectedDirect,
+    ): array {
+        if (! $user) {
+            return ['count' => 0, 'message_ids' => [], 'first_message_id' => null];
+        }
+
+        if ($viewKind === 'team' && $selectedTeam) {
+            return $this->mentionUnread->inboxForContext($user, ChatMentionRead::CONTEXT_TEAM, (int) $selectedTeam->id);
+        }
+
+        if ($viewKind === 'private_room' && $selectedPrivateRoom) {
+            return $this->mentionUnread->inboxForContext(
+                $user,
+                ChatMentionRead::CONTEXT_PRIVATE_ROOM,
+                (int) $selectedPrivateRoom['id'],
+            );
+        }
+
+        if ($viewKind === 'direct' && $selectedDirect) {
+            return $this->mentionUnread->inboxForContext(
+                $user,
+                ChatMentionRead::CONTEXT_DIRECT,
+                (int) $selectedDirect['id'],
+            );
+        }
+
+        return ['count' => 0, 'message_ids' => [], 'first_message_id' => null];
+    }
+
     private function resolveMentionableUsers(
         string $viewKind,
         ?Team $selectedTeam,

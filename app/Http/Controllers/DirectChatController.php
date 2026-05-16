@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\DirectConversation;
 use App\Models\DirectMessage;
 use App\Models\User;
+use App\Models\ChatMentionRead;
 use App\Services\ChatMentionService;
+use App\Services\ChatMentionUnreadService;
 use App\Services\ChatReadReceiptService;
 use App\Services\ChatUnreadService;
 use App\Services\SmartNotificationService;
@@ -23,6 +25,7 @@ class DirectChatController extends Controller
         private readonly ChatUnreadService $chatUnread,
         private readonly ChatReadReceiptService $readReceipts,
         private readonly ChatMentionService $chatMentions,
+        private readonly ChatMentionUnreadService $mentionUnread,
     ) {}
 
     public function open(Request $request): RedirectResponse
@@ -126,7 +129,7 @@ class DirectChatController extends Controller
         return ChatStoreResponse::created(
             $request,
             $enriched ?? $message->toChatArray((int) $user->id),
-            $this->chatUnread->fullUnreadPayload($user),
+            $this->chatApiPayload($user, ChatMentionRead::CONTEXT_DIRECT, $conversationId),
         );
     }
 
@@ -136,36 +139,56 @@ class DirectChatController extends Controller
 
         $data = $request->validate([
             'after_id' => ['nullable', 'integer', 'min:0'],
+            'around_message_id' => ['nullable', 'integer', 'min:1'],
         ]);
 
+        $conversationId = (int) $directConversation->id;
         $query = DirectMessage::query()
             ->with(['user:id,name,avatar_path', 'replyTo.user:id,name', 'employeeCall', 'mentions.user:id,name,username'])
-            ->where('direct_conversation_id', $directConversation->id)
+            ->where('direct_conversation_id', $conversationId)
             ->orderBy('id');
 
-        if (! empty($data['after_id'])) {
+        if (! empty($data['around_message_id'])) {
+            $anchor = (int) $data['around_message_id'];
+            $query->where('id', '>=', max(1, $anchor - 100))->limit(220);
+        } elseif (! empty($data['after_id'])) {
             $query->where('id', '>', (int) $data['after_id']);
         } else {
             $query->latest()->limit(150);
         }
 
         $rows = $query->get();
-        if (empty($data['after_id'])) {
+        if (empty($data['after_id']) && empty($data['around_message_id'])) {
             $rows = $rows->reverse()->values();
         }
 
-        $this->chatUnread->markDirectAsRead($request, (int) $directConversation->id);
+        if (empty($data['around_message_id'])) {
+            $this->chatUnread->markDirectAsRead($request, $conversationId);
+        }
 
         $viewerId = (int) $request->user()->id;
-        $enriched = $this->readReceipts->enrichDirectMessages(
-            $rows,
-            (int) $directConversation->id,
-            $viewerId,
-        );
+        $enriched = $this->readReceipts->enrichDirectMessages($rows, $conversationId, $viewerId);
 
         return response()->json(array_merge([
             'messages' => $enriched->values(),
-        ], $this->chatUnread->fullUnreadPayload($request->user())));
+        ], $this->chatApiPayload($request->user(), ChatMentionRead::CONTEXT_DIRECT, $conversationId)));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chatApiPayload($user, ?string $activeContextType = null, ?int $activeContextId = null): array
+    {
+        $payload = array_merge(
+            $this->chatUnread->fullUnreadPayload($user),
+            $this->mentionUnread->summaryPayload($user),
+        );
+
+        if ($user && $activeContextType && $activeContextId) {
+            $payload['mentionInbox'] = $this->mentionUnread->inboxForContext($user, $activeContextType, $activeContextId);
+        }
+
+        return $payload;
     }
 
     private function assertParticipant(DirectConversation $conversation, ?User $user): void

@@ -8,6 +8,7 @@ import ChatCallLogRow from '@/Components/Chat/ChatCallLogRow.vue';
 import TeamChatMessageRow from '@/Components/Chat/TeamChatMessageRow.vue';
 import ChatReplyBar from '@/Components/Chat/ChatReplyBar.vue';
 import ChatStickerPicker from '@/Components/Chat/ChatStickerPicker.vue';
+import ChatMentionJumpButton from '@/Components/Chat/ChatMentionJumpButton.vue';
 import ChatTeamMembersModal from '@/Components/Chat/ChatTeamMembersModal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputError from '@/Components/InputError.vue';
@@ -18,6 +19,7 @@ import { useEmployeeCall } from '@/composables/useEmployeeCall.js';
 import { useChatImmersiveViewport } from '@/composables/useChatImmersiveViewport.js';
 import { chatMobileChromeHidden } from '@/state/chatMobileChrome.js';
 import { CHAT_MOBILE_MEDIA, isChatMobileViewport } from '@/utils/chatMobileViewport.js';
+import { messageMentionsViewer } from '@/utils/chatMentions.js';
 import { buildOptimisticAttachment, isVoiceFile } from '@/utils/chatVoiceAttachment.js';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -39,6 +41,10 @@ const props = defineProps({
     canManageTeamChatMembers: { type: Boolean, default: false },
     selectedTeamChatMembers: { type: Array, default: () => [] },
     mentionableUsers: { type: Array, default: () => [] },
+    mentionInbox: {
+        type: Object,
+        default: () => ({ count: 0, message_ids: [], first_message_id: null }),
+    },
 });
 const page = usePage();
 
@@ -47,7 +53,25 @@ function normalizeChatUnreadPayload(bundle = {}) {
         unreadCounts: { ...(bundle.unreadCounts || {}) },
         privateRoomUnreadCounts: { ...(bundle.privateRoomUnreadCounts || {}) },
         directUnreadCounts: { ...(bundle.directUnreadCounts || {}) },
+        teamMentionUnreadCounts: { ...(bundle.teamMentionUnreadCounts || {}) },
+        privateRoomMentionUnreadCounts: { ...(bundle.privateRoomMentionUnreadCounts || {}) },
+        directMentionUnreadCounts: { ...(bundle.directMentionUnreadCounts || {}) },
         totalUnreadMessages: Number(bundle.totalUnreadMessages ?? 0),
+    };
+}
+
+function normalizeMentionInbox(data = {}) {
+    const messageIds = Array.isArray(data.message_ids)
+        ? data.message_ids.map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0)
+        : [];
+
+    return {
+        count: Number(data.count ?? messageIds.length ?? 0),
+        message_ids: messageIds,
+        first_message_id:
+            data.first_message_id != null && Number(data.first_message_id) > 0
+                ? Number(data.first_message_id)
+                : messageIds[0] ?? null,
     };
 }
 
@@ -123,6 +147,8 @@ const chatUnreadState = ref(
         unreadCounts: props.chatUnread?.unreadCounts ?? props.unreadCounts ?? {},
     }),
 );
+const mentionInboxState = ref(normalizeMentionInbox(props.mentionInbox || {}));
+const mentionJumpLoading = ref(false);
 const messagesContainerRef = ref(null);
 const typingUsers = ref([]);
 const searchTerm = ref('');
@@ -215,24 +241,43 @@ const chatNotificationsList = ref([]);
 const chatNotificationsUnread = ref(Number(page.props.notifications?.chat_notifications_unread || 0));
 
 function mergeChatUnreadFromResponse(data) {
+    mergeChatPayloadFromResponse(data);
+}
+
+function mergeChatPayloadFromResponse(data) {
     if (!data || typeof data !== 'object') {
         return;
     }
-    if (
-        data.unreadCounts == null &&
-        data.privateRoomUnreadCounts == null &&
-        data.directUnreadCounts == null &&
-        data.totalUnreadMessages == null
-    ) {
-        return;
+
+    const hasUnread =
+        data.unreadCounts != null ||
+        data.privateRoomUnreadCounts != null ||
+        data.directUnreadCounts != null ||
+        data.totalUnreadMessages != null ||
+        data.teamMentionUnreadCounts != null ||
+        data.privateRoomMentionUnreadCounts != null ||
+        data.directMentionUnreadCounts != null;
+
+    if (hasUnread) {
+        chatUnreadState.value = normalizeChatUnreadPayload({
+            unreadCounts: data.unreadCounts ?? chatUnreadState.value.unreadCounts,
+            privateRoomUnreadCounts:
+                data.privateRoomUnreadCounts ?? chatUnreadState.value.privateRoomUnreadCounts,
+            directUnreadCounts: data.directUnreadCounts ?? chatUnreadState.value.directUnreadCounts,
+            teamMentionUnreadCounts:
+                data.teamMentionUnreadCounts ?? chatUnreadState.value.teamMentionUnreadCounts,
+            privateRoomMentionUnreadCounts:
+                data.privateRoomMentionUnreadCounts ??
+                chatUnreadState.value.privateRoomMentionUnreadCounts,
+            directMentionUnreadCounts:
+                data.directMentionUnreadCounts ?? chatUnreadState.value.directMentionUnreadCounts,
+            totalUnreadMessages: data.totalUnreadMessages ?? chatUnreadState.value.totalUnreadMessages,
+        });
     }
-    chatUnreadState.value = normalizeChatUnreadPayload({
-        unreadCounts: data.unreadCounts ?? chatUnreadState.value.unreadCounts,
-        privateRoomUnreadCounts:
-            data.privateRoomUnreadCounts ?? chatUnreadState.value.privateRoomUnreadCounts,
-        directUnreadCounts: data.directUnreadCounts ?? chatUnreadState.value.directUnreadCounts,
-        totalUnreadMessages: data.totalUnreadMessages ?? chatUnreadState.value.totalUnreadMessages,
-    });
+
+    if (data.mentionInbox != null) {
+        mentionInboxState.value = normalizeMentionInbox(data.mentionInbox);
+    }
 }
 
 async function pullUnreadSummary() {
@@ -1094,6 +1139,7 @@ function subscribeTeamEcho() {
             } else {
                 messagesState.value[idx] = mergeMessageRow(messagesState.value[idx], msg);
             }
+            bumpMentionInboxForMessage(msg);
             if (snap) {
                 nextTick(() => scrollToBottom());
             }
@@ -1312,6 +1358,178 @@ function directUnreadCount(conversationId) {
     }
     return Number(chatUnreadState.value.directUnreadCounts?.[conversationId] || 0);
 }
+
+function teamMentionUnreadCount(teamId) {
+    return Number(chatUnreadState.value.teamMentionUnreadCounts?.[teamId] || 0);
+}
+
+function privateRoomMentionUnreadCount(roomId) {
+    return Number(chatUnreadState.value.privateRoomMentionUnreadCounts?.[roomId] || 0);
+}
+
+function directMentionUnreadCount(conversationId) {
+    if (!conversationId) {
+        return 0;
+    }
+    return Number(chatUnreadState.value.directMentionUnreadCounts?.[conversationId] || 0);
+}
+
+function activeChatContext() {
+    if (props.viewKind === 'team' && props.selectedTeam?.id) {
+        return { type: 'team', id: Number(props.selectedTeam.id) };
+    }
+    if (props.viewKind === 'private_room' && props.selectedPrivateRoom?.id) {
+        return { type: 'private_room', id: Number(props.selectedPrivateRoom.id) };
+    }
+    if (props.viewKind === 'direct' && props.selectedDirect?.id) {
+        return { type: 'direct', id: Number(props.selectedDirect.id) };
+    }
+    return null;
+}
+
+function bumpMentionInboxForMessage(msg) {
+    if (!messageMentionsViewer(msg, currentUserId.value) || isMine(msg)) {
+        return;
+    }
+
+    const messageId = Number(msg?.id);
+    if (!Number.isFinite(messageId) || messageId <= 0) {
+        return;
+    }
+
+    const ids = [...(mentionInboxState.value.message_ids || [])];
+    if (!ids.includes(messageId)) {
+        ids.push(messageId);
+        ids.sort((a, b) => a - b);
+    }
+
+    mentionInboxState.value = {
+        count: ids.length,
+        message_ids: ids,
+        first_message_id: mentionInboxState.value.first_message_id || messageId,
+    };
+
+    const ctx = activeChatContext();
+    if (!ctx) {
+        return;
+    }
+
+    const key =
+        ctx.type === 'team'
+            ? 'teamMentionUnreadCounts'
+            : ctx.type === 'private_room'
+              ? 'privateRoomMentionUnreadCounts'
+              : 'directMentionUnreadCounts';
+
+    const map = { ...(chatUnreadState.value[key] || {}) };
+    map[ctx.id] = (Number(map[ctx.id]) || 0) + 1;
+    chatUnreadState.value = { ...chatUnreadState.value, [key]: map };
+}
+
+async function acknowledgeMentionUpTo(messageId) {
+    const ctx = activeChatContext();
+    const upTo = Number(messageId);
+    if (!ctx || !Number.isFinite(upTo) || upTo <= 0) {
+        return;
+    }
+
+    try {
+        const res = await window.axios.post(
+            route('chat.mentions.acknowledge'),
+            {
+                context_type: ctx.type,
+                context_id: ctx.id,
+                up_to_message_id: upTo,
+            },
+            { headers: { Accept: 'application/json' } },
+        );
+        mergeChatPayloadFromResponse(res?.data);
+    } catch {
+        /* تجاهل */
+    }
+}
+
+async function scrollToMessage(messageId) {
+    await nextTick();
+    const container = messagesContainerRef.value;
+    if (!container) {
+        return false;
+    }
+
+    const el = container.querySelector(`[data-message-id="${messageId}"]`);
+    if (!el) {
+        return false;
+    }
+
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.classList.add('chat-mention-flash');
+    window.setTimeout(() => el.classList.remove('chat-mention-flash'), 2200);
+    return true;
+}
+
+async function fetchMessagesAround(messageId) {
+    const anchor = Number(messageId);
+    if (!Number.isFinite(anchor) || anchor <= 0) {
+        return;
+    }
+
+    if (props.viewKind === 'team' && props.selectedTeam?.id) {
+        const res = await window.axios.get(route('chat.messages.index'), {
+            params: { team_id: props.selectedTeam.id, around_message_id: anchor },
+            headers: { Accept: 'application/json' },
+        });
+        messagesState.value = res?.data?.messages || [];
+        mergeChatPayloadFromResponse(res?.data);
+        return;
+    }
+
+    if (props.viewKind === 'private_room' && props.selectedPrivateRoom?.id) {
+        const res = await window.axios.get(
+            route('chat.private-rooms.messages.index', props.selectedPrivateRoom.id),
+            {
+                params: { around_message_id: anchor },
+                headers: { Accept: 'application/json' },
+            },
+        );
+        messagesState.value = res?.data?.messages || [];
+        mergeChatPayloadFromResponse(res?.data);
+        return;
+    }
+
+    if (props.viewKind === 'direct' && props.selectedDirect?.id) {
+        const res = await window.axios.get(route('chat.direct.messages.index', props.selectedDirect.id), {
+            params: { around_message_id: anchor },
+            headers: { Accept: 'application/json' },
+        });
+        messagesState.value = res?.data?.messages || [];
+        mergeChatPayloadFromResponse(res?.data);
+    }
+}
+
+async function jumpToUnreadMention() {
+    const targetId = mentionInboxState.value.first_message_id;
+    if (!targetId || mentionJumpLoading.value) {
+        return;
+    }
+
+    mentionJumpLoading.value = true;
+    try {
+        let found = await scrollToMessage(targetId);
+        if (!found) {
+            await fetchMessagesAround(targetId);
+            found = await scrollToMessage(targetId);
+        }
+        if (found) {
+            await acknowledgeMentionUpTo(targetId);
+        }
+    } finally {
+        mentionJumpLoading.value = false;
+    }
+}
+
+const showMentionJumpButton = computed(
+    () => hasActiveConversation.value && Number(mentionInboxState.value.count) > 0,
+);
 
 function isMine(msg) {
     return Number(msg.user?.id) === Number(currentUserId.value);
@@ -1861,8 +2079,17 @@ watch(
     () => {
         messagesState.value = [...(props.messages || [])];
         pendingMessages.value = [];
+        mentionInboxState.value = normalizeMentionInbox(props.mentionInbox || {});
     },
     { immediate: true },
+);
+
+watch(
+    () => props.mentionInbox,
+    (inbox) => {
+        mentionInboxState.value = normalizeMentionInbox(inbox || {});
+    },
+    { deep: true },
 );
 
 watch(
@@ -2082,11 +2309,23 @@ watch(
                                                 }}
                                             </div>
                                             <span
+                                                v-if="item.kind === 'team' && teamMentionUnreadCount(item.team.id) > 0"
+                                                class="absolute -top-0.5 -start-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-sky-500 text-[10px] font-bold leading-none text-white shadow-md"
+                                                aria-hidden="true"
+                                                title="منشن غير مقروء"
+                                            >@</span>
+                                            <span
                                                 v-if="item.kind === 'team' && teamUnreadCount(item.team.id) > 0"
                                                 class="absolute -bottom-1 -end-1 flex h-6 min-w-[1.25rem] items-center justify-center rounded-full border-2 border-white bg-brand-600 px-1 text-[10px] font-bold text-white shadow-md"
                                             >
                                                 {{ teamUnreadCount(item.team.id) > 99 ? '99+' : teamUnreadCount(item.team.id) }}
                                             </span>
+                                            <span
+                                                v-if="item.kind === 'private_room' && privateRoomMentionUnreadCount(item.room.id) > 0"
+                                                class="absolute -top-0.5 -start-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-sky-500 text-[10px] font-bold leading-none text-white shadow-md"
+                                                aria-hidden="true"
+                                                title="منشن غير مقروء"
+                                            >@</span>
                                             <span
                                                 v-if="item.kind === 'private_room' && privateRoomUnreadCount(item.room.id) > 0"
                                                 class="absolute -bottom-1 -end-1 flex h-6 min-w-[1.25rem] items-center justify-center rounded-full border-2 border-white bg-brand-600 px-1 text-[10px] font-bold text-white shadow-md"
@@ -2097,6 +2336,16 @@ watch(
                                                         : privateRoomUnreadCount(item.room.id)
                                                 }}
                                             </span>
+                                            <span
+                                                v-if="
+                                                    item.kind === 'direct' &&
+                                                    item.peer.conversation_id &&
+                                                    directMentionUnreadCount(item.peer.conversation_id) > 0
+                                                "
+                                                class="absolute -top-0.5 -start-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-sky-500 text-[10px] font-bold leading-none text-white shadow-md"
+                                                aria-hidden="true"
+                                                title="منشن غير مقروء"
+                                            >@</span>
                                             <span
                                                 v-if="
                                                     item.kind === 'direct' &&
@@ -2170,6 +2419,12 @@ watch(
                                         {{ userInitial(room.name) }}
                                     </div>
                                     <span
+                                        v-if="privateRoomMentionUnreadCount(room.id) > 0"
+                                        class="absolute -top-0.5 -start-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-sky-500 text-[10px] font-bold leading-none text-white shadow-md"
+                                        aria-hidden="true"
+                                        title="منشن غير مقروء"
+                                    >@</span>
+                                    <span
                                         v-if="privateRoomUnreadCount(room.id) > 0"
                                         class="absolute -bottom-1 -end-1 flex h-6 min-w-[1.25rem] items-center justify-center rounded-full border-2 border-white bg-brand-600 px-1 text-[10px] font-bold text-white shadow-md"
                                     >
@@ -2218,6 +2473,15 @@ watch(
                                                 gradient-class="from-emerald-600 to-teal-800"
                                                 text-class="text-sm"
                                             />
+                                            <span
+                                                v-if="
+                                                    peer.conversation_id &&
+                                                    directMentionUnreadCount(peer.conversation_id) > 0
+                                                "
+                                                class="absolute -top-0.5 -start-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-sky-500 text-[10px] font-bold leading-none text-white shadow-md"
+                                                aria-hidden="true"
+                                                title="منشن غير مقروء"
+                                            >@</span>
                                             <span
                                                 v-if="
                                                     peer.conversation_id && directUnreadCount(peer.conversation_id) > 0
@@ -2439,34 +2703,44 @@ watch(
                                     {{ item.label }}
                                 </span>
                             </div>
-                            <ChatCallLogRow
+                            <div
                                 v-else-if="item.msg?.kind === 'call'"
-                                :msg="item.msg"
-                                :is-mine="isMine(item.msg)"
-                                :show-sender="showSenderHeader(item.msg, messageIndexForTimeline(item.msg))"
-                                :self-avatar-url="selfAvatarUrl"
-                                :self-name="selfName"
-                            />
-                            <TeamChatMessageRow
+                                :data-message-id="item.msg.id"
+                                class="mention-scroll-target"
+                            >
+                                <ChatCallLogRow
+                                    :msg="item.msg"
+                                    :is-mine="isMine(item.msg)"
+                                    :show-sender="showSenderHeader(item.msg, messageIndexForTimeline(item.msg))"
+                                    :self-avatar-url="selfAvatarUrl"
+                                    :self-name="selfName"
+                                />
+                            </div>
+                            <div
                                 v-else
-                                :msg="item.msg"
-                                :resolve-sticker-url="resolveStickerUrl"
-                                :is-mine="isMine(item.msg)"
-                                :view-kind="viewKind"
-                                :show-sender="showSenderHeader(item.msg, messageIndexForTimeline(item.msg))"
-                                :can-manage="canManageMessage(item.msg)"
-                                :is-editing="editingMessageId === item.msg.id"
-                                v-model:editing-body="editingBody"
-                                :self-avatar-url="selfAvatarUrl"
-                                :self-name="selfName"
-                                @save-edit="saveEdit(item.msg)"
-                                @cancel-edit="cancelEdit"
-                                @start-edit="startEdit(item.msg)"
-                                @remove="removeMessage(item.msg)"
-                                @open-media="openMediaLightbox"
-                                @open-actions="openMessageActions"
-                                @reply="startReply"
-                            />
+                                :data-message-id="item.msg.id"
+                                class="mention-scroll-target"
+                            >
+                                <TeamChatMessageRow
+                                    :msg="item.msg"
+                                    :resolve-sticker-url="resolveStickerUrl"
+                                    :is-mine="isMine(item.msg)"
+                                    :view-kind="viewKind"
+                                    :show-sender="showSenderHeader(item.msg, messageIndexForTimeline(item.msg))"
+                                    :can-manage="canManageMessage(item.msg)"
+                                    :is-editing="editingMessageId === item.msg.id"
+                                    v-model:editing-body="editingBody"
+                                    :self-avatar-url="selfAvatarUrl"
+                                    :self-name="selfName"
+                                    @save-edit="saveEdit(item.msg)"
+                                    @cancel-edit="cancelEdit"
+                                    @start-edit="startEdit(item.msg)"
+                                    @remove="removeMessage(item.msg)"
+                                    @open-media="openMediaLightbox"
+                                    @open-actions="openMessageActions"
+                                    @reply="startReply"
+                                />
+                            </div>
                             </template>
 
                             <p
@@ -2478,6 +2752,16 @@ watch(
                             </p>
                         </div>
 
+                            <div
+                                v-if="showMentionJumpButton"
+                                class="pointer-events-none absolute bottom-4 end-4 z-20 flex justify-end"
+                            >
+                                <ChatMentionJumpButton
+                                    class="pointer-events-auto"
+                                    :count="mentionInboxState.count"
+                                    @click="jumpToUnreadMention"
+                                />
+                            </div>
                         </div>
 
                         <ChatReplyBar v-if="replyTo" :reply="replyTo" @clear="clearReply" />
@@ -2721,6 +3005,21 @@ watch(
 
 .team-chat-messages {
     scroll-behavior: smooth;
+}
+
+.team-chat-messages :deep(.chat-mention-flash) {
+    animation: chat-mention-flash 2.2s ease-out;
+}
+
+@keyframes chat-mention-flash {
+    0%,
+    35% {
+        box-shadow: 0 0 0 3px rgb(14 165 233 / 0.45);
+        border-radius: 1rem;
+    }
+    100% {
+        box-shadow: none;
+    }
 }
 
 </style>

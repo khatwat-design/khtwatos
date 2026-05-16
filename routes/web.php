@@ -130,6 +130,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/chat/direct/{directConversation}/messages', [DirectChatController::class, 'storeMessage'])->name('chat.direct.messages.store');
     Route::get('/chat/direct/{directConversation}/messages', [DirectChatController::class, 'messages'])->name('chat.direct.messages.index');
     Route::get('/chat/unread-summary', [TeamChatController::class, 'unreadSummary'])->name('chat.unread-summary');
+    Route::post('/chat/mentions/acknowledge', [\App\Http\Controllers\ChatMentionController::class, 'acknowledge'])->name('chat.mentions.acknowledge');
     Route::get('/chat/notifications-feed', [ChatNotificationsController::class, 'index'])->name('chat.notifications.index');
     Route::post('/chat/notifications-feed/read-all', [ChatNotificationsController::class, 'markAllRead'])->name('chat.notifications.read-all');
     Route::get('/outside', [OutsideController::class, 'index'])->name('outside.index');
