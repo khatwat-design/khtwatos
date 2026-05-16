@@ -561,23 +561,23 @@ class TaskController extends Controller
             'note' => ['nullable', 'string', 'max:500'],
         ]);
 
+        $newAssigneeId = (int) $data['assigned_to_id'];
+
         $task->reassignments()->create([
             'assigned_by_id' => $request->user()->id,
-            'assigned_to_id' => (int) $data['assigned_to_id'],
+            'assigned_to_id' => $newAssigneeId,
             'due_at' => $data['due_at'] ?? null,
             'note' => isset($data['note']) ? trim($data['note']) : null,
         ]);
 
-        $assigneeIds = $task->assignees()->pluck('users.id')->all();
-        $assigneeIds[] = (int) $data['assigned_to_id'];
-        $assigneeIds = array_values(array_unique(array_map('intval', $assigneeIds)));
-
-        $task->assignees()->sync($assigneeIds);
-        $task->assignee_id = $assigneeIds[0] ?? $task->assignee_id;
+        $task->assignees()->sync([$newAssigneeId]);
+        $task->assignee_id = $newAssigneeId;
         if (! empty($data['due_at'])) {
             $task->due_at = $data['due_at'];
         }
         $task->save();
+
+        $this->smartNotifications->notifyTaskAssigned($task->fresh(['assignees']), $request->user()?->id);
 
         return redirect()->back();
     }

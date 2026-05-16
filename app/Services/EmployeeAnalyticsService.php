@@ -519,39 +519,30 @@ class EmployeeAnalyticsService
             ? BoardColumn::query()->whereIn('name', $doneColumnNames)->pluck('id')->all()
             : [];
 
-        $query = Task::query()
-            ->select('assignee_id', DB::raw('COUNT(*) as cnt'))
-            ->whereIn('assignee_id', $userIds);
-
-        if (Schema::hasColumn('tasks', 'archived_at')) {
-            $query->whereNull('archived_at');
-        }
-        if (! empty($doneColumnIds)) {
-            $query->whereNotIn('board_column_id', $doneColumnIds);
-        }
-
-        $counts = $query->groupBy('assignee_id')->get()->keyBy('assignee_id');
-
-        $overdueQuery = Task::query()
-            ->select('assignee_id', DB::raw('COUNT(*) as cnt'))
-            ->whereIn('assignee_id', $userIds)
-            ->whereNotNull('due_at')
-            ->where('due_at', '<', Carbon::now());
-
-        if (Schema::hasColumn('tasks', 'archived_at')) {
-            $overdueQuery->whereNull('archived_at');
-        }
-        if (! empty($doneColumnIds)) {
-            $overdueQuery->whereNotIn('board_column_id', $doneColumnIds);
-        }
-
-        $overdue = $overdueQuery->groupBy('assignee_id')->get()->keyBy('assignee_id');
-
         $result = [];
         foreach ($userIds as $uid) {
+            $base = Task::query()
+                ->where(function ($q) use ($uid) {
+                    $q->where('assignee_id', $uid)
+                        ->orWhereHas('assignees', function ($sub) use ($uid) {
+                            $sub->where('users.id', $uid);
+                        });
+                });
+
+            if (Schema::hasColumn('tasks', 'archived_at')) {
+                $base->whereNull('archived_at');
+            }
+            if (! empty($doneColumnIds)) {
+                $base->whereNotIn('board_column_id', $doneColumnIds);
+            }
+
+            $overdueQuery = (clone $base)
+                ->whereNotNull('due_at')
+                ->where('due_at', '<', Carbon::now());
+
             $result[$uid] = [
-                'count' => (int) ($counts[$uid]->cnt ?? 0),
-                'overdue' => (int) ($overdue[$uid]->cnt ?? 0),
+                'count' => $base->count(),
+                'overdue' => $overdueQuery->count(),
             ];
         }
 
