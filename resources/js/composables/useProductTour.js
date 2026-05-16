@@ -1,4 +1,5 @@
 import { buildTourSteps } from '@/data/productTours/steps.js';
+import { pickTourElement } from '@/utils/productTourDom.js';
 import { router, usePage } from '@inertiajs/vue3';
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
@@ -22,18 +23,17 @@ function waitMs(ms) {
 
 function resolveSteps(tourId, page) {
     const tours = page.props.product_tours || {};
-    const isAdminHome = Boolean(page.props.auth?.can?.viewAdminHome);
 
-    return buildTourSteps(tourId, {
+    const raw = buildTourSteps(tourId, {
         personaLabel: tours.persona_label,
-        isAdminHome,
-    }).filter((s) => {
+    });
+
+    return raw.filter((s) => {
         if (!s.element) {
             return true;
         }
         try {
-            const el =
-                typeof s.element === 'function' ? s.element() : document.querySelector(s.element);
+            const el = typeof s.element === 'function' ? s.element() : pickTourElement(s.element);
             return Boolean(el);
         } catch {
             return false;
@@ -57,12 +57,7 @@ export function useProductTour() {
     }
 
     async function persistTour(tourId, action) {
-        const routeName =
-            action === 'skip'
-                ? 'product-tours.skip'
-                : action === 'completed'
-                  ? 'product-tours.complete'
-                  : 'product-tours.complete';
+        const routeName = action === 'skip' ? 'product-tours.skip' : 'product-tours.complete';
 
         const res = await window.axios.post(route(routeName, tourId), {}, {
             headers: { Accept: 'application/json' },
@@ -82,32 +77,37 @@ export function useProductTour() {
         }
 
         const currentRoute = route().current() || '';
-        const pattern = meta.route_match || '';
-        const onRoute =
-            pattern === currentRoute ||
-            (String(pattern).endsWith('.*') &&
-                currentRoute.startsWith(String(pattern).slice(0, -1)));
+        const expectedRoute = meta.route_name || '';
+        const onRoute = !expectedRoute || currentRoute === expectedRoute;
 
-        if (navigate && meta.route_name && !onRoute) {
-            router.visit(route(meta.route_name), {
+        if (navigate && expectedRoute && !onRoute) {
+            router.visit(route(expectedRoute), {
                 onFinish: () => {
-                    window.setTimeout(() => void startTour(tourId, { navigate: false }), 450);
+                    window.setTimeout(() => void startTour(tourId, { navigate: false, force }), 700);
                 },
             });
             return true;
         }
 
-        await waitMs(280);
+        await waitMs(400);
 
         const steps = resolveSteps(tourId, page);
-        if (!steps.length) {
-            await persistTour(tourId, 'skip');
+        if (steps.length < 1) {
             return false;
         }
 
         runningTourId.value = tourId;
         const tourIdCapture = tourId;
         let exitAction = 'completed';
+        let persisted = false;
+
+        const persistOnce = async (action) => {
+            if (persisted) {
+                return;
+            }
+            persisted = true;
+            await persistTour(tourIdCapture, action);
+        };
 
         const instance = driver({
             showProgress: true,
@@ -116,9 +116,10 @@ export function useProductTour() {
             prevBtnText: 'السابق',
             doneBtnText: 'تم',
             allowClose: true,
-            overlayOpacity: 0.55,
-            stagePadding: 8,
-            stageRadius: 12,
+            overlayOpacity: 0.6,
+            stagePadding: 10,
+            stageRadius: 10,
+            popoverOffset: 12,
             popoverClass: 'kht-product-tour-popover',
             steps,
             onCloseClick: () => {
@@ -134,7 +135,7 @@ export function useProductTour() {
                     exitAction = 'skip';
                 }
                 destroyActive();
-                void persistTour(tourIdCapture, exitAction);
+                void persistOnce(exitAction);
             },
         });
 
@@ -152,8 +153,8 @@ export function useProductTour() {
     async function resetAllTours() {
         destroyActive();
         const res = await window.axios.post(route('product-tours.reset'), {}, {
-            headers: { Accept: 'application/json' },
-        });
+            headers: { Accept: 'application/json' } },
+        );
         mergeProductToursPayload(res?.data);
     }
 

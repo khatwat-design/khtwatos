@@ -274,9 +274,16 @@ class ProductTourService
             ->values();
 
         foreach ($ordered as $def) {
-            if ($this->routeMatchesPattern($routeName, $def['route_match'])) {
-                return $def['id'];
+            if (! ($def['auto_start'] ?? false)) {
+                continue;
             }
+
+            $expectedRoute = (string) ($def['route_name'] ?? '');
+            if ($expectedRoute !== '' && $routeName !== $expectedRoute) {
+                continue;
+            }
+
+            return $def['id'];
         }
 
         return null;

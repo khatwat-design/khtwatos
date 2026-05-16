@@ -3,18 +3,39 @@
 @tailwind utilities;
 
 /* جولات التدريب التفاعلية (driver.js) — RTL */
-.kht-product-tour-popover {
+.driver-active .driver-overlay {
+    z-index: 10040 !important;
+}
+
+.driver-active * {
+    pointer-events: auto;
+}
+
+.driver-popover.kht-product-tour-popover {
+    z-index: 10050 !important;
     direction: rtl;
     text-align: right;
     font-family: inherit;
+    max-width: min(22rem, calc(100vw - 2rem));
 }
 
 .kht-product-tour-popover .driver-popover-title {
     font-weight: 700;
+    font-size: 15px;
+}
+
+.kht-product-tour-popover .driver-popover-description {
+    font-size: 13px;
+    line-height: 1.55;
 }
 
 .kht-product-tour-popover .driver-popover-progress-text {
     font-size: 11px;
+}
+
+.kht-product-tour-popover .driver-popover-footer button {
+    border-radius: 0.5rem;
+    font-size: 12px;
 }
 
 @layer base {

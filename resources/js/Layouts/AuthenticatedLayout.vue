@@ -492,12 +492,27 @@ async function openNotification(note) {
                         <button
                             type="button"
                             data-tour="tour-help-btn"
-                            class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-sky-200 bg-sky-50 text-sky-700 transition-colors hover:bg-sky-100"
+                            class="relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition-colors"
+                            :class="
+                                (page.props.product_tours?.pending_ids || []).length
+                                    ? 'border-sky-300 bg-sky-50 text-sky-700 ring-2 ring-sky-200/80'
+                                    : 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'
+                            "
                             title="التدريب التفاعلي"
                             aria-label="التدريب التفاعلي"
                             @click="productTourHostRef?.openCenter?.()"
                         >
                             <span class="text-sm font-bold">?</span>
+                            <span
+                                v-if="(page.props.product_tours?.pending_ids || []).length"
+                                class="absolute -end-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-sky-600 px-0.5 text-[9px] font-bold text-white"
+                            >
+                                {{
+                                    (page.props.product_tours?.pending_ids || []).length > 9
+                                        ? '9+'
+                                        : (page.props.product_tours?.pending_ids || []).length
+                                }}
+                            </span>
                         </button>
                         <Link
                             v-if="showMobileAnalyticsHeaderLink"
@@ -642,7 +657,6 @@ async function openNotification(note) {
                 </div>
 
                 <main
-                    data-tour="page-main"
                     class="relative z-10 flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-ops-4 py-ops-4 md:px-ops-5 md:py-ops-5 md:pb-ops-5"
                     :class="
                         hideMobileAppChrome
@@ -652,7 +666,9 @@ async function openNotification(note) {
                               : ''
                     "
                 >
-                    <slot />
+                    <div data-tour-page-root class="flex min-h-0 min-w-0 flex-1 flex-col">
+                        <slot />
+                    </div>
                 </main>
 
                 <EmployeeCallOverlay />
@@ -678,6 +694,7 @@ async function openNotification(note) {
                         <Link
                             v-for="item in mobileBottomNav"
                             :key="`mobile-bottom-${item.routeName}`"
+                            :data-tour-mobile-nav="item.routeName"
                             :href="route(item.routeName)"
                             prefetch
                             :class="[

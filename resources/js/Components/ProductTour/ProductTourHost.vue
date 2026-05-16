@@ -10,22 +10,52 @@ const props = defineProps({
 });
 
 const page = usePage();
-const { startTour, skipTour, resetAllTours, destroyActive, runningTourId } = useProductTour();
+const { startTour, resetAllTours, destroyActive, runningTourId } = useProductTour();
 
 const centerOpen = ref(false);
 const startingId = ref('');
-const autoStarted = ref(new Set());
+const introOffered = ref(false);
 
 const autoStartId = computed(() => page.props.product_tours?.auto_start_id || null);
 const pendingCount = computed(() => (page.props.product_tours?.pending_ids || []).length);
 
 const canAutoStart = computed(
-    () =>
-        !props.blocked &&
-        overlayOpenCount.value === 0 &&
-        !centerOpen.value &&
-        !runningTourId.value,
+    () => !props.blocked && overlayOpenCount.value === 0 && !centerOpen.value && !runningTourId.value,
 );
+
+function introStorageKey() {
+    const uid = page.props.auth?.user?.id;
+    const tourId = autoStartId.value;
+    if (!uid || !tourId) {
+        return null;
+    }
+    return `kht-tour-intro-${uid}-${tourId}`;
+}
+
+/** جولة ترحيب واحدة فقط عند أول زيارة للرئيسية — بدون إزعاج في كل صفحة */
+function tryIntroAutoStart() {
+    const id = autoStartId.value;
+    if (!id || !canAutoStart.value || introOffered.value) {
+        return;
+    }
+
+    const key = introStorageKey();
+    if (!key) {
+        return;
+    }
+
+    try {
+        if (sessionStorage.getItem(key) === '1') {
+            return;
+        }
+        sessionStorage.setItem(key, '1');
+    } catch {
+        /* تجاهل */
+    }
+
+    introOffered.value = true;
+    window.setTimeout(() => void runTour(id), 900);
+}
 
 async function runTour(tourId, { forceRestart = false } = {}) {
     if (!tourId) {
@@ -36,39 +66,27 @@ async function runTour(tourId, { forceRestart = false } = {}) {
 
     try {
         if (forceRestart) {
-            await window.axios.post(route('product-tours.restart', tourId), {}, {
+            const res = await window.axios.post(route('product-tours.restart', tourId), {}, {
                 headers: { Accept: 'application/json' },
-            }).then((res) => {
-                if (res?.data?.product_tours) {
-                    page.props.product_tours = res.data.product_tours;
-                }
             });
+            if (res?.data?.product_tours) {
+                page.props.product_tours = res.data.product_tours;
+            }
         }
 
         centerOpen.value = false;
-        await startTour(tourId);
+        await startTour(tourId, { force: forceRestart });
     } finally {
         startingId.value = '';
     }
 }
 
-function tryAutoStart() {
-    const id = autoStartId.value;
-    if (!id || !canAutoStart.value || autoStarted.value.has(id)) {
-        return;
-    }
-
-    autoStarted.value.add(id);
-    void runTour(id);
-}
-
 watch(
-    () => [autoStartId.value, canAutoStart.value, page.url],
+    () => [autoStartId.value, canAutoStart.value],
     () => {
-        if (!canAutoStart.value) {
-            return;
+        if (canAutoStart.value && (autoStartId.value === 'welcome' || autoStartId.value === 'admin-home')) {
+            tryIntroAutoStart();
         }
-        window.setTimeout(tryAutoStart, 600);
     },
     { immediate: true },
 );
@@ -76,15 +94,11 @@ watch(
 watch(
     () => props.blocked,
     (blocked) => {
-        if (!blocked) {
-            window.setTimeout(tryAutoStart, 400);
+        if (!blocked && (autoStartId.value === 'welcome' || autoStartId.value === 'admin-home')) {
+            window.setTimeout(tryIntroAutoStart, 500);
         }
     },
 );
-
-router.on('finish', () => {
-    autoStarted.value.clear();
-});
 
 function openCenter() {
     centerOpen.value = true;
@@ -101,11 +115,23 @@ async function onCenterStart(tourId) {
 }
 
 async function onResetAll() {
-    if (!confirm('إعادة تعيين كل الجولات التدريبية؟ ستظهر من جديد عند زيارة كل قسم.')) {
+    if (!confirm('إعادة تعيين كل الجولات التدريبية؟')) {
         return;
     }
     await resetAllTours();
-    autoStarted.value.clear();
+    introOffered.value = false;
+    try {
+        const uid = page.props.auth?.user?.id;
+        if (uid) {
+            for (const key of Object.keys(sessionStorage)) {
+                if (key.startsWith(`kht-tour-intro-${uid}-`)) {
+                    sessionStorage.removeItem(key);
+                }
+            }
+        }
+    } catch {
+        /* تجاهل */
+    }
 }
 
 onBeforeUnmount(() => {
@@ -123,21 +149,4 @@ defineExpose({ openCenter });
         @start="onCenterStart"
         @reset="onResetAll"
     />
-
-    <Teleport to="body">
-        <div
-            v-if="pendingCount > 0 && !blocked && !centerOpen && !runningTourId"
-            class="pointer-events-none fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] start-4 z-[60] max-md:start-3 md:bottom-6"
-        >
-            <button
-                type="button"
-                class="pointer-events-auto flex items-center gap-2 rounded-full border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-sky-800 shadow-lg shadow-slate-900/10 transition hover:bg-sky-50 active:scale-95"
-                @click="openCenter"
-            >
-                <span class="flex h-6 w-6 items-center justify-center rounded-full bg-sky-500 text-[11px] font-bold text-white">?</span>
-                <span class="hidden sm:inline">متابعة التدريب ({{ pendingCount }})</span>
-                <span class="sm:hidden">تدريب · {{ pendingCount }}</span>
-            </button>
-        </div>
-    </Teleport>
 </template>

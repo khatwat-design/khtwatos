@@ -1,8 +1,16 @@
 /**
- * خطوات الجولات التدريبية (عربي — RTL).
- *
+ * خطوات الجولات — عناصر ظاهرة فقط عبر productTourDom.
+ */
+import {
+    isTourElementVisible,
+    pickTourNavLink,
+    pickTourPageAnchor,
+    tourStep,
+} from '@/utils/productTourDom.js';
+
+/**
  * @param {string} tourId
- * @param {{ personaLabel?: string, isAdminHome?: boolean }} ctx
+ * @param {{ personaLabel?: string }} ctx
  */
 export function buildTourSteps(tourId, ctx = {}) {
     const persona = ctx.personaLabel || 'موظف';
@@ -13,307 +21,82 @@ export function buildTourSteps(tourId, ctx = {}) {
         navigation: () => navigationSteps(),
         tasks: () => tasksSteps(),
         chat: () => chatSteps(),
-        outside: () => outsideSteps(),
-        goods: () => goodsSteps(),
-        'sales-analytics': () => salesAnalyticsSteps(),
-        meetings: () => meetingsSteps(),
-        clients: () => clientsSteps(),
-        warehouse: () => warehouseSteps(),
-        academy: () => academySteps(),
-        tickets: () => ticketsSteps(),
-        employees: () => employeesSteps(),
-        settings: () => settingsSteps(),
+        outside: () => pageIntroSteps('الخارج', 'محادثات واتساب والعملاء من قناة خارجية — ردّ من هنا دون التبديل بين التطبيقات.'),
+        goods: () => pageIntroSteps('البضاعة', 'متابعة طلبات البضاعة وعملائها.'),
+        'sales-analytics': () =>
+            pageIntroSteps('تحليلات المبيعات', 'مؤشرات الأداء والإيرادات لفريق المبيعات.'),
+        meetings: () => pageIntroSteps('الاجتماعات', 'جدولة الاجتماعات ودعوة المشاركين.'),
+        clients: () => pageIntroSteps('العملاء', 'مسار العميل، الاشتراكات، وربط المسؤولين.'),
+        warehouse: () => pageIntroSteps('المخزن', 'المنتجات، الكميات، والحركات.'),
+        academy: () => pageIntroSteps('الأكاديمية', 'مواد تدريب داخلية ومسارات تعلم.'),
+        tickets: () => pageIntroSteps('المشاكل والدعم', 'افتح تذكرة عند أي عطل — يتابعها الفريق حتى الإغلاق.'),
+        employees: () => pageIntroSteps('الموظفين', 'إدارة الحسابات والفرق وصلاحيات الوصول.'),
+        settings: () => pageIntroSteps('إعدادات النظام', 'التكاملات، القائمة، والميزات العامة.'),
     };
 
     const fn = builders[tourId];
     return fn ? fn() : [];
 }
 
-function step(element, title, description, side = 'bottom') {
-    return {
-        element: element || undefined,
-        popover: {
-            title,
-            description,
-            side,
-            align: 'center',
-        },
+function navMenuPicker() {
+    return () => {
+        const sidebar = document.querySelector('[data-tour="app-sidebar"]');
+        if (isTourElementVisible(sidebar)) {
+            return sidebar;
+        }
+        return document.querySelector('[data-tour="mobile-bottom-nav"]');
     };
 }
 
 function welcomeSteps(personaLabel) {
     return [
-        step(
-            '[data-tour="home-dashboard"]',
-            `أهلاً ${personaLabel}`,
-            'هذا نظام خطوات الموحّد: مهام، عملاء، دردشة، وخارج — كل شيء في مكان واحد لزيادة إنتاجيتك.',
-            'bottom',
-        ),
-        step(
-            '[data-tour="nav-home.index"]',
-            'الرئيسية',
-            'تبدأ يومك من هنا: ملخص سريع لمهامك، الاجتماعات، والتنبيهات المهمة.',
-            'left',
-        ),
-        step(
-            undefined,
-            'جولة تفاعلية',
-            'سنريك كل قسم عند زيارته لأول مرة. يمكنك إعادة أي جولة من زر «التدريب» أعلى الشاشة.',
-            'bottom',
-        ),
+        tourStep('[data-tour="home-dashboard"]', `أهلاً ${personaLabel}`, 'هذه لوحة عملك اليومية: ملخص المهام والتنبيهات المهمة.', 'bottom'),
+        tourStep(navMenuPicker, 'التنقل', 'من هنا تنتقل بين الأقسام — على الجوال من الشريط السفلي.', 'left'),
+        tourStep('[data-tour="notifications-btn"]', 'الإشعارات', 'تنبيهات المهام والعملاء — اضغط أي إشعار للانتقال مباشرة.', 'bottom'),
+        tourStep('[data-tour="tour-help-btn"]', 'مركز التدريب', 'زر «?» يفتح كل الجولات؛ يمكنك إعادة أي شرح متى شئت.', 'bottom'),
     ];
 }
 
 function adminHomeSteps() {
     return [
-        step(
-            '[data-tour="home-dashboard"]',
-            'لوحة المدير',
-            'مؤشرات الشركة: العملاء، المهام، الفرق، ونقاط تحتاج انتباهك اليوم.',
-            'bottom',
-        ),
-        step(
-            '[data-tour="nav-tickets.index"]',
-            'المشاكل والدعم',
-            'تابع التذاكر المفتوة من الفرق — الرقم الأحمر يوضح ما يحتاج تدخلًا.',
-            'left',
-        ),
-        step(
-            '[data-tour="nav-employees.index"]',
-            'الموظفين',
-            'إدارة الحسابات، الفرق، وصلاحيات الوصول من مكان واحد.',
-            'left',
-        ),
+        tourStep('[data-tour="home-dashboard"]', 'لوحة المدير', 'مؤشرات الشركة ونقاط تحتاج انتباهك اليوم.', 'bottom'),
+        tourStep(() => pickTourNavLink('tickets.index'), 'المشاكل والدعم', 'تابع التذاكر المفتوحة — الرقم الأحمر يوضح ما يحتاج تدخلًا.', 'left'),
+        tourStep(() => pickTourNavLink('employees.index'), 'الموظفين', 'إدارة الحسابات والفرق من مكان واحد.', 'left'),
+        tourStep('[data-tour="tour-help-btn"]', 'التدريب', 'من هنا تعيد جولات التعريف لأي قسم.', 'bottom'),
     ];
 }
 
 function teamLeadSteps(personaLabel) {
     return [
-        step(
-            '[data-tour="home-dashboard"]',
-            `دور ${personaLabel}`,
-            'كقائد فريق راقب مهام فريقك، الاجتماعات، والعملاء المرتبطين بك من الرئيسية.',
-            'bottom',
-        ),
-        step(
-            '[data-tour="nav-tasks.index"]',
-            'متابعة المهام',
-            'راجع لوحة المهام بانتظام واسحب البطاقات بين الأعمدة لمتابعة التقدم.',
-            'left',
-        ),
-        step(
-            '[data-tour="nav-chat.index"]',
-            'تنسيق الفريق',
-            'الدردشة للتنسيق السريع — استخدم @لمنشن زميل عند الحاجة لرد سريع.',
-            'left',
-        ),
+        tourStep('[data-tour="home-dashboard"]', `دور ${personaLabel}`, 'راقب مهام فريقك والاجتماعات من الرئيسية.', 'bottom'),
+        tourStep(() => pickTourNavLink('tasks.index'), 'المهام', 'لوحة كانبان لمتابعة تقدم الفريق.', 'left'),
+        tourStep(() => pickTourNavLink('chat.index'), 'الدردشة', 'نسّق مع الفريق بسرعة — استخدم @ للمنشن عند الحاجة.', 'left'),
     ];
-}
-
-function navMenuElement() {
-    return (
-        document.querySelector('[data-tour="app-sidebar"]') ||
-        document.querySelector('[data-tour="mobile-bottom-nav"]')
-    );
 }
 
 function navigationSteps() {
     return [
-        {
-            element: navMenuElement,
-            popover: {
-                title: 'التنقل في النظام',
-                description:
-                    'كل أقسام النظام هنا: على الحاسوب من القائمة الجانبية، وعلى الجوال من الشريط السفلي.',
-                side: 'left',
-                align: 'center',
-            },
-        },
-        step(
-            '[data-tour="notifications-btn"]',
-            'الإشعارات',
-            'تنبيهات المهام، العملاء، والنظام. اضغط على أي إشعار للانتقال مباشرة.',
-            'bottom',
-        ),
-        step(
-            '[data-tour="user-menu"]',
-            'حسابك',
-            'الملف الشخصي، الإعدادات (إن وُجدت)، وتسجيل الخروج.',
-            'bottom',
-        ),
-        step(
-            '[data-tour="tour-help-btn"]',
-            'مركز التدريب',
-            'من هنا تعيد أي جولة أو تتابع ما تبقّى من التدريب.',
-            'bottom',
-        ),
+        tourStep(navMenuPicker, 'القائمة', 'كل أقسام النظام من القائمة الجانبية أو الشريط السفلي على الجوال.', 'left'),
+        tourStep('[data-tour="notifications-btn"]', 'الإشعارات', 'تنبيهات المهام والعملاء والنظام.', 'bottom'),
+        tourStep('[data-tour="user-menu"]', 'حسابك', 'الملف الشخصي وإعداداتك وتسجيل الخروج.', 'bottom'),
     ];
 }
 
 function tasksSteps() {
     return [
-        step(
-            '[data-tour="tasks-toolbar"]',
-            'شريط المهام',
-            'اختر الفريق، صفِّ حسب العميل، وابحث عن مهمة محددة.',
-            'bottom',
-        ),
-        step(
-            '[data-tour="tasks-board"]',
-            'لوحة كانبان',
-            'اسحب المهام بين الأعمدة (للعمل → قيد التنفيذ → مراجعة → تم). اضغط البطاقة للتفاصيل.',
-            'top',
-        ),
-        step(
-            undefined,
-            'نصيحة إنتاجية',
-            'حدّث حالة المهمة فور الانتهاء — الفريق يرى التقدم مباشرة دون رسائل إضافية.',
-            'bottom',
-        ),
+        tourStep('[data-tour="tasks-toolbar"]', 'شريط المهام', 'اختر الفريق وصفِّ حسب العميل.', 'bottom'),
+        tourStep('[data-tour="tasks-board"]', 'لوحة كانبان', 'اسحب المهام بين الأعمدة لمتابعة التقدم.', 'top'),
     ];
 }
 
 function chatSteps() {
-    return [
-        step(
-            '[data-tour="chat-inbox"]',
-            'قائمة المحادثات',
-            'غرف الفريق، الغرف الخاصة، والرسائل المباشرة. الرقم الأزرق = رسائل غير مقروءة، و@ = منشن.',
-            'left',
-        ),
-        step(
-            '[data-tour="chat-composer"]',
-            'الإرسال',
-            'اكتب رسالة، أرفق ملفًا أو صوتًا، أو اختر ملصقًا. اكتب @ لمنشن زميل.',
-            'top',
-        ),
-        step(
-            undefined,
-            'مكالمات الموظفين',
-            'من داخل الدردشة المباشرة يمكن بدء مكالمة صوتية/مرئية مع الزميل عند تفعيل الميزة.',
-            'bottom',
-        ),
+    const steps = [
+        tourStep('[data-tour="chat-inbox"]', 'قائمة المحادثات', 'غرف الفريق، الخاصة، والرسائل المباشرة.', 'left'),
+        tourStep('[data-tour="chat-composer"]', 'الإرسال', 'رسالة، ملف، صوت، أو ملصق — @ لمنشن زميل.', 'top'),
     ];
+    return steps;
 }
 
-function outsideSteps() {
-    return [
-        step(
-            '[data-tour="page-main"]',
-            'قناة الخارج',
-            'محادثات واتساب والعملاء الواردة من خارج النظام — ردّ من هنا دون التبديل بين التطبيقات.',
-            'bottom',
-        ),
-        step(
-            undefined,
-            'التعيين والمتابعة',
-            'عيّن المحادثة لنفسك أو لزميل، وعلّمها كمقروءة بعد الرد ليبقى العداد دقيقًا.',
-            'bottom',
-        ),
-    ];
-}
-
-function goodsSteps() {
-    return [
-        step(
-            '[data-tour="page-main"]',
-            'البضاعة',
-            'متابعة طلبات البضاعة وعملائها — مفيدة لفريق المبيعات والمحاسبة.',
-            'bottom',
-        ),
-    ];
-}
-
-function salesAnalyticsSteps() {
-    return [
-        step(
-            '[data-tour="page-main"]',
-            'تحليلات المبيعات',
-            'مؤشرات الأداء والإيرادات — استخدمها في الاجتماعات الأسبوعية واتخاذ القرار.',
-            'bottom',
-        ),
-    ];
-}
-
-function meetingsSteps() {
-    return [
-        step(
-            '[data-tour="page-main"]',
-            'الاجتماعات',
-            'اعرض الاجتماعات القادمة، أنشئ اجتماعًا جديدًا، وادعُ المشاركين من الفريق.',
-            'bottom',
-        ),
-    ];
-}
-
-function clientsSteps() {
-    return [
-        step(
-            '[data-tour="page-main"]',
-            'إدارة العملاء',
-            'مسار العميل من lead إلى مغلق، ربط مسؤول الحساب ومدير الحملات، والاشتراكات.',
-            'bottom',
-        ),
-        step(
-            undefined,
-            'بطاقة العميل',
-            'افتح أي عميل لرؤية المهام، الاجتماعات، والربط مع بوابة العميل إن وُجد.',
-            'bottom',
-        ),
-    ];
-}
-
-function warehouseSteps() {
-    return [
-        step(
-            '[data-tour="page-main"]',
-            'المخزن',
-            'المنتجات، الكميات، والحركات — راجع المخزون قبل الموافقة على الطلبات.',
-            'bottom',
-        ),
-    ];
-}
-
-function academySteps() {
-    return [
-        step(
-            '[data-tour="page-main"]',
-            'الأكاديمية',
-            'مواد تدريب داخلية — ابدأ بمسار مبيعات أو المحتوى المخصص لفريقك.',
-            'bottom',
-        ),
-    ];
-}
-
-function ticketsSteps() {
-    return [
-        step(
-            '[data-tour="page-main"]',
-            'المشاكل والدعم',
-            'واجهت مشكلة؟ افتح تذكرة وصف المشكلة — الفريق المختص يتابعها حتى الإغلاق.',
-            'bottom',
-        ),
-    ];
-}
-
-function employeesSteps() {
-    return [
-        step(
-            '[data-tour="page-main"]',
-            'الموظفين',
-            'إضافة حسابات، ربط الفرق، وتحديد من يقود أي قسم. غيّر الصلاحيات بحذر.',
-            'bottom',
-        ),
-    ];
-}
-
-function settingsSteps() {
-    return [
-        step(
-            '[data-tour="page-main"]',
-            'إعدادات النظام',
-            'التكاملات (واتساب، Firebase، Meta)، ظهور القائمة لكل فريق، والميزات العامة.',
-            'bottom',
-        ),
-    ];
+function pageIntroSteps(title, description) {
+    return [tourStep(pickTourPageAnchor(), title, description, 'bottom')];
 }

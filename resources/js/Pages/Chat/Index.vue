@@ -2767,10 +2767,10 @@ watch(
 
                         <ChatReplyBar v-if="replyTo" :reply="replyTo" @clear="clearReply" />
 
+                        <div data-tour="chat-composer" class="relative z-30 shrink-0">
                         <TeamChatComposer
                             v-model="composerBody"
-                            data-tour="chat-composer"
-                            class="team-chat-composer-bar relative z-30 shrink-0"
+                            class="team-chat-composer-bar"
                             :keyboard-lift="false"
                             :placeholder="composerPlaceholder"
                             :processing="composerProcessing()"
@@ -2788,6 +2788,7 @@ watch(
                             @send-voice="onSendVoice"
                             @open-stickers="openStickerPicker"
                         />
+                        </div>
                     </template>
 
                     <div

@@ -19,7 +19,8 @@ final class ProductTourCatalog
      *     team_slugs: list<string>|null,
      *     team_lead_only: bool,
      *     gate: string|null,
-     *     personas: list<string>|null
+     *     personas: list<string>|null,
+     *     auto_start: bool
      * }>
      */
     public static function definitions(): array
@@ -30,26 +31,28 @@ final class ProductTourCatalog
                 'title' => 'مرحباً بك في خطوات',
                 'description' => 'نظرة سريعة على فكرة النظام وطريقة العمل اليومية.',
                 'route_name' => 'home.index',
-                'route_match' => 'home.*',
+                'route_match' => 'home.index',
                 'order' => 10,
                 'roles' => null,
                 'team_slugs' => null,
                 'team_lead_only' => false,
                 'gate' => null,
                 'personas' => null,
+                'auto_start' => true,
             ],
             [
                 'id' => 'navigation',
                 'title' => 'التنقل والإشعارات',
                 'description' => 'أين تجد الأقسام، الإشعارات، والملف الشخصي.',
                 'route_name' => 'home.index',
-                'route_match' => 'home.*',
+                'route_match' => 'home.index',
                 'order' => 20,
                 'roles' => null,
                 'team_slugs' => null,
                 'team_lead_only' => false,
                 'gate' => null,
                 'personas' => null,
+                'auto_start' => false,
             ],
             [
                 'id' => 'tasks',
@@ -63,6 +66,7 @@ final class ProductTourCatalog
                 'team_lead_only' => false,
                 'gate' => null,
                 'personas' => null,
+                'auto_start' => false,
             ],
             [
                 'id' => 'chat',
@@ -76,6 +80,7 @@ final class ProductTourCatalog
                 'team_lead_only' => false,
                 'gate' => null,
                 'personas' => null,
+                'auto_start' => false,
             ],
             [
                 'id' => 'outside',
@@ -89,6 +94,7 @@ final class ProductTourCatalog
                 'team_lead_only' => false,
                 'gate' => null,
                 'personas' => null,
+                'auto_start' => false,
             ],
             [
                 'id' => 'goods',
@@ -102,6 +108,7 @@ final class ProductTourCatalog
                 'team_lead_only' => false,
                 'gate' => null,
                 'personas' => null,
+                'auto_start' => false,
             ],
             [
                 'id' => 'sales-analytics',
@@ -115,6 +122,7 @@ final class ProductTourCatalog
                 'team_lead_only' => false,
                 'gate' => 'viewSalesAnalytics',
                 'personas' => null,
+                'auto_start' => false,
             ],
             [
                 'id' => 'meetings',
@@ -128,6 +136,7 @@ final class ProductTourCatalog
                 'team_lead_only' => false,
                 'gate' => null,
                 'personas' => null,
+                'auto_start' => false,
             ],
             [
                 'id' => 'clients',
@@ -141,6 +150,7 @@ final class ProductTourCatalog
                 'team_lead_only' => false,
                 'gate' => null,
                 'personas' => null,
+                'auto_start' => false,
             ],
             [
                 'id' => 'warehouse',
@@ -154,6 +164,7 @@ final class ProductTourCatalog
                 'team_lead_only' => false,
                 'gate' => 'viewWarehouse',
                 'personas' => null,
+                'auto_start' => false,
             ],
             [
                 'id' => 'academy',
@@ -167,6 +178,7 @@ final class ProductTourCatalog
                 'team_lead_only' => false,
                 'gate' => null,
                 'personas' => null,
+                'auto_start' => false,
             ],
             [
                 'id' => 'tickets',
@@ -180,6 +192,7 @@ final class ProductTourCatalog
                 'team_lead_only' => false,
                 'gate' => null,
                 'personas' => null,
+                'auto_start' => false,
             ],
             [
                 'id' => 'employees',
@@ -193,6 +206,7 @@ final class ProductTourCatalog
                 'team_lead_only' => false,
                 'gate' => 'manageEmployees',
                 'personas' => null,
+                'auto_start' => false,
             ],
             [
                 'id' => 'settings',
@@ -206,32 +220,35 @@ final class ProductTourCatalog
                 'team_lead_only' => false,
                 'gate' => 'manageSystemSettings',
                 'personas' => null,
+                'auto_start' => false,
             ],
             [
                 'id' => 'admin-home',
                 'title' => 'لوحة المدير',
                 'description' => 'مؤشرات الشركة والمتابعة التشغيلية.',
                 'route_name' => 'home.index',
-                'route_match' => 'home.*',
+                'route_match' => 'home.index',
                 'order' => 15,
                 'roles' => ['admin'],
                 'team_slugs' => null,
                 'team_lead_only' => false,
                 'gate' => 'viewAdminHome',
                 'personas' => null,
+                'auto_start' => true,
             ],
             [
                 'id' => 'team-lead',
                 'title' => 'دور قائد الفريق',
                 'description' => 'متابعة الفريق، المهام، والتنسيق اليومي.',
                 'route_name' => 'home.index',
-                'route_match' => 'home.*',
+                'route_match' => 'home.index',
                 'order' => 25,
                 'roles' => null,
                 'team_slugs' => null,
                 'team_lead_only' => true,
                 'gate' => null,
                 'personas' => null,
+                'auto_start' => false,
             ],
         ];
     }
