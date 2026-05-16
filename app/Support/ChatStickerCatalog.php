@@ -146,13 +146,15 @@ final class ChatStickerCatalog
 
     private static function urlForPackAndId(string $packId, string $stickerId): ?string
     {
-        $relative = 'chat/stickers/'.$packId.'/'.$stickerId.'.svg';
-        $absolute = public_path($relative);
+        $base = 'chat/stickers/'.$packId.'/'.$stickerId;
 
-        if (! is_file($absolute)) {
-            return null;
+        foreach (['webp', 'png', 'gif', 'svg'] as $ext) {
+            $relative = $base.'.'.$ext;
+            if (is_file(public_path($relative))) {
+                return asset($relative);
+            }
         }
 
-        return asset($relative);
+        return null;
     }
 }

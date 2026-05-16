@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="بطريق">
-  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#B0BEC5"/><stop offset="100%" stop-color="#37474F"/></linearGradient></defs>
-  <rect width="128" height="128" rx="22" fill="url(#g)"/>
-  <rect x="6" y="6" width="116" height="116" rx="18" fill="none" stroke="#fff" stroke-opacity="0.35" stroke-width="3"/>
-  <ellipse cx="64" cy="76" rx="30" ry="36" fill="#37474F"/><ellipse cx="64" cy="80" rx="18" ry="24" fill="#fff"/>
-</svg>

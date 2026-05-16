@@ -32,6 +32,11 @@ if [[ -d public/home ]] && [[ ! -f public/home/index.php ]]; then
   rm -rf public/home
 fi
 
+if [[ ! -f public/chat/stickers/unofficial/1.png ]] && [[ -x deploy/download-chat-stickers.sh ]]; then
+  echo "Downloading chat sticker PNGs..."
+  bash deploy/download-chat-stickers.sh
+fi
+
 php artisan optimize:clear
 php artisan optimize
 php artisan storage:link || true
