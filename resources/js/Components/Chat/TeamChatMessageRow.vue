@@ -30,7 +30,9 @@ const emit = defineEmits([
 
 const hasForward = computed(() => Boolean(props.msg?.forward));
 const hasReply = computed(() => Boolean(props.msg?.reply));
-const isSticker = computed(() => Boolean(props.msg?.sticker?.url));
+const isSticker = computed(
+    () => Boolean(props.msg?.sticker?.url) || Boolean(props.msg?.sticker?.key),
+);
 
 const swipeX = ref(0);
 const swiping = ref(false);

@@ -92,6 +92,30 @@ const createRoomForm = useForm({
 
 const createRoomModalOpen = ref(false);
 const messagesState = ref([...(props.messages || [])]);
+
+function chatConversationKey() {
+    if (props.viewKind === 'team' && props.selectedTeam?.id) {
+        return `team:${props.selectedTeam.id}`;
+    }
+    if (props.viewKind === 'private_room' && props.selectedPrivateRoom?.id) {
+        return `private:${props.selectedPrivateRoom.id}`;
+    }
+    if (props.viewKind === 'direct' && props.selectedDirect?.id) {
+        return `direct:${props.selectedDirect.id}`;
+    }
+    return 'none';
+}
+
+function latestPersistedMessageId() {
+    let max = 0;
+    for (const row of messagesState.value) {
+        const id = Number(row?.id);
+        if (Number.isFinite(id) && id > max) {
+            max = id;
+        }
+    }
+    return max > 0 ? max : undefined;
+}
 const chatUnreadState = ref(
     normalizeChatUnreadPayload({
         ...(props.chatUnread || {}),
@@ -628,6 +652,7 @@ function submitTeamMessage() {
     const optimisticMessage = {
         id: tempId,
         body: form.body,
+        sticker_key: stickerKey,
         sticker: stickerKey ? findStickerMeta(stickerKey) : null,
         reply: replyTo.value,
         created_at: new Date().toISOString(),
@@ -646,9 +671,9 @@ function submitTeamMessage() {
     form.voice_note = isVoiceFile(form.attachment);
     form.post(route('chat.store'), {
         preserveScroll: true,
+        preserveState: true,
         forceFormData: true,
         onSuccess: () => {
-            pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
             form.body = '';
             form.attachment = null;
             form.voice_note = false;
@@ -659,7 +684,7 @@ function submitTeamMessage() {
             if (props.selectedTeam?.id) {
                 bumpInboxActivity(`team:${props.selectedTeam.id}`);
             }
-            pullMessages();
+            finishPendingSend(tempId);
         },
         onError: () => {
             pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
@@ -691,6 +716,7 @@ function submitPrivateMessage() {
     const optimisticMessage = {
         id: tempId,
         body: privateForm.body,
+        sticker_key: stickerKey,
         sticker: stickerKey ? findStickerMeta(stickerKey) : null,
         reply: replyTo.value,
         created_at: new Date().toISOString(),
@@ -709,9 +735,9 @@ function submitPrivateMessage() {
     privateForm.voice_note = isVoiceFile(privateForm.attachment);
     privateForm.post(route('chat.private-rooms.messages.store', props.selectedPrivateRoom.id), {
         preserveScroll: true,
+        preserveState: true,
         forceFormData: true,
         onSuccess: () => {
-            pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
             privateForm.body = '';
             privateForm.attachment = null;
             privateForm.voice_note = false;
@@ -722,7 +748,7 @@ function submitPrivateMessage() {
             if (props.selectedPrivateRoom?.id) {
                 bumpInboxActivity(`private:${props.selectedPrivateRoom.id}`);
             }
-            pullMessages();
+            finishPendingSend(tempId);
         },
         onError: () => {
             pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
@@ -744,6 +770,7 @@ function submitDirectMessage() {
     const optimisticMessage = {
         id: tempId,
         body: directForm.body,
+        sticker_key: stickerKey,
         sticker: stickerKey ? findStickerMeta(stickerKey) : null,
         reply: replyTo.value,
         created_at: new Date().toISOString(),
@@ -762,9 +789,9 @@ function submitDirectMessage() {
     directForm.voice_note = isVoiceFile(directForm.attachment);
     directForm.post(route('chat.direct.messages.store', props.selectedDirect.id), {
         preserveScroll: true,
+        preserveState: true,
         forceFormData: true,
         onSuccess: () => {
-            pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
             directForm.body = '';
             directForm.attachment = null;
             directForm.voice_note = false;
@@ -775,13 +802,25 @@ function submitDirectMessage() {
             if (props.selectedDirect?.id) {
                 bumpInboxActivity(`direct:${props.selectedDirect.id}`);
             }
-            pullMessages();
+            finishPendingSend(tempId);
         },
         onError: () => {
             pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
             pendingStickerKey.value = null;
         },
     });
+}
+
+function finishPendingSend(tempId) {
+    const promise = pullMessages();
+    const dropPending = () => {
+        pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
+    };
+    if (promise?.then) {
+        promise.finally(dropPending);
+    } else {
+        dropPending();
+    }
 }
 
 function formatDt(iso) {
@@ -884,6 +923,10 @@ function notifyComposerTyping() {
     notifyTyping();
 }
 
+function stickerKeyForMessage(msg) {
+    return msg?.sticker?.key || msg?.sticker_key || null;
+}
+
 function clearOptimisticMatchingServerMessage(msg) {
     if (!msg?.user?.id) {
         return;
@@ -894,6 +937,11 @@ function clearOptimisticMatchingServerMessage(msg) {
         }
         if (Number(p.user?.id) !== Number(msg.user.id)) {
             return true;
+        }
+        const pSticker = stickerKeyForMessage(p);
+        const mSticker = stickerKeyForMessage(msg);
+        if (pSticker || mSticker) {
+            return pSticker !== mSticker;
         }
         if (String(p.body || '').trim() !== String(msg.body || '').trim()) {
             return true;
@@ -930,12 +978,14 @@ function subscribeTeamEcho() {
             if (!msg?.id) {
                 return;
             }
-            if (messagesState.value.some((m) => Number(m.id) === Number(msg.id))) {
-                return;
-            }
             clearOptimisticMatchingServerMessage(msg);
             const snap = shouldAutoScroll();
-            messagesState.value.push(msg);
+            const idx = messagesState.value.findIndex((m) => Number(m.id) === Number(msg.id));
+            if (idx === -1) {
+                messagesState.value.push(msg);
+            } else {
+                messagesState.value[idx] = mergeMessageRow(messagesState.value[idx], msg);
+            }
             if (snap) {
                 nextTick(() => scrollToBottom());
             }
@@ -961,12 +1011,10 @@ function subscribeTeamEcho() {
 }
 
 function pullMessages() {
-    const afterId = messagesState.value.length
-        ? messagesState.value[messagesState.value.length - 1].id
-        : undefined;
+    const afterId = latestPersistedMessageId();
 
     if (props.viewKind === 'team' && props.selectedTeam?.id) {
-        window.axios
+        return window.axios
             .get(route('chat.messages.index'), {
                 params: {
                     team_id: props.selectedTeam.id,
@@ -982,11 +1030,10 @@ function pullMessages() {
                 mergeMessageRowsFromApi(rows);
             })
             .catch(() => {});
-        return;
     }
 
     if (props.viewKind === 'private_room' && props.selectedPrivateRoom?.id) {
-        window.axios
+        return window.axios
             .get(route('chat.private-rooms.messages.index', props.selectedPrivateRoom.id), {
                 params: { after_id: afterId },
                 headers: { Accept: 'application/json' },
@@ -997,11 +1044,10 @@ function pullMessages() {
                 mergeMessageRowsFromApi(rows);
             })
             .catch(() => {});
-        return;
     }
 
     if (props.viewKind === 'direct' && props.selectedDirect?.id) {
-        window.axios
+        return window.axios
             .get(route('chat.direct.messages.index', props.selectedDirect.id), {
                 params: { after_id: afterId },
                 headers: { Accept: 'application/json' },
@@ -1013,6 +1059,8 @@ function pullMessages() {
             })
             .catch(() => {});
     }
+
+    return Promise.resolve();
 }
 
 function startPolling() {
@@ -1325,18 +1373,39 @@ function applyReadReceipts(receipts) {
     });
 }
 
+function mergeMessageRow(existing, incoming) {
+    const merged = { ...existing, ...incoming };
+    if (!incoming?.sticker?.url && existing?.sticker?.url) {
+        merged.sticker = existing.sticker;
+    }
+    return merged;
+}
+
 function mergeMessageRowsFromApi(rows) {
     if (!rows?.length) {
         return;
     }
     const receipts = {};
+    const shouldAuto = shouldAutoScroll();
+    const next = [...messagesState.value];
+
     for (const row of rows) {
+        if (!row?.id) {
+            continue;
+        }
         if (row?.read_receipt) {
             receipts[row.id] = row.read_receipt;
         }
+        const idx = next.findIndex((m) => Number(m.id) === Number(row.id));
+        if (idx === -1) {
+            next.push(row);
+        } else {
+            next[idx] = mergeMessageRow(next[idx], row);
+        }
     }
-    const shouldAuto = shouldAutoScroll();
-    messagesState.value.push(...rows);
+
+    messagesState.value = next;
+
     if (Object.keys(receipts).length) {
         applyReadReceipts(receipts);
     }
@@ -1676,11 +1745,12 @@ watch(
 );
 
 watch(
-    () => props.messages,
-    (list) => {
-        messagesState.value = [...(list || [])];
+    () => chatConversationKey(),
+    () => {
+        messagesState.value = [...(props.messages || [])];
+        pendingMessages.value = [];
     },
-    { deep: true },
+    { immediate: true },
 );
 
 watch(

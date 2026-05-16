@@ -99,7 +99,7 @@ final class ChatStickerCatalog
 
     public static function isValidKey(?string $key): bool
     {
-        return self::urlForKey($key) !== null;
+        return self::labelForKey($key) !== null;
     }
 
     /**
@@ -155,6 +155,7 @@ final class ChatStickerCatalog
             }
         }
 
-        return null;
+        // مسار متوقع حتى لو لم يُرفع الملف بعد (يتجنب اختفاء الملصق بعد الإرسال)
+        return asset($base.'.png');
     }
 }
