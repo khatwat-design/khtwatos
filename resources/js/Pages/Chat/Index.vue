@@ -707,6 +707,7 @@ function handleChatSendFailure(err, tempId) {
         err?.response?.data?.message ||
         err?.response?.data?.errors?.body?.[0] ||
         err?.response?.data?.errors?.sticker_key?.[0] ||
+        err?.response?.data?.errors?.attachment?.[0] ||
         'تعذر إرسال الرسالة.';
 }
 

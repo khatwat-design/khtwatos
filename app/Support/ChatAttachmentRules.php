@@ -15,13 +15,13 @@ final class ChatAttachmentRules
      */
     public static function attachmentValidation(): array
     {
+        // المحتوى (نص / ملصق / مرفق) يُتحقق منه في ChatReplyResolver::messageHasContent
         return [
             'nullable',
             File::types([
                 'jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf',
                 'webm', 'ogg', 'oga', 'mp4', 'm4a', 'mpeg', 'mp3', 'wav',
             ])->max(self::MAX_KILOBYTES),
-            'required_without:body',
         ];
     }
 
