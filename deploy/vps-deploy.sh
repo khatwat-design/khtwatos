@@ -25,6 +25,13 @@ else
 fi
 
 php artisan migrate --force
+
+# مجلد public/home (إن وُجد بدون index) يسبب 403 على /home من nginx
+if [[ -d public/home ]] && [[ ! -f public/home/index.php ]]; then
+  echo "Removing stray public/home directory (causes nginx 403 on /home)."
+  rm -rf public/home
+fi
+
 php artisan optimize:clear
 php artisan optimize
 php artisan storage:link || true
