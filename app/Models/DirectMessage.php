@@ -8,6 +8,7 @@ use App\Support\EmployeeCallChatLog;
 use App\Support\UserAvatar;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class DirectMessage extends Model
 {
@@ -57,6 +58,11 @@ class DirectMessage extends Model
         return $this->belongsTo(self::class, 'reply_to_message_id');
     }
 
+    public function mentions(): MorphMany
+    {
+        return $this->morphMany(ChatMessageMention::class, 'mentionable');
+    }
+
     public function employeeCall(): BelongsTo
     {
         return $this->belongsTo(EmployeeCall::class);
@@ -67,12 +73,13 @@ class DirectMessage extends Model
      */
     public function toChatArray(?int $viewerId = null): array
     {
-        $this->loadMissing(['user:id,name,avatar_path', 'replyTo.user:id,name']);
+        $this->loadMissing(['user:id,name,avatar_path', 'replyTo.user:id,name', 'mentions.user:id,name,username']);
 
         $payload = [
             'id' => $this->id,
             'kind' => 'message',
             'body' => $this->body,
+            'mentions' => app(\App\Services\ChatMentionService::class)->mentionPayloadForMessage($this),
             'sticker' => ChatStickerCatalog::stickerPayload($this->sticker_key),
             'reply' => ChatMessagePayload::replyPreview($this->replyTo),
             'created_at' => $this->created_at?->toIso8601String(),

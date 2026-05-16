@@ -6,6 +6,7 @@ use App\Support\ChatMessagePayload;
 use App\Support\UserAvatar;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class PrivateChatMessage extends Model
 {
@@ -54,16 +55,22 @@ class PrivateChatMessage extends Model
         return $this->belongsTo(self::class, 'reply_to_message_id');
     }
 
+    public function mentions(): MorphMany
+    {
+        return $this->morphMany(ChatMessageMention::class, 'mentionable');
+    }
+
     /**
      * @return array<string, mixed>
      */
     public function toChatArray(): array
     {
-        $this->loadMissing(['user:id,name,avatar_path', 'replyTo.user:id,name']);
+        $this->loadMissing(['user:id,name,avatar_path', 'replyTo.user:id,name', 'mentions.user:id,name,username']);
 
         return [
             'id' => $this->id,
             'body' => $this->body,
+            'mentions' => app(\App\Services\ChatMentionService::class)->mentionPayloadForMessage($this),
             'sticker' => ChatStickerCatalog::stickerPayload($this->sticker_key),
             'reply' => ChatMessagePayload::replyPreview($this->replyTo),
             'created_at' => $this->created_at?->toIso8601String(),

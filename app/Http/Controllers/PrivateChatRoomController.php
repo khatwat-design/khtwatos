@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\PrivateChatMessage;
 use App\Models\PrivateChatRoom;
 use App\Models\User;
+use App\Services\ChatMentionService;
 use App\Services\ChatReadReceiptService;
 use App\Services\ChatUnreadService;
 use App\Services\SmartNotificationService;
@@ -22,6 +23,7 @@ class PrivateChatRoomController extends Controller
         private readonly SmartNotificationService $smartNotifications,
         private readonly ChatUnreadService $chatUnread,
         private readonly ChatReadReceiptService $readReceipts,
+        private readonly ChatMentionService $chatMentions,
     ) {}
 
     public function store(Request $request): RedirectResponse
@@ -149,8 +151,9 @@ class PrivateChatRoomController extends Controller
             'attachment_mime' => $attachmentMime,
             'attachment_size' => $attachmentSize,
         ]);
-        $message->load(['user:id,name,avatar_path', 'replyTo.user:id,name']);
-        $this->smartNotifications->notifyPrivateRoomMessage($privateChatRoom, $message, (int) $user->id);
+        $message->load(['user:id,name,avatar_path', 'replyTo.user:id,name', 'mentions.user:id,name,username']);
+        $mentionedIds = $this->chatMentions->processPrivateMessage($message, $privateChatRoom, (int) $user->id);
+        $this->smartNotifications->notifyPrivateRoomMessage($privateChatRoom, $message, (int) $user->id, $mentionedIds);
         $this->chatUnread->markPrivateRoomAsRead($request, (int) $privateChatRoom->id);
 
         $enriched = $this->readReceipts->enrichPrivateRoomMessages(
@@ -175,7 +178,7 @@ class PrivateChatRoomController extends Controller
         ]);
 
         $query = PrivateChatMessage::query()
-            ->with(['user:id,name,avatar_path', 'replyTo.user:id,name'])
+            ->with(['user:id,name,avatar_path', 'replyTo.user:id,name', 'mentions.user:id,name,username'])
             ->where('private_chat_room_id', $privateChatRoom->id)
             ->orderBy('id');
 

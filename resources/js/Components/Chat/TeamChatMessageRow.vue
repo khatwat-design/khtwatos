@@ -1,4 +1,5 @@
 <script setup>
+import ChatMessageBody from '@/Components/Chat/ChatMessageBody.vue';
 import ChatUserAvatar from '@/Components/Chat/ChatUserAvatar.vue';
 import ChatVoicePlayer from '@/Components/Chat/ChatVoicePlayer.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -262,7 +263,12 @@ function onBubbleClick() {
                         loading="lazy"
                         draggable="false"
                     />
-                    <p v-else-if="msg.body" class="whitespace-pre-wrap break-words">{{ msg.body }}</p>
+                    <ChatMessageBody
+                        v-else-if="msg.body"
+                        :body="msg.body"
+                        :mentions="msg.mentions || []"
+                        :is-mine="isMine"
+                    />
 
                     <p
                         v-if="msg.is_pending"

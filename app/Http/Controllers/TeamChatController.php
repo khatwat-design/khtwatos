@@ -17,6 +17,7 @@ use App\Services\ChatNotificationReadService;
 use App\Services\ChatReadReceiptService;
 use App\Services\ChatUnreadService;
 use App\Services\SmartNotificationService;
+use App\Services\ChatMentionService;
 use App\Services\TeamChatMemberService;
 use App\Support\ChatAttachmentRules;
 use App\Support\ChatReplyResolver;
@@ -39,6 +40,7 @@ class TeamChatController extends Controller
         private readonly ChatNotificationReadService $chatNotificationRead,
         private readonly ChatReadReceiptService $readReceipts,
         private readonly TeamChatMemberService $teamChatMembers,
+        private readonly ChatMentionService $chatMentions,
     ) {}
 
     public function index(Request $request): Response
@@ -55,10 +57,11 @@ class TeamChatController extends Controller
         $directPeersPayload = $this->buildDirectPeersForUser($user);
         $chatUsers = User::query()
             ->orderBy('name')
-            ->get(['id', 'name', 'avatar_path'])
+            ->get(['id', 'name', 'username', 'avatar_path'])
             ->map(fn (User $u) => [
                 'id' => $u->id,
                 'name' => $u->name,
+                'username' => $u->username,
                 'avatar_url' => UserAvatar::url($u),
             ])
             ->values()
@@ -81,7 +84,7 @@ class TeamChatController extends Controller
                     'is_creator' => (int) $room->creator_id === (int) $user->id,
                 ];
                 $privateRows = PrivateChatMessage::query()
-                    ->with('user:id,name,avatar_path')
+                    ->with(['user:id,name,avatar_path', 'mentions.user:id,name,username'])
                     ->where('private_chat_room_id', $room->id)
                     ->latest()
                     ->limit(150)
@@ -106,7 +109,7 @@ class TeamChatController extends Controller
                     ] : null,
                 ];
                 $directRows = DirectMessage::query()
-                    ->with(['user:id,name,avatar_path', 'employeeCall'])
+                    ->with(['user:id,name,avatar_path', 'employeeCall', 'mentions.user:id,name,username'])
                     ->where('direct_conversation_id', $conversation->id)
                     ->latest()
                     ->limit(150)
@@ -132,7 +135,7 @@ class TeamChatController extends Controller
                 TeamNotebookController::rememberNotebookTeam($request, $selectedTeam);
                 $viewKind = 'team';
                 $teamRows = TeamChatMessage::query()
-                    ->with(['user:id,name,avatar_path', 'replyTo.user:id,name'])
+                    ->with(['user:id,name,avatar_path', 'replyTo.user:id,name', 'mentions.user:id,name,username'])
                     ->where('team_id', $selectedTeam->id)
                     ->latest()
                     ->limit(150)
@@ -200,6 +203,12 @@ class TeamChatController extends Controller
             'selectedTeamChatMembers' => $selectedTeam && $user?->isAdmin()
                 ? $this->teamChatMembers->membersPayloadForTeam((int) $selectedTeam->id)
                 : [],
+            'mentionableUsers' => $this->resolveMentionableUsers(
+                $viewKind,
+                $selectedTeam,
+                $selectedPrivateRoom,
+                $selectedDirect,
+            ),
         ]);
     }
 
@@ -262,9 +271,10 @@ class TeamChatController extends Controller
             'attachment_mime' => $attachmentMime,
             'attachment_size' => $attachmentSize,
         ]);
-        $message->load(['user:id,name,avatar_path', 'replyTo.user:id,name']);
+        $message->load(['user:id,name,avatar_path', 'replyTo.user:id,name', 'mentions.user:id,name,username']);
+        $mentionedIds = $this->chatMentions->processTeamMessage($message, $request->user()?->id);
         broadcast(new TeamChatMessageCreated($message));
-        $this->smartNotifications->notifyTeamChatMessage($message, $request->user()?->id);
+        $this->smartNotifications->notifyTeamChatMessage($message, $request->user()?->id, $mentionedIds);
         $this->chatUnread->markTeamAsRead($request, (int) $data['team_id']);
 
         $enriched = $this->readReceipts->enrichTeamMessages(
@@ -299,7 +309,7 @@ class TeamChatController extends Controller
         );
 
         $query = TeamChatMessage::query()
-            ->with(['user:id,name,avatar_path', 'replyTo.user:id,name'])
+            ->with(['user:id,name,avatar_path', 'replyTo.user:id,name', 'mentions.user:id,name,username'])
             ->where('team_id', $teamId)
             ->orderBy('id');
 
@@ -401,7 +411,8 @@ class TeamChatController extends Controller
             'edited_at' => now(),
         ]);
 
-        $teamChatMessage->load('user:id,name,avatar_path');
+        $this->chatMentions->resyncForEditedMessage($teamChatMessage);
+        $teamChatMessage->load(['user:id,name,avatar_path', 'mentions.user:id,name,username']);
         broadcast(new TeamChatMessageUpdated($teamChatMessage));
 
         return redirect()->back();
@@ -589,6 +600,30 @@ class TeamChatController extends Controller
         }
 
         return Carbon::parse($value)->toIso8601String();
+    }
+
+    /**
+     * @return list<array{id: int, name: string, username: string}>
+     */
+    private function resolveMentionableUsers(
+        string $viewKind,
+        ?Team $selectedTeam,
+        ?array $selectedPrivateRoom,
+        ?array $selectedDirect,
+    ): array {
+        if ($viewKind === 'team' && $selectedTeam) {
+            return $this->chatMentions->mentionableUsersForTeam((int) $selectedTeam->id);
+        }
+
+        if ($viewKind === 'private_room' && $selectedPrivateRoom) {
+            return $this->chatMentions->mentionableUsersForPrivateRoom((int) $selectedPrivateRoom['id']);
+        }
+
+        if ($viewKind === 'direct' && $selectedDirect) {
+            return $this->chatMentions->mentionableUsersForDirectConversation((int) $selectedDirect['id']);
+        }
+
+        return [];
     }
 
     private function ensureTeams()

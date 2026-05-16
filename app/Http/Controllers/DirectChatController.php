@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DirectConversation;
 use App\Models\DirectMessage;
 use App\Models\User;
+use App\Services\ChatMentionService;
 use App\Services\ChatReadReceiptService;
 use App\Services\ChatUnreadService;
 use App\Services\SmartNotificationService;
@@ -21,6 +22,7 @@ class DirectChatController extends Controller
         private readonly SmartNotificationService $smartNotifications,
         private readonly ChatUnreadService $chatUnread,
         private readonly ChatReadReceiptService $readReceipts,
+        private readonly ChatMentionService $chatMentions,
     ) {}
 
     public function open(Request $request): RedirectResponse
@@ -110,8 +112,9 @@ class DirectChatController extends Controller
             'attachment_mime' => $attachmentMime,
             'attachment_size' => $attachmentSize,
         ]);
-        $message->load(['user:id,name,avatar_path', 'replyTo.user:id,name']);
-        $this->smartNotifications->notifyDirectMessage($directConversation, $message, (int) $user->id);
+        $message->load(['user:id,name,avatar_path', 'replyTo.user:id,name', 'mentions.user:id,name,username']);
+        $mentionedIds = $this->chatMentions->processDirectMessage($message, $directConversation, (int) $user->id);
+        $this->smartNotifications->notifyDirectMessage($directConversation, $message, (int) $user->id, $mentionedIds);
         $this->chatUnread->markDirectAsRead($request, (int) $directConversation->id);
 
         $enriched = $this->readReceipts->enrichDirectMessages(
@@ -136,7 +139,7 @@ class DirectChatController extends Controller
         ]);
 
         $query = DirectMessage::query()
-            ->with(['user:id,name,avatar_path', 'replyTo.user:id,name', 'employeeCall'])
+            ->with(['user:id,name,avatar_path', 'replyTo.user:id,name', 'employeeCall', 'mentions.user:id,name,username'])
             ->where('direct_conversation_id', $directConversation->id)
             ->orderBy('id');
 

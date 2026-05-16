@@ -146,14 +146,20 @@ class SmartNotificationService
         ], $actorId);
     }
 
-    public function notifyTeamChatMessage(TeamChatMessage $message, ?int $actorId = null): void
+    /**
+     * @param  list<int>  $excludeUserIds
+     */
+    public function notifyTeamChatMessage(TeamChatMessage $message, ?int $actorId = null, array $excludeUserIds = []): void
     {
         $team = Team::query()->find($message->team_id);
         if (! $team) {
             return;
         }
 
-        $ids = $team->users()->pluck('users.id')->map(fn ($id) => (int) $id)->all();
+        $ids = collect(app(TeamChatMemberService::class)->memberIdsForTeam((int) $team->id))
+            ->reject(fn (int $id) => in_array($id, $excludeUserIds, true))
+            ->values()
+            ->all();
         $senderName = $message->relationLoaded('user') ? ($message->user?->name ?? 'موظف') : (User::query()->find($message->user_id)?->name ?? 'موظف');
         $preview = trim(Str::limit(strip_tags((string) ($message->body ?? '')), 120));
 
@@ -173,9 +179,15 @@ class SmartNotificationService
         ], $actorId);
     }
 
-    public function notifyPrivateRoomMessage(PrivateChatRoom $room, PrivateChatMessage $message, ?int $actorId = null): void
+    /**
+     * @param  list<int>  $excludeUserIds
+     */
+    public function notifyPrivateRoomMessage(PrivateChatRoom $room, PrivateChatMessage $message, ?int $actorId = null, array $excludeUserIds = []): void
     {
-        $ids = $room->members()->pluck('users.id')->map(fn ($id) => (int) $id)->all();
+        $ids = $room->members()->pluck('users.id')->map(fn ($id) => (int) $id)
+            ->reject(fn (int $id) => in_array($id, $excludeUserIds, true))
+            ->values()
+            ->all();
         $senderName = $message->relationLoaded('user') ? ($message->user?->name ?? 'موظف') : (User::query()->find($message->user_id)?->name ?? 'موظف');
         $preview = trim(Str::limit(strip_tags((string) ($message->body ?? '')), 120));
 
@@ -194,12 +206,17 @@ class SmartNotificationService
         ], $actorId);
     }
 
-    public function notifyDirectMessage(DirectConversation $conversation, DirectMessage $message, ?int $actorId = null): void
+    /**
+     * @param  list<int>  $excludeUserIds
+     */
+    public function notifyDirectMessage(DirectConversation $conversation, DirectMessage $message, ?int $actorId = null, array $excludeUserIds = []): void
     {
         $recipientIds = $conversation->users()
             ->where('users.id', '!=', $message->user_id)
             ->pluck('users.id')
             ->map(fn ($id) => (int) $id)
+            ->reject(fn (int $id) => in_array($id, $excludeUserIds, true))
+            ->values()
             ->all();
 
         if (empty($recipientIds)) {

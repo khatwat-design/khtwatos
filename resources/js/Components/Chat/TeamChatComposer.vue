@@ -6,6 +6,11 @@ import { pickRecorderMimeType, voiceFileFromBlob } from '@/utils/chatRecorder.js
 import { isVoiceFile } from '@/utils/chatVoiceAttachment.js';
 import { useKeyboardViewportInset } from '@/composables/useKeyboardViewportInset.js';
 import { isChatMobileViewport } from '@/utils/chatMobileViewport.js';
+import {
+    filterMentionCandidates,
+    findActiveMentionQuery,
+    mentionTokenForUser,
+} from '@/utils/chatMentions.js';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
@@ -21,6 +26,8 @@ const props = defineProps({
     /** أنماط إضافية من الأب (مثلاً safe-area ولوحة المفاتيح في الوضع الغامر) */
     footerStyle: { type: Object, default: null },
     stickersEnabled: { type: Boolean, default: true },
+    mentionCandidates: { type: Array, default: () => [] },
+    currentUserId: { type: Number, default: null },
 });
 
 const emit = defineEmits([
@@ -34,6 +41,10 @@ const emit = defineEmits([
 ]);
 
 const textareaRef = ref(null);
+const mentionOpen = ref(false);
+const mentionQuery = ref('');
+const mentionStart = ref(0);
+const mentionActiveIndex = ref(0);
 const { composerStyle: keyboardLiftStyle } = useKeyboardViewportInset(
     () => props.keyboardLift && isChatMobileViewport(),
 );
@@ -93,9 +104,63 @@ function resizeTextarea() {
     el.style.height = `${Math.min(el.scrollHeight, max)}px`;
 }
 
-function onInput(event) {
-    emit('update:modelValue', event.target.value);
+const filteredMentionCandidates = computed(() =>
+    filterMentionCandidates(props.mentionCandidates, mentionQuery.value, props.currentUserId),
+);
+
+function closeMentionPicker() {
+    mentionOpen.value = false;
+    mentionQuery.value = '';
+    mentionActiveIndex.value = 0;
+}
+
+function refreshMentionPicker(value, cursorPos) {
+    if (!props.mentionCandidates?.length) {
+        closeMentionPicker();
+        return;
+    }
+
+    const active = findActiveMentionQuery(value, cursorPos);
+    if (!active) {
+        closeMentionPicker();
+        return;
+    }
+
+    mentionOpen.value = true;
+    mentionQuery.value = active.query;
+    mentionStart.value = active.start;
+    mentionActiveIndex.value = 0;
+}
+
+function insertMention(user) {
+    const el = textareaRef.value;
+    const value = String(props.modelValue || '');
+    const before = value.slice(0, mentionStart.value);
+    const cursor = el?.selectionStart ?? value.length;
+    const after = value.slice(cursor);
+    const token = mentionTokenForUser(user);
+    const next = `${before}${token}${after}`;
+
+    emit('update:modelValue', next);
     emit('typing');
+    closeMentionPicker();
+
+    nextTick(() => {
+        resizeTextarea();
+        if (!el) {
+            return;
+        }
+        const pos = before.length + token.length;
+        el.focus();
+        el.setSelectionRange(pos, pos);
+    });
+}
+
+function onInput(event) {
+    const value = event.target.value;
+    emit('update:modelValue', value);
+    emit('typing');
+    refreshMentionPicker(value, event.target.selectionStart ?? value.length);
     nextTick(resizeTextarea);
 }
 
@@ -109,6 +174,34 @@ function onComposerFocus() {
 }
 
 function onKeydown(event) {
+    if (mentionOpen.value && filteredMentionCandidates.value.length) {
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            mentionActiveIndex.value =
+                (mentionActiveIndex.value + 1) % filteredMentionCandidates.value.length;
+            return;
+        }
+        if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            const len = filteredMentionCandidates.value.length;
+            mentionActiveIndex.value = (mentionActiveIndex.value - 1 + len) % len;
+            return;
+        }
+        if (event.key === 'Enter' || event.key === 'Tab') {
+            event.preventDefault();
+            const picked = filteredMentionCandidates.value[mentionActiveIndex.value];
+            if (picked) {
+                insertMention(picked);
+            }
+            return;
+        }
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            closeMentionPicker();
+            return;
+        }
+    }
+
     if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         trySubmit();
@@ -116,6 +209,9 @@ function onKeydown(event) {
 }
 
 function trySubmit() {
+    if (mentionOpen.value) {
+        return;
+    }
     if (props.disabled || props.processing) {
         return;
     }
@@ -484,8 +580,27 @@ watch(
                     </svg>
                 </button>
 
-                <div
-                    class="mb-1 flex min-h-[44px] min-w-0 flex-1 items-end rounded-2xl border border-slate-200/90 bg-slate-50/80 shadow-inner ring-1 ring-black/[0.02] transition focus-within:border-brand-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-500/20 sm:min-h-[48px] sm:rounded-[1.25rem]"
+                <div class="relative mb-1 min-w-0 flex-1">
+                    <ul
+                        v-if="mentionOpen && filteredMentionCandidates.length"
+                        class="absolute bottom-full z-40 mb-2 max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+                        dir="rtl"
+                    >
+                        <li v-for="(user, index) in filteredMentionCandidates" :key="`mention-${user.id}`">
+                            <button
+                                type="button"
+                                class="flex w-full items-center justify-between gap-2 px-3 py-2 text-start text-sm transition hover:bg-slate-50"
+                                :class="index === mentionActiveIndex ? 'bg-brand-50 text-brand-900' : 'text-slate-800'"
+                                @mousedown.prevent="insertMention(user)"
+                            >
+                                <span class="font-semibold">{{ user.name }}</span>
+                                <span class="text-xs text-slate-500" dir="ltr">@{{ user.username }}</span>
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div
+                    class="flex min-h-[44px] w-full items-end rounded-2xl border border-slate-200/90 bg-slate-50/80 shadow-inner ring-1 ring-black/[0.02] transition focus-within:border-brand-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-500/20 sm:min-h-[48px] sm:rounded-[1.25rem]"
                     :class="isRecording && 'opacity-50'"
                 >
                     <textarea
@@ -499,7 +614,9 @@ watch(
                         @input="onInput"
                         @keydown="onKeydown"
                         @focus="onComposerFocus"
+                        @blur="closeMentionPicker"
                     />
+                    </div>
                 </div>
 
                 <button

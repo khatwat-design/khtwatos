@@ -38,6 +38,7 @@ const props = defineProps({
     stickerPacks: { type: Array, default: () => [] },
     canManageTeamChatMembers: { type: Boolean, default: false },
     selectedTeamChatMembers: { type: Array, default: () => [] },
+    mentionableUsers: { type: Array, default: () => [] },
 });
 const page = usePage();
 
@@ -1370,14 +1371,15 @@ const composerBody = computed({
 });
 
 const composerPlaceholder = computed(() => {
+    const mentionHint = (props.mentionableUsers || []).length ? ' · @للمنشن' : '';
     if (props.viewKind === 'team') {
-        return 'رسالة للفريق…';
+        return `رسالة للفريق…${mentionHint}`;
     }
     if (props.viewKind === 'private_room') {
-        return 'رسالة للغرفة…';
+        return `رسالة للغرفة…${mentionHint}`;
     }
     if (props.viewKind === 'direct') {
-        return 'رسالة خاصة…';
+        return `رسالة خاصة…${mentionHint}`;
     }
     return 'اكتب رسالة…';
 });
@@ -2463,6 +2465,8 @@ watch(
                             :body-error="activeComposerErrors().body || sendErrorBanner || ''"
                             :typing-hint="composerTypingHint"
                             :stickers-enabled="(stickerPacks || []).length > 0"
+                            :mention-candidates="mentionableUsers"
+                            :current-user-id="currentUserId"
                             @focusin="readImmersiveViewport"
                             @submit="submitMessage"
                             @typing="notifyComposerTyping"
