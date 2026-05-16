@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { initNativePushForAuthenticatedSession } from '@/capacitor/native-push';
 import EmployeeCallOverlay from '@/Components/Chat/EmployeeCallOverlay.vue';
 import DailyAttendanceModal from '@/Components/DailyAttendanceModal.vue';
+import ProductTourHost from '@/Components/ProductTour/ProductTourHost.vue';
 import { employeeCallRealtimeEnabled } from '@/echo.js';
 import { useEmployeeCall } from '@/composables/useEmployeeCall.js';
 import Dropdown from '@/Components/Dropdown.vue';
@@ -159,6 +160,7 @@ const showMobileAnalyticsHeaderLink = computed(
 // نافذة تسجيل الحضور اليومية + قياس النشاط
 const isAttendanceModalOpen = ref(false);
 const attendanceDismissed = ref(false);
+const productTourHostRef = ref(null);
 
 const needsCheckIn = computed(() => Boolean(page.props.attendance?.needs_check_in));
 const openTicketsCount = computed(() => Number(page.props.tickets_meta?.open_count || 0));
@@ -413,6 +415,7 @@ async function openNotification(note) {
     <div class="relative min-h-[var(--app-visual-vh,100dvh)] min-w-0 bg-[var(--bg-secondary)] text-[var(--text-primary)] md:min-h-screen">
         <div class="relative flex min-h-[var(--app-visual-vh,100dvh)] md:min-h-screen">
             <aside
+                data-tour="app-sidebar"
                 :class="[
                     'hidden shrink-0 flex-col border-s border-slate-200 bg-white transition-[width] duration-200 ease-out md:flex',
                     sidebarCollapsed ? 'w-[88px]' : 'w-60',
@@ -441,6 +444,7 @@ async function openNotification(note) {
                     <Link
                         v-for="item in nav"
                         :key="item.routeName"
+                        :data-tour="`nav-${item.routeName}`"
                         :href="route(item.routeName)"
                         prefetch
                         :class="[
@@ -485,6 +489,16 @@ async function openNotification(note) {
                         </h1>
                     </div>
                     <div class="ms-auto flex items-center gap-2">
+                        <button
+                            type="button"
+                            data-tour="tour-help-btn"
+                            class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-sky-200 bg-sky-50 text-sky-700 transition-colors hover:bg-sky-100"
+                            title="التدريب التفاعلي"
+                            aria-label="التدريب التفاعلي"
+                            @click="productTourHostRef?.openCenter?.()"
+                        >
+                            <span class="text-sm font-bold">?</span>
+                        </button>
                         <Link
                             v-if="showMobileAnalyticsHeaderLink"
                             :href="route('sales.analytics')"
@@ -502,6 +516,7 @@ async function openNotification(note) {
                         <div class="relative">
                             <button
                                 type="button"
+                                data-tour="notifications-btn"
                                 class="relative inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-800 transition-colors hover:bg-slate-50"
                                 title="الإشعارات"
                                 @click="toggleNotificationsPanel"
@@ -559,6 +574,7 @@ async function openNotification(note) {
                             <template #trigger>
                                 <button
                                     type="button"
+                                    data-tour="user-menu"
                                     class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] font-medium text-slate-900 transition-colors hover:bg-slate-50"
                                 >
                                     <img :src="avatarUrl" alt="avatar" class="h-7 w-7 rounded-full border border-slate-200 object-cover" />
@@ -626,6 +642,7 @@ async function openNotification(note) {
                 </div>
 
                 <main
+                    data-tour="page-main"
                     class="relative z-10 flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto px-ops-4 py-ops-4 md:px-ops-5 md:py-ops-5 md:pb-ops-5"
                     :class="
                         hideMobileAppChrome
@@ -640,6 +657,11 @@ async function openNotification(note) {
 
                 <EmployeeCallOverlay />
 
+                <ProductTourHost
+                    ref="productTourHostRef"
+                    :blocked="isAttendanceModalOpen && needsCheckIn"
+                />
+
                 <DailyAttendanceModal
                     :open="isAttendanceModalOpen && needsCheckIn"
                     @close="dismissAttendanceModal"
@@ -649,6 +671,7 @@ async function openNotification(note) {
                 <TeamNotebookDock v-if="showTeamNotebookDock" :key="teamNotebook.team_id" :notebook="teamNotebook" />
                 <nav
                     v-if="showMobileBottomNav"
+                    data-tour="mobile-bottom-nav"
                     class="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white px-2 py-1 ps-[max(0.5rem,env(safe-area-inset-left,0px))] pe-[max(0.5rem,env(safe-area-inset-right,0px))] md:hidden"
                 >
                     <div class="grid gap-1" :style="{ gridTemplateColumns: `repeat(${Math.max(mobileBottomNav.length, 1)}, minmax(0, 1fr))` }">

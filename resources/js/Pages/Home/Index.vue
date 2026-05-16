@@ -489,6 +489,7 @@ const outsideMetricTiles = computed(() => [
 
         <div
             v-if="dashboard_mode === 'staff' && staff"
+            data-tour="home-dashboard"
             class="staff-home mx-auto max-w-6xl space-y-5 pb-6 md:space-y-6 md:pb-8"
         >
             <!-- بطاقة ترحيب: نفس لغة التصميم العامة (أبيض + ظلال خفيفة + لمسة brand) -->
@@ -676,6 +677,7 @@ const outsideMetricTiles = computed(() => [
 
         <div
             v-else
+            data-tour="home-dashboard"
             class="home-dashboard mx-auto max-w-7xl space-y-5 pb-4 md:space-y-6 md:pb-6 lg:max-w-6xl lg:space-y-4 lg:pb-5"
         >
             <!-- نبض تنفيذي -->

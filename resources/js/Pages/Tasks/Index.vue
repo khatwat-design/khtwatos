@@ -841,7 +841,7 @@ async function toggleChecklistItem(item) {
                 isMobileWorkspaceExpanded ? 'max-w-none px-0 sm:px-0' : 'max-w-[1760px] px-3 sm:px-4 lg:px-6',
             ]"
         >
-            <OpsToolbar dense class="mb-4">
+            <OpsToolbar dense class="mb-4" data-tour="tasks-toolbar">
                 <div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                     <span class="shrink-0 text-sm font-medium text-slate-600">العميل</span>
                     <select
@@ -934,6 +934,7 @@ async function toggleChecklistItem(item) {
                 </div>
                 <div
                     v-else
+                    data-tour="tasks-board"
                     class="task-workspace flex snap-x snap-mandatory overflow-x-auto pb-2 lg:min-h-[28rem] lg:gap-4 lg:pb-3"
                     :class="isMobileWorkspaceExpanded ? 'task-workspace-expanded gap-2 px-1' : 'gap-3'"
                     style="min-height: 320px"

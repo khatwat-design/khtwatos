@@ -2164,6 +2164,7 @@ watch(
             >
                 <!-- قائمة الغرف (مثل صندوق الوارد في الخارج) -->
                 <aside
+                    data-tour="chat-inbox"
                     :class="[
                         'flex h-full min-h-0 min-w-0 w-full max-w-full flex-col overflow-hidden border-app-surface-border/80 bg-gradient-to-b from-white/98 to-slate-50/90 lg:border-e',
                         mobilePanel === 'chat' ? 'hidden lg:flex' : 'flex',
@@ -2768,6 +2769,7 @@ watch(
 
                         <TeamChatComposer
                             v-model="composerBody"
+                            data-tour="chat-composer"
                             class="team-chat-composer-bar relative z-30 shrink-0"
                             :keyboard-lift="false"
                             :placeholder="composerPlaceholder"

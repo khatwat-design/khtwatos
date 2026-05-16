@@ -20,6 +20,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OutsideController;
 use App\Http\Controllers\OutsideWebhookController;
 use App\Http\Controllers\PrivateChatRoomController;
+use App\Http\Controllers\ProductTourController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicBookingController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -131,6 +132,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/chat/direct/{directConversation}/messages', [DirectChatController::class, 'messages'])->name('chat.direct.messages.index');
     Route::get('/chat/unread-summary', [TeamChatController::class, 'unreadSummary'])->name('chat.unread-summary');
     Route::post('/chat/mentions/acknowledge', [\App\Http\Controllers\ChatMentionController::class, 'acknowledge'])->name('chat.mentions.acknowledge');
+    Route::post('/product-tours/{tour}/complete', [ProductTourController::class, 'complete'])->name('product-tours.complete');
+    Route::post('/product-tours/{tour}/skip', [ProductTourController::class, 'skip'])->name('product-tours.skip');
+    Route::post('/product-tours/reset', [ProductTourController::class, 'reset'])->name('product-tours.reset');
+    Route::post('/product-tours/{tour}/restart', [ProductTourController::class, 'restart'])->name('product-tours.restart');
     Route::get('/chat/notifications-feed', [ChatNotificationsController::class, 'index'])->name('chat.notifications.index');
     Route::post('/chat/notifications-feed/read-all', [ChatNotificationsController::class, 'markAllRead'])->name('chat.notifications.read-all');
     Route::get('/outside', [OutsideController::class, 'index'])->name('outside.index');

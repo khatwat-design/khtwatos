@@ -11,6 +11,7 @@ use App\Services\ChatUnreadService;
 use App\Services\EmployeePresenceService;
 use App\Services\NativePushService;
 use App\Services\NavigationVisibilityService;
+use App\Services\ProductTourService;
 use App\Support\EffectiveSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -91,6 +92,9 @@ class HandleInertiaRequests extends Middleware
             'nav_team_routes' => fn () => app(NavigationVisibilityService::class)->allowedRouteNamesForUser($user),
             'attendance' => fn () => $this->attendancePayload($user),
             'tickets_meta' => fn () => $this->ticketsPayload($user),
+            'product_tours' => fn () => $user
+                ? app(ProductTourService::class)->payloadForUser($user, $request)
+                : null,
         ];
     }
 
