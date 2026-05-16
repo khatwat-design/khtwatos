@@ -2651,6 +2651,7 @@ watch(
         <ChatTeamMembersModal
             :show="teamMembersModalOpen"
             :team="selectedTeam"
+            :team-display-name="selectedTeam ? displayTeamName(selectedTeam) : ''"
             :users="chatUsers"
             :initial-member-ids="(selectedTeamChatMembers || []).map((m) => m.id)"
             :processing="teamMembersSaving"

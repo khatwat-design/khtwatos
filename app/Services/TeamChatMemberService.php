@@ -24,10 +24,7 @@ class TeamChatMemberService
             return $user->teams()->where('teams.id', $teamId)->exists();
         }
 
-        return DB::table('team_chat_members')
-            ->where('team_id', $teamId)
-            ->where('user_id', $user->id)
-            ->exists();
+        return in_array((int) $user->id, $this->memberIdsForTeam($teamId), true);
     }
 
     /**
@@ -36,13 +33,72 @@ class TeamChatMemberService
     public function memberIdsForTeam(int $teamId): array
     {
         if (! Schema::hasTable('team_chat_members')) {
-            return Team::query()->find($teamId)?->users()->pluck('users.id')->map(fn ($id) => (int) $id)->all() ?? [];
+            return $this->pivotMemberIdsForTeam($teamId);
         }
 
+        $explicit = $this->explicitMemberIdsForTeam($teamId);
+        if ($explicit !== []) {
+            return $explicit;
+        }
+
+        return $this->defaultMemberIdsForTeam($teamId);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function explicitMemberIdsForTeam(int $teamId): array
+    {
         return DB::table('team_chat_members')
             ->where('team_id', $teamId)
             ->orderBy('user_id')
             ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function pivotMemberIdsForTeam(int $teamId): array
+    {
+        return Team::query()
+            ->find($teamId)
+            ?->users()
+            ->pluck('users.id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all() ?? [];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function defaultMemberIdsForTeam(int $teamId): array
+    {
+        $team = Team::query()->find($teamId);
+
+        if ($team && $team->slug === 'khatwat') {
+            return User::query()
+                ->orderBy('id')
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->values()
+                ->all();
+        }
+
+        return $this->pivotMemberIdsForTeam($teamId);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function configuredTeamIds(): array
+    {
+        return DB::table('team_chat_members')
+            ->distinct()
+            ->pluck('team_id')
             ->map(fn ($id) => (int) $id)
             ->values()
             ->all();
@@ -122,11 +178,24 @@ class TeamChatMemberService
             return $user->teams()->pluck('teams.id')->map(fn ($id) => (int) $id)->all();
         }
 
-        return DB::table('team_chat_members')
+        $accessible = DB::table('team_chat_members')
             ->where('user_id', $user->id)
             ->pluck('team_id')
             ->map(fn ($id) => (int) $id)
-            ->values()
             ->all();
+
+        $configured = $this->configuredTeamIds();
+
+        foreach (Team::query()->whereNotIn('id', $configured)->pluck('id') as $teamId) {
+            $teamId = (int) $teamId;
+            if (in_array($teamId, $accessible, true)) {
+                continue;
+            }
+            if (in_array((int) $user->id, $this->defaultMemberIdsForTeam($teamId), true)) {
+                $accessible[] = $teamId;
+            }
+        }
+
+        return array_values(array_unique($accessible));
     }
 }
