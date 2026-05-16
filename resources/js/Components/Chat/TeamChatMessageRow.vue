@@ -15,6 +15,7 @@ const props = defineProps({
     editingBody: { type: String, default: '' },
     selfAvatarUrl: { type: String, default: '' },
     selfName: { type: String, default: 'أنت' },
+    resolveStickerUrl: { type: Function, default: null },
 });
 
 const emit = defineEmits([
@@ -30,9 +31,19 @@ const emit = defineEmits([
 
 const hasForward = computed(() => Boolean(props.msg?.forward));
 const hasReply = computed(() => Boolean(props.msg?.reply));
-const isSticker = computed(
-    () => Boolean(props.msg?.sticker?.url) || Boolean(props.msg?.sticker?.key),
-);
+const stickerImageUrl = computed(() => {
+    const sticker = props.msg?.sticker;
+    if (sticker?.url) {
+        return sticker.url;
+    }
+    const key = sticker?.key || props.msg?.sticker_key;
+    if (key && typeof props.resolveStickerUrl === 'function') {
+        return props.resolveStickerUrl(key) || '';
+    }
+    return '';
+});
+
+const isSticker = computed(() => Boolean(stickerImageUrl.value));
 
 const swipeX = ref(0);
 const swiping = ref(false);
@@ -245,8 +256,8 @@ function onBubbleClick() {
 
                     <img
                         v-if="isSticker"
-                        :src="msg.sticker.url"
-                        :alt="msg.sticker.label || 'ملصق'"
+                        :src="stickerImageUrl"
+                        :alt="msg.sticker?.label || 'ملصق'"
                         class="mx-auto h-28 w-28 select-none object-contain sm:h-32 sm:w-32"
                         loading="lazy"
                         draggable="false"

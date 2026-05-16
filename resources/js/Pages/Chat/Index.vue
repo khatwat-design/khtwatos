@@ -192,6 +192,8 @@ const selectedTeamSlug = ref(props.selectedTeam?.slug || '');
 const editingMessageId = ref(null);
 const editingBody = ref('');
 const pendingMessages = ref([]);
+const sendingMessage = ref(false);
+const sendErrorBanner = ref('');
 let pollingTimer = null;
 let typingTimer = null;
 let typingUsersTimer = null;
@@ -639,14 +641,102 @@ function submitMessage() {
     }
 }
 
+function findStickerMeta(key) {
+    for (const pack of props.stickerPacks || []) {
+        const hit = (pack.stickers || []).find((s) => s.key === key);
+        if (hit) {
+            return { key: hit.key, url: hit.url, label: hit.label };
+        }
+    }
+    return { key, url: '', label: 'ملصق' };
+}
+
+function resolveStickerUrl(key) {
+    return findStickerMeta(key)?.url || '';
+}
+
+function enrichServerMessage(serverMsg, stickerKey, bodyText) {
+    if (!serverMsg?.id) {
+        return null;
+    }
+    const enriched = { ...serverMsg };
+    if (stickerKey && !enriched.sticker?.url) {
+        enriched.sticker_key = stickerKey;
+        enriched.sticker = findStickerMeta(stickerKey);
+    }
+    if (!String(enriched.body || '').trim() && bodyText) {
+        enriched.body = bodyText;
+    }
+    return enriched;
+}
+
+function dropPendingIfSynced(tempId, stickerKey, bodyText) {
+    const synced = messagesState.value.some((m) => {
+        const id = Number(m.id);
+        if (!Number.isFinite(id) || id <= 0) {
+            return false;
+        }
+        if (Number(m.user?.id) !== Number(currentUserId.value)) {
+            return false;
+        }
+        if (stickerKey) {
+            return stickerKeyForMessage(m) === stickerKey;
+        }
+        return String(m.body || '').trim() === String(bodyText || '').trim();
+    });
+    if (synced) {
+        pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
+    }
+}
+
+function applyChatSendResponse(data, tempId, stickerKey, bodyText) {
+    mergeChatUnreadFromResponse(data);
+    const serverMsg = enrichServerMessage(data?.message, stickerKey, bodyText);
+    if (serverMsg?.id) {
+        clearOptimisticMatchingServerMessage(serverMsg);
+        mergeMessageRowsFromApi([serverMsg]);
+        pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
+        return;
+    }
+    pullMessages().finally(() => dropPendingIfSynced(tempId, stickerKey, bodyText));
+}
+
+function handleChatSendFailure(err, tempId) {
+    pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
+    sendErrorBanner.value =
+        err?.response?.data?.message ||
+        err?.response?.data?.errors?.body?.[0] ||
+        err?.response?.data?.errors?.sticker_key?.[0] ||
+        'تعذر إرسال الرسالة.';
+}
+
+function postChatForm(url, formData, tempId, stickerKey, bodyText, onFormReset) {
+    sendErrorBanner.value = '';
+    sendingMessage.value = true;
+
+    return window.axios
+        .post(url, formData, {
+            headers: { Accept: 'application/json' },
+        })
+        .then((res) => {
+            if (!res?.data || typeof res.data !== 'object') {
+                throw new Error('invalid_response');
+            }
+            applyChatSendResponse(res.data, tempId, stickerKey, bodyText);
+            onFormReset();
+            nextTick(() => scrollToBottom());
+        })
+        .catch((err) => handleChatSendFailure(err, tempId))
+        .finally(() => {
+            sendingMessage.value = false;
+        });
+}
+
 function submitTeamMessage() {
     const stickerKey = pendingStickerKey.value;
     if (!form.team_id || (!form.body.trim() && !form.attachment && !stickerKey)) {
         return;
     }
-
-    form.reply_to_message_id = replyTo.value?.id ?? null;
-    form.sticker_key = stickerKey;
 
     const tempId = `pending-${Date.now()}`;
     const optimisticMessage = {
@@ -668,39 +758,32 @@ function submitTeamMessage() {
     pendingMessages.value.push(optimisticMessage);
     nextTick(() => scrollToBottom());
 
-    form.voice_note = isVoiceFile(form.attachment);
-    form.post(route('chat.store'), {
-        preserveScroll: true,
-        preserveState: true,
-        forceFormData: true,
-        onSuccess: () => {
-            form.body = '';
-            form.attachment = null;
-            form.voice_note = false;
-            form.reply_to_message_id = null;
-            form.sticker_key = null;
-            pendingStickerKey.value = null;
-            clearReply();
-            if (props.selectedTeam?.id) {
-                bumpInboxActivity(`team:${props.selectedTeam.id}`);
-            }
-            finishPendingSend(tempId);
-        },
-        onError: () => {
-            pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
-            pendingStickerKey.value = null;
-        },
-    });
-}
-
-function findStickerMeta(key) {
-    for (const pack of props.stickerPacks || []) {
-        const hit = (pack.stickers || []).find((s) => s.key === key);
-        if (hit) {
-            return { key: hit.key, url: hit.url, label: hit.label };
-        }
+    const fd = new FormData();
+    fd.append('team_id', String(form.team_id));
+    fd.append('body', form.body || '');
+    if (stickerKey) {
+        fd.append('sticker_key', stickerKey);
     }
-    return { key, url: '', label: 'ملصق' };
+    if (replyTo.value?.id) {
+        fd.append('reply_to_message_id', String(replyTo.value.id));
+    }
+    if (form.attachment) {
+        fd.append('attachment', form.attachment);
+        fd.append('voice_note', form.voice_note ? '1' : '0');
+    }
+
+    postChatForm(route('chat.store'), fd, tempId, () => {
+        form.body = '';
+        form.attachment = null;
+        form.voice_note = false;
+        form.reply_to_message_id = null;
+        form.sticker_key = null;
+        pendingStickerKey.value = null;
+        clearReply();
+        if (props.selectedTeam?.id) {
+            bumpInboxActivity(`team:${props.selectedTeam.id}`);
+        }
+    });
 }
 
 function submitPrivateMessage() {
@@ -708,9 +791,6 @@ function submitPrivateMessage() {
     if (!props.selectedPrivateRoom?.id || (!privateForm.body.trim() && !privateForm.attachment && !stickerKey)) {
         return;
     }
-
-    privateForm.reply_to_message_id = replyTo.value?.id ?? null;
-    privateForm.sticker_key = stickerKey;
 
     const tempId = `pending-${Date.now()}`;
     const optimisticMessage = {
@@ -732,12 +812,26 @@ function submitPrivateMessage() {
     pendingMessages.value.push(optimisticMessage);
     nextTick(() => scrollToBottom());
 
-    privateForm.voice_note = isVoiceFile(privateForm.attachment);
-    privateForm.post(route('chat.private-rooms.messages.store', props.selectedPrivateRoom.id), {
-        preserveScroll: true,
-        preserveState: true,
-        forceFormData: true,
-        onSuccess: () => {
+    const fd = new FormData();
+    fd.append('body', privateForm.body || '');
+    if (stickerKey) {
+        fd.append('sticker_key', stickerKey);
+    }
+    if (replyTo.value?.id) {
+        fd.append('reply_to_message_id', String(replyTo.value.id));
+    }
+    if (privateForm.attachment) {
+        fd.append('attachment', privateForm.attachment);
+        fd.append('voice_note', privateForm.voice_note ? '1' : '0');
+    }
+
+    postChatForm(
+        route('chat.private-rooms.messages.store', props.selectedPrivateRoom.id),
+        fd,
+        tempId,
+        stickerKey,
+        privateForm.body,
+        () => {
             privateForm.body = '';
             privateForm.attachment = null;
             privateForm.voice_note = false;
@@ -748,13 +842,8 @@ function submitPrivateMessage() {
             if (props.selectedPrivateRoom?.id) {
                 bumpInboxActivity(`private:${props.selectedPrivateRoom.id}`);
             }
-            finishPendingSend(tempId);
         },
-        onError: () => {
-            pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
-            pendingStickerKey.value = null;
-        },
-    });
+    );
 }
 
 function submitDirectMessage() {
@@ -762,9 +851,6 @@ function submitDirectMessage() {
     if (!props.selectedDirect?.id || (!directForm.body.trim() && !directForm.attachment && !stickerKey)) {
         return;
     }
-
-    directForm.reply_to_message_id = replyTo.value?.id ?? null;
-    directForm.sticker_key = stickerKey;
 
     const tempId = `pending-${Date.now()}`;
     const optimisticMessage = {
@@ -786,41 +872,31 @@ function submitDirectMessage() {
     pendingMessages.value.push(optimisticMessage);
     nextTick(() => scrollToBottom());
 
-    directForm.voice_note = isVoiceFile(directForm.attachment);
-    directForm.post(route('chat.direct.messages.store', props.selectedDirect.id), {
-        preserveScroll: true,
-        preserveState: true,
-        forceFormData: true,
-        onSuccess: () => {
-            directForm.body = '';
-            directForm.attachment = null;
-            directForm.voice_note = false;
-            directForm.reply_to_message_id = null;
-            directForm.sticker_key = null;
-            pendingStickerKey.value = null;
-            clearReply();
-            if (props.selectedDirect?.id) {
-                bumpInboxActivity(`direct:${props.selectedDirect.id}`);
-            }
-            finishPendingSend(tempId);
-        },
-        onError: () => {
-            pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
-            pendingStickerKey.value = null;
-        },
-    });
-}
-
-function finishPendingSend(tempId) {
-    const promise = pullMessages();
-    const dropPending = () => {
-        pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
-    };
-    if (promise?.then) {
-        promise.finally(dropPending);
-    } else {
-        dropPending();
+    const fd = new FormData();
+    fd.append('body', directForm.body || '');
+    if (stickerKey) {
+        fd.append('sticker_key', stickerKey);
     }
+    if (replyTo.value?.id) {
+        fd.append('reply_to_message_id', String(replyTo.value.id));
+    }
+    if (directForm.attachment) {
+        fd.append('attachment', directForm.attachment);
+        fd.append('voice_note', directForm.voice_note ? '1' : '0');
+    }
+
+    postChatForm(route('chat.direct.messages.store', props.selectedDirect.id), fd, tempId, stickerKey, directForm.body, () => {
+        directForm.body = '';
+        directForm.attachment = null;
+        directForm.voice_note = false;
+        directForm.reply_to_message_id = null;
+        directForm.sticker_key = null;
+        pendingStickerKey.value = null;
+        clearReply();
+        if (props.selectedDirect?.id) {
+            bumpInboxActivity(`direct:${props.selectedDirect.id}`);
+        }
+    });
 }
 
 function formatDt(iso) {
@@ -904,6 +980,9 @@ function activeComposerErrors() {
 }
 
 function composerProcessing() {
+    if (sendingMessage.value) {
+        return true;
+    }
     if (props.viewKind === 'team') {
         return form.processing;
     }
@@ -1377,6 +1456,9 @@ function mergeMessageRow(existing, incoming) {
     const merged = { ...existing, ...incoming };
     if (!incoming?.sticker?.url && existing?.sticker?.url) {
         merged.sticker = existing.sticker;
+    }
+    if (!incoming?.sticker_key && existing?.sticker_key) {
+        merged.sticker_key = existing.sticker_key;
     }
     return merged;
 }
@@ -2338,6 +2420,7 @@ watch(
                             <TeamChatMessageRow
                                 v-else
                                 :msg="item.msg"
+                                :resolve-sticker-url="resolveStickerUrl"
                                 :is-mine="isMine(item.msg)"
                                 :view-kind="viewKind"
                                 :show-sender="showSenderHeader(item.msg, messageIndexForTimeline(item.msg))"
@@ -2376,7 +2459,7 @@ watch(
                             :placeholder="composerPlaceholder"
                             :processing="composerProcessing()"
                             :attachment="activeComposerAttachment()"
-                            :body-error="activeComposerErrors().body || ''"
+                            :body-error="activeComposerErrors().body || sendErrorBanner || ''"
                             :typing-hint="composerTypingHint"
                             :stickers-enabled="(stickerPacks || []).length > 0"
                             @focusin="readImmersiveViewport"

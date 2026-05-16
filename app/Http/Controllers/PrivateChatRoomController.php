@@ -10,6 +10,7 @@ use App\Services\ChatUnreadService;
 use App\Services\SmartNotificationService;
 use App\Support\ChatAttachmentRules;
 use App\Support\ChatReplyResolver;
+use App\Support\ChatStoreResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -90,7 +91,7 @@ class PrivateChatRoomController extends Controller
         return redirect()->route('chat.index', ['tab' => 'rooms']);
     }
 
-    public function storeMessage(Request $request, PrivateChatRoom $privateChatRoom): RedirectResponse
+    public function storeMessage(Request $request, PrivateChatRoom $privateChatRoom): JsonResponse|RedirectResponse
     {
         $user = $request->user();
         $this->assertMember($privateChatRoom, $user);
@@ -100,10 +101,25 @@ class PrivateChatRoomController extends Controller
         ]);
 
         $data = $request->validate([
-            'body' => ['nullable', 'string', 'max:4000', 'required_without:attachment'],
+            'body' => ['nullable', 'string', 'max:4000'],
+            'reply_to_message_id' => ['nullable', 'integer', 'min:1'],
+            'sticker_key' => ['nullable', 'string', 'max:64'],
             'attachment' => ChatAttachmentRules::attachmentValidation(),
             'voice_note' => ['sometimes', 'boolean'],
         ]);
+
+        $sticker = ChatReplyResolver::validatedSticker($request);
+        if (! ChatReplyResolver::messageHasContent($request, $sticker)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'اكتب رسالة أو أرفق ملفًا أو اختر ملصقًا.',
+                ], 422);
+            }
+
+            return redirect()->back()->withErrors([
+                'body' => 'اكتب رسالة أو أرفق ملفًا أو اختر ملصقًا.',
+            ]);
+        }
 
         $attachmentPath = null;
         $attachmentName = null;
@@ -137,7 +153,17 @@ class PrivateChatRoomController extends Controller
         $this->smartNotifications->notifyPrivateRoomMessage($privateChatRoom, $message, (int) $user->id);
         $this->chatUnread->markPrivateRoomAsRead($request, (int) $privateChatRoom->id);
 
-        return redirect()->back();
+        $enriched = $this->readReceipts->enrichPrivateRoomMessages(
+            collect([$message]),
+            $roomId,
+            (int) $user->id,
+        )->first();
+
+        return ChatStoreResponse::created(
+            $request,
+            $enriched ?? $message->toChatArray(),
+            $this->chatUnread->fullUnreadPayload($user),
+        );
     }
 
     public function messages(Request $request, PrivateChatRoom $privateChatRoom): JsonResponse

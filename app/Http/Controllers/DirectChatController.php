@@ -10,6 +10,7 @@ use App\Services\ChatUnreadService;
 use App\Services\SmartNotificationService;
 use App\Support\ChatAttachmentRules;
 use App\Support\ChatReplyResolver;
+use App\Support\ChatStoreResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -51,7 +52,7 @@ class DirectChatController extends Controller
         ]);
     }
 
-    public function storeMessage(Request $request, DirectConversation $directConversation): RedirectResponse
+    public function storeMessage(Request $request, DirectConversation $directConversation): JsonResponse|RedirectResponse
     {
         $user = $request->user();
         $this->assertParticipant($directConversation, $user);
@@ -70,6 +71,12 @@ class DirectChatController extends Controller
 
         $sticker = ChatReplyResolver::validatedSticker($request);
         if (! ChatReplyResolver::messageHasContent($request, $sticker)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'اكتب رسالة أو أرفق ملفًا أو اختر ملصقًا.',
+                ], 422);
+            }
+
             return redirect()->back()->withErrors([
                 'body' => 'اكتب رسالة أو أرفق ملفًا أو اختر ملصقًا.',
             ]);
@@ -107,7 +114,17 @@ class DirectChatController extends Controller
         $this->smartNotifications->notifyDirectMessage($directConversation, $message, (int) $user->id);
         $this->chatUnread->markDirectAsRead($request, (int) $directConversation->id);
 
-        return redirect()->back();
+        $enriched = $this->readReceipts->enrichDirectMessages(
+            collect([$message]),
+            $conversationId,
+            (int) $user->id,
+        )->first();
+
+        return ChatStoreResponse::created(
+            $request,
+            $enriched ?? $message->toChatArray((int) $user->id),
+            $this->chatUnread->fullUnreadPayload($user),
+        );
     }
 
     public function messages(Request $request, DirectConversation $directConversation): JsonResponse

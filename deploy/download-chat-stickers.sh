@@ -34,4 +34,14 @@ for i in $(seq 1 6); do
   download "college-dog/${i}.png"
 done
 
+# Dumb Ways to Die
+for i in $(seq 1 9); do
+  download "dumb-ways-to-die/${i}.png"
+done
+
+# xkcd
+for i in $(seq 1 22); do
+  download "xkcd/${i}.png"
+done
+
 echo "Done. $(find "$DEST" -name '*.png' | wc -l | tr -d ' ') PNG files."

@@ -89,18 +89,17 @@ function pick(sticker) {
                                 v-for="sticker in activePack?.stickers || []"
                                 :key="sticker.key"
                                 type="button"
-                                class="flex flex-col items-center gap-1 rounded-xl p-1.5 transition hover:bg-slate-50 active:scale-95"
-                                :title="sticker.label"
+                                class="rounded-xl p-1.5 transition hover:bg-slate-50 active:scale-95"
+                                :title="sticker.label || 'ملصق'"
                                 @click="pick(sticker)"
                             >
                                 <img
                                     :src="sticker.url"
-                                    :alt="sticker.label"
-                                    class="h-14 w-14 object-contain"
+                                    alt=""
+                                    class="mx-auto h-16 w-16 object-contain"
                                     loading="lazy"
                                     draggable="false"
                                 />
-                                <span class="max-w-full truncate text-[9px] font-medium text-slate-500">{{ sticker.label }}</span>
                             </button>
                         </div>
                     </div>

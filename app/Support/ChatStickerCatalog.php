@@ -108,10 +108,14 @@ final class ChatStickerCatalog
     public static function stickerPayload(?string $key): ?array
     {
         $key = trim((string) $key);
-        $url = self::urlForKey($key);
         $parsed = self::parseKey($key);
 
-        if ($url === null || $parsed === null) {
+        if ($parsed === null) {
+            return null;
+        }
+
+        $url = self::urlForPackAndId($parsed['pack'], $parsed['id']);
+        if ($url === null) {
             return null;
         }
 

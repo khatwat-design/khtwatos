@@ -21,6 +21,7 @@ use App\Services\TeamChatMemberService;
 use App\Support\ChatAttachmentRules;
 use App\Support\ChatReplyResolver;
 use App\Support\ChatStickerCatalog;
+use App\Support\ChatStoreResponse;
 use App\Support\UserAvatar;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -202,7 +203,7 @@ class TeamChatController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): JsonResponse|RedirectResponse
     {
         $data = $request->validate([
             'team_id' => ['required', 'exists:teams,id'],
@@ -222,6 +223,13 @@ class TeamChatController extends Controller
 
         $sticker = ChatReplyResolver::validatedSticker($request);
         if (! ChatReplyResolver::messageHasContent($request, $sticker)) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'message' => 'اكتب رسالة أو أرفق ملفًا أو اختر ملصقًا.',
+                    'errors' => ['body' => ['اكتب رسالة أو أرفق ملفًا أو اختر ملصقًا.']],
+                ], 422);
+            }
+
             return redirect()->back()->withErrors([
                 'body' => 'اكتب رسالة أو أرفق ملفًا أو اختر ملصقًا.',
             ]);
@@ -259,7 +267,17 @@ class TeamChatController extends Controller
         $this->smartNotifications->notifyTeamChatMessage($message, $request->user()?->id);
         $this->chatUnread->markTeamAsRead($request, (int) $data['team_id']);
 
-        return redirect()->back();
+        $enriched = $this->readReceipts->enrichTeamMessages(
+            collect([$message]),
+            $teamId,
+            (int) $request->user()->id,
+        )->first();
+
+        return ChatStoreResponse::created(
+            $request,
+            $enriched ?? $message->toChatArray(),
+            $this->chatUnread->fullUnreadPayload($request->user()),
+        );
     }
 
     public function unreadSummary(Request $request): JsonResponse
