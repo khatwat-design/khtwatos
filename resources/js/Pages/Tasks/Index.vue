@@ -1266,10 +1266,10 @@ async function toggleChecklistItem(item) {
             </svg>
         </button>
 
-        <Modal :show="createModalOpen" @close="closeCreateModal">
-            <div class="glass-modal light-modal p-4 sm:p-6" @click.stop>
-                <h2 class="text-lg font-semibold text-slate-900">إضافة مهمة جديدة</h2>
-                <form class="mt-4 space-y-3" @submit.prevent="submitTask">
+        <Modal :show="createModalOpen" max-width="task" @close="closeCreateModal">
+            <div class="glass-modal light-modal p-3 sm:p-4" @click.stop>
+                <h2 class="text-base font-semibold text-slate-900">إضافة مهمة جديدة</h2>
+                <form class="mt-2.5 space-y-2" @submit.prevent="submitTask">
                     <div>
                         <InputLabel for="ct_title" value="عنوان المهمة" />
                         <TextInput
@@ -1301,7 +1301,7 @@ async function toggleChecklistItem(item) {
                         <InputError class="mt-1" :message="taskForm.errors.board_column_id" />
                     </div>
 
-                    <div class="grid gap-3 sm:grid-cols-2">
+                    <div class="grid gap-2 sm:grid-cols-2">
                         <div>
                             <InputLabel for="ct_client" value="العميل" />
                             <select
@@ -1327,8 +1327,8 @@ async function toggleChecklistItem(item) {
                                 id="ct_assignee"
                                 v-model="taskForm.assignee_ids"
                                 multiple
-                                size="4"
-                                class="mt-1 max-h-28 w-full overflow-y-auto rounded-xl border-slate-200 text-sm shadow-sm sm:max-h-44"
+                                size="3"
+                                class="mt-1 max-h-[4.5rem] w-full overflow-y-auto rounded-lg border-slate-200 text-xs shadow-sm sm:max-h-32 sm:text-sm"
                             >
                                 <option
                                     v-for="u in users || []"
@@ -1338,7 +1338,7 @@ async function toggleChecklistItem(item) {
                                     {{ u.name }}
                                 </option>
                             </select>
-                            <p class="mt-1 text-xs text-gray-500">يمكن اختيار أكثر من موظف.</p>
+                            <p class="mt-0.5 text-[11px] leading-snug text-gray-500">يمكن اختيار أكثر من موظف.</p>
                             <InputError class="mt-1" :message="taskForm.errors.assignee_ids" />
                         </div>
                     </div>
@@ -1349,8 +1349,8 @@ async function toggleChecklistItem(item) {
                             id="ct_desc"
                             ref="createDescriptionRef"
                             v-model="taskForm.description"
-                            rows="4"
-                            class="mt-1 block w-full rounded-xl border-slate-200 text-sm shadow-sm"
+                            rows="3"
+                            class="mt-1 block min-h-[4.5rem] w-full rounded-lg border-slate-200 text-sm shadow-sm"
                             placeholder="اكتب ملاحظات المهمة... واستخدم @ للمنشن"
                             @input="onCreateDescriptionInput"
                             @keydown="onCreateDescriptionKeydown"
@@ -1375,13 +1375,13 @@ async function toggleChecklistItem(item) {
                         </div>
                     </div>
 
-                    <div class="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:flex-wrap">
-                        <PrimaryButton :disabled="taskForm.processing" type="submit" class="w-full justify-center sm:w-auto">
+                    <div class="flex flex-col-reverse gap-1.5 pt-1.5 sm:flex-row sm:flex-wrap">
+                        <PrimaryButton :disabled="taskForm.processing" type="submit" class="w-full justify-center py-2 text-sm sm:w-auto">
                             إضافة
                         </PrimaryButton>
                         <button
                             type="button"
-                            class="inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-slate-50 sm:w-auto"
+                            class="inline-flex w-full items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 sm:w-auto"
                             @click="closeCreateModal"
                         >
                             إلغاء
@@ -1391,10 +1391,11 @@ async function toggleChecklistItem(item) {
             </div>
         </Modal>
 
-        <Modal :show="editModalOpen" @close="closeEditModal">
-            <div class="glass-modal p-4 sm:p-6" @click.stop>
-                <h2 class="text-lg font-semibold text-gray-900">تعديل المهمة</h2>
-                <form class="mt-4 space-y-3" @submit.prevent="saveTaskEdit">
+        <Modal :show="editModalOpen" max-width="task" @close="closeEditModal">
+            <div class="glass-modal p-3 sm:p-4" @click.stop>
+                <h2 class="text-base font-semibold text-gray-900">تعديل المهمة</h2>
+                <p v-if="taskDetailsLoading" class="mt-0.5 text-[11px] text-gray-500">جاري تحميل التفاصيل...</p>
+                <form class="mt-2.5 space-y-2" @submit.prevent="saveTaskEdit">
                     <div>
                         <InputLabel for="et_title" value="العنوان" />
                         <TextInput
@@ -1413,8 +1414,8 @@ async function toggleChecklistItem(item) {
                             id="et_desc"
                             ref="editDescriptionRef"
                             v-model="editForm.description"
-                            rows="3"
-                            class="mt-1 block w-full rounded-xl border-slate-200 text-sm shadow-sm"
+                            rows="2"
+                            class="mt-1 block min-h-[3.25rem] w-full rounded-lg border-slate-200 text-sm shadow-sm"
                             placeholder="استخدم @ للمنشن"
                             @input="onEditDescriptionInput"
                             @keydown="onEditDescriptionKeydown"
@@ -1464,8 +1465,8 @@ async function toggleChecklistItem(item) {
                             id="et_assignee"
                             v-model="editForm.assignee_ids"
                             multiple
-                            size="4"
-                            class="mt-1 max-h-28 w-full overflow-y-auto rounded-xl border-gray-300 text-sm shadow-sm sm:max-h-40"
+                            size="3"
+                            class="mt-1 max-h-[4.5rem] w-full overflow-y-auto rounded-lg border-gray-300 text-xs shadow-sm sm:max-h-28 sm:text-sm"
                         >
                             <option
                                 v-for="u in users || []"
@@ -1475,7 +1476,7 @@ async function toggleChecklistItem(item) {
                                 {{ u.name }}
                             </option>
                         </select>
-                        <p class="mt-1 text-xs text-gray-500">يمكن اختيار أكثر من موظف.</p>
+                        <p class="mt-0.5 text-[11px] leading-snug text-gray-500">يمكن اختيار أكثر من موظف.</p>
                         <InputError class="mt-1" :message="editForm.errors.assignee_ids" />
                     </div>
 
@@ -1491,175 +1492,213 @@ async function toggleChecklistItem(item) {
                         <InputError class="mt-1" :message="editForm.errors.due_at" />
                     </div>
 
-                    <div class="space-y-2 rounded-xl border border-white/30 bg-white/70 p-3 backdrop-blur">
-                        <div class="text-sm font-semibold text-gray-800">محادثة المهمة</div>
-                        <p v-if="taskDetailsLoading" class="text-xs text-gray-500">جاري تحميل تفاصيل المهمة...</p>
-                        <div class="max-h-48 space-y-2 overflow-y-auto rounded-xl bg-slate-50/80 p-2">
-                            <div
-                                v-for="msg in taskMessages"
-                                :key="`task-message-${msg.id}`"
-                                class="rounded-xl bg-white px-2 py-1.5 text-sm ring-1 ring-slate-200/70"
-                            >
-                                <div class="flex items-center justify-between gap-2">
-                                    <span class="font-medium text-gray-900">{{ msg.user?.name || 'عضو' }}</span>
-                                    <span class="text-xs text-gray-500">{{ formatMessageTime(msg.created_at) }}</span>
-                                </div>
-                                <p class="mt-1 whitespace-pre-wrap text-gray-700">{{ msg.body }}</p>
-                            </div>
-                            <p v-if="!taskMessages.length" class="text-center text-xs text-gray-500">
-                                لا توجد رسائل بعد داخل هذه المهمة.
-                            </p>
-                        </div>
-
-                        <textarea
-                            v-model="taskMessageBody"
-                            rows="2"
-                            class="block w-full rounded-md border-gray-300 text-sm shadow-sm"
-                            placeholder="اكتب رسالة داخل المهمة..."
-                        />
-                        <div class="flex items-center justify-between gap-2">
-                            <p v-if="taskMessageError" class="text-xs text-red-600">{{ taskMessageError }}</p>
-                            <button
-                                type="button"
-                                class="inline-flex items-center rounded-md bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
-                                :disabled="taskMessageSending"
-                                @click="sendTaskMessage"
-                            >
-                                {{ taskMessageSending ? 'جاري الإرسال...' : 'إرسال رسالة' }}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="space-y-2 rounded-xl border border-white/30 bg-white/70 p-3 backdrop-blur">
-                        <div class="text-sm font-semibold text-gray-800">مرفقات المهمة</div>
-                        <p v-if="taskDetailsLoading" class="text-xs text-gray-500">جاري تحميل تفاصيل المهمة...</p>
-                        <div class="max-h-44 space-y-2 overflow-y-auto rounded-xl bg-slate-50/80 p-2">
-                            <div
-                                v-for="attachment in taskAttachments"
-                                :key="`task-attachment-${attachment.id}`"
-                                class="rounded-xl bg-white p-2 ring-1 ring-slate-200/70"
-                            >
-                                <div class="flex items-start justify-between gap-2">
-                                    <div class="min-w-0">
-                                        <a
-                                            :href="attachment.url"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            class="truncate text-xs font-semibold text-brand-600 hover:underline"
-                                        >
-                                            {{ attachment.name }}
-                                        </a>
-                                        <p class="mt-0.5 text-[11px] text-gray-500">
-                                            {{ attachment.mime || 'ملف' }} • {{ formatFileSize(attachment.size) }}
-                                        </p>
-                                    </div>
-                                    <button
-                                        v-if="canDeleteRecords"
-                                        type="button"
-                                        class="text-xs text-red-600 hover:underline"
-                                        @click="deleteTaskAttachment(attachment)"
-                                    >
-                                        حذف
-                                    </button>
-                                </div>
-                                <img
-                                    v-if="attachment.is_image"
-                                    :src="attachment.url"
-                                    alt="مرفق المهمة"
-                                    class="mt-2 max-h-40 rounded border border-gray-200"
-                                />
-                            </div>
-                            <p v-if="!taskAttachments.length" class="text-center text-xs text-gray-500">
-                                لا توجد مرفقات بعد.
-                            </p>
-                        </div>
-
-                        <div class="space-y-2">
-                            <input
-                                ref="attachmentInputRef"
-                                type="file"
-                                class="block w-full text-xs text-gray-600 file:me-2 file:rounded-md file:border-0 file:bg-gray-100 file:px-2 file:py-1 file:text-xs file:font-medium"
-                                @change="onTaskAttachmentSelected"
-                            />
-                            <p class="text-[11px] text-gray-500">الحد الأقصى لحجم المرفق: 10MB</p>
-                            <div v-if="taskAttachmentUploading" class="h-1.5 overflow-hidden rounded-full bg-gray-100">
+                    <details
+                        class="task-modal-fold overflow-hidden rounded-lg border border-slate-200/80 bg-white/75"
+                        :open="taskMessages.length > 0"
+                    >
+                        <summary
+                            class="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-xs font-semibold text-gray-800 marker:hidden [&::-webkit-details-marker]:hidden"
+                        >
+                            <span>محادثة المهمة</span>
+                            <span class="shrink-0 font-normal text-[10px] text-gray-500">{{ taskMessages.length }} رسالة</span>
+                        </summary>
+                        <div class="space-y-1.5 border-t border-slate-100/90 px-2 pb-2 pt-1">
+                            <div class="max-h-28 space-y-1 overflow-y-auto rounded-lg bg-slate-50/90 p-1.5">
                                 <div
-                                    class="h-full rounded-full bg-blue-600 transition-all"
-                                    :style="{ width: `${taskAttachmentProgress}%` }"
-                                />
+                                    v-for="msg in taskMessages"
+                                    :key="`task-message-${msg.id}`"
+                                    class="rounded-lg bg-white px-1.5 py-1 text-xs ring-1 ring-slate-200/70"
+                                >
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="font-medium text-gray-900">{{ msg.user?.name || 'عضو' }}</span>
+                                        <span class="text-[10px] text-gray-500">{{ formatMessageTime(msg.created_at) }}</span>
+                                    </div>
+                                    <p class="mt-0.5 whitespace-pre-wrap text-[11px] leading-snug text-gray-700">{{ msg.body }}</p>
+                                </div>
+                                <p v-if="!taskMessages.length" class="py-1 text-center text-[11px] text-gray-500">
+                                    لا توجد رسائل بعد.
+                                </p>
                             </div>
-                            <div class="flex items-center justify-between gap-2">
-                                <p v-if="taskAttachmentError" class="text-xs text-red-600">{{ taskAttachmentError }}</p>
+
+                            <textarea
+                                v-model="taskMessageBody"
+                                rows="2"
+                                class="block w-full rounded-lg border-gray-300 text-xs shadow-sm"
+                                placeholder="رسالة جديدة..."
+                            />
+                            <div class="flex flex-wrap items-center justify-between gap-1.5">
+                                <p v-if="taskMessageError" class="text-[11px] text-red-600">{{ taskMessageError }}</p>
                                 <button
                                     type="button"
-                                    class="inline-flex items-center rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-blue-700 disabled:opacity-60"
-                                    :disabled="taskAttachmentUploading || !taskAttachmentFile"
-                                    @click="uploadTaskAttachment"
+                                    class="ms-auto inline-flex items-center rounded-md bg-brand-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+                                    :disabled="taskMessageSending"
+                                    @click="sendTaskMessage"
                                 >
-                                    {{ taskAttachmentUploading ? 'جاري الرفع...' : 'رفع مرفق' }}
+                                    {{ taskMessageSending ? 'جاري الإرسال...' : 'إرسال' }}
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </details>
 
-                    <div class="space-y-2 rounded-xl border border-white/30 bg-white/70 p-3 backdrop-blur">
-                        <div class="text-sm font-semibold text-gray-800">سجل إعادة التعيين</div>
-                        <div class="max-h-36 space-y-2 overflow-y-auto rounded-xl bg-slate-50/80 p-2">
-                            <div
-                                v-for="row in (editingTask?.reassignments || [])"
-                                :key="`reassign-${row.id}`"
-                                class="rounded-xl bg-white px-2 py-1 text-xs ring-1 ring-slate-200/70"
-                            >
-                                <div class="text-gray-700">
-                                    {{ row.assigned_by?.name || '—' }} → {{ row.assigned_to?.name || '—' }}
+                    <details
+                        class="task-modal-fold overflow-hidden rounded-lg border border-slate-200/80 bg-white/75"
+                        :open="taskAttachments.length > 0 || !!taskAttachmentFile || taskAttachmentUploading"
+                    >
+                        <summary
+                            class="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-xs font-semibold text-gray-800 marker:hidden [&::-webkit-details-marker]:hidden"
+                        >
+                            <span>مرفقات المهمة</span>
+                            <span class="shrink-0 font-normal text-[10px] text-gray-500">{{ taskAttachments.length }} مرفق</span>
+                        </summary>
+                        <div class="space-y-1.5 border-t border-slate-100/90 px-2 pb-2 pt-1">
+                            <div class="max-h-28 space-y-1.5 overflow-y-auto rounded-lg bg-slate-50/90 p-1.5">
+                                <div
+                                    v-for="attachment in taskAttachments"
+                                    :key="`task-attachment-${attachment.id}`"
+                                    class="rounded-lg bg-white p-1.5 ring-1 ring-slate-200/70"
+                                >
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="min-w-0">
+                                            <a
+                                                :href="attachment.url"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                class="truncate text-[11px] font-semibold text-brand-600 hover:underline"
+                                            >
+                                                {{ attachment.name }}
+                                            </a>
+                                            <p class="mt-0.5 text-[10px] text-gray-500">
+                                                {{ attachment.mime || 'ملف' }} • {{ formatFileSize(attachment.size) }}
+                                            </p>
+                                        </div>
+                                        <button
+                                            v-if="canDeleteRecords"
+                                            type="button"
+                                            class="text-[11px] text-red-600 hover:underline"
+                                            @click="deleteTaskAttachment(attachment)"
+                                        >
+                                            حذف
+                                        </button>
+                                    </div>
+                                    <img
+                                        v-if="attachment.is_image"
+                                        :src="attachment.url"
+                                        alt="مرفق المهمة"
+                                        class="mt-1.5 max-h-24 rounded border border-gray-200"
+                                    />
                                 </div>
-                                <div class="text-gray-500">
-                                    {{ row.due_at ? `استحقاق: ${formatMessageTime(row.due_at)}` : 'بدون استحقاق' }}
+                                <p v-if="!taskAttachments.length" class="py-1 text-center text-[11px] text-gray-500">
+                                    لا توجد مرفقات بعد.
+                                </p>
+                            </div>
+
+                            <div class="space-y-1">
+                                <input
+                                    ref="attachmentInputRef"
+                                    type="file"
+                                    class="block w-full text-[11px] text-gray-600 file:me-2 file:rounded file:border-0 file:bg-gray-100 file:px-1.5 file:py-0.5 file:text-[11px] file:font-medium"
+                                    @change="onTaskAttachmentSelected"
+                                />
+                                <p class="text-[10px] text-gray-500">حد أقصى 10MB</p>
+                                <div v-if="taskAttachmentUploading" class="h-1 overflow-hidden rounded-full bg-gray-100">
+                                    <div
+                                        class="h-full rounded-full bg-blue-600 transition-all"
+                                        :style="{ width: `${taskAttachmentProgress}%` }"
+                                    />
+                                </div>
+                                <div class="flex flex-wrap items-center justify-between gap-1.5">
+                                    <p v-if="taskAttachmentError" class="text-[11px] text-red-600">{{ taskAttachmentError }}</p>
+                                    <button
+                                        type="button"
+                                        class="ms-auto inline-flex items-center rounded-md bg-blue-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                                        :disabled="taskAttachmentUploading || !taskAttachmentFile"
+                                        @click="uploadTaskAttachment"
+                                    >
+                                        {{ taskAttachmentUploading ? 'جاري الرفع...' : 'رفع' }}
+                                    </button>
                                 </div>
                             </div>
-                            <p v-if="!(editingTask?.reassignments || []).length" class="text-center text-xs text-gray-500">
-                                لا يوجد سجل إعادة تعيين بعد.
-                            </p>
                         </div>
-                    </div>
+                    </details>
 
-                    <div class="space-y-2 rounded-xl border border-white/30 bg-white/70 p-3 backdrop-blur">
-                        <div class="text-sm font-semibold text-gray-800">قائمة تحقق المهمة</div>
-                        <div class="max-h-36 space-y-1 overflow-y-auto rounded-xl bg-slate-50/80 p-2">
-                            <label
-                                v-for="item in (editingTask?.checklist_items || [])"
-                                :key="`check-${item.id}`"
-                                class="flex items-center gap-2 text-xs text-gray-700"
-                            >
-                                <input
-                                    type="checkbox"
-                                    class="rounded border-gray-300 text-brand-600"
-                                    :checked="item.is_done"
-                                    @change="toggleChecklistItem(item)"
-                                />
-                                <span :class="item.is_done ? 'line-through text-gray-400' : ''">{{ item.title }}</span>
-                            </label>
-                            <p v-if="!(editingTask?.checklist_items || []).length" class="text-center text-xs text-gray-500">
-                                لا توجد قائمة تحقق بعد.
-                            </p>
+                    <details
+                        class="task-modal-fold overflow-hidden rounded-lg border border-slate-200/80 bg-white/75"
+                        :open="(editingTask?.reassignments || []).length > 0"
+                    >
+                        <summary
+                            class="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-xs font-semibold text-gray-800 marker:hidden [&::-webkit-details-marker]:hidden"
+                        >
+                            <span>سجل إعادة التعيين</span>
+                            <span class="shrink-0 font-normal text-[10px] text-gray-500">{{ (editingTask?.reassignments || []).length }} سجل</span>
+                        </summary>
+                        <div class="border-t border-slate-100/90 px-2 pb-2 pt-1">
+                            <div class="max-h-24 space-y-1 overflow-y-auto rounded-lg bg-slate-50/90 p-1.5">
+                                <div
+                                    v-for="row in (editingTask?.reassignments || [])"
+                                    :key="`reassign-${row.id}`"
+                                    class="rounded-lg bg-white px-1.5 py-0.5 text-[11px] ring-1 ring-slate-200/70"
+                                >
+                                    <div class="text-gray-700">
+                                        {{ row.assigned_by?.name || '—' }} → {{ row.assigned_to?.name || '—' }}
+                                    </div>
+                                    <div class="text-[10px] text-gray-500">
+                                        {{ row.due_at ? `استحقاق: ${formatMessageTime(row.due_at)}` : 'بدون استحقاق' }}
+                                    </div>
+                                </div>
+                                <p v-if="!(editingTask?.reassignments || []).length" class="py-1 text-center text-[11px] text-gray-500">
+                                    لا يوجد سجل بعد.
+                                </p>
+                            </div>
                         </div>
-                    </div>
+                    </details>
 
-                    <div class="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:flex-wrap">
-                        <PrimaryButton :disabled="editForm.processing" type="submit" class="w-full justify-center sm:w-auto">
+                    <details
+                        class="task-modal-fold overflow-hidden rounded-lg border border-slate-200/80 bg-white/75"
+                        :open="(editingTask?.checklist_items || []).length > 0"
+                    >
+                        <summary
+                            class="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-xs font-semibold text-gray-800 marker:hidden [&::-webkit-details-marker]:hidden"
+                        >
+                            <span>قائمة التحقق</span>
+                            <span class="shrink-0 font-normal text-[10px] text-gray-500">{{ (editingTask?.checklist_items || []).length }} عنصر</span>
+                        </summary>
+                        <div class="border-t border-slate-100/90 px-2 pb-2 pt-1">
+                            <div class="max-h-28 space-y-1 overflow-y-auto rounded-lg bg-slate-50/90 p-1.5">
+                                <label
+                                    v-for="item in (editingTask?.checklist_items || [])"
+                                    :key="`check-${item.id}`"
+                                    class="flex items-center gap-1.5 text-[11px] text-gray-700"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        class="rounded border-gray-300 text-brand-600"
+                                        :checked="item.is_done"
+                                        @change="toggleChecklistItem(item)"
+                                    />
+                                    <span :class="item.is_done ? 'line-through text-gray-400' : ''">{{ item.title }}</span>
+                                </label>
+                                <p v-if="!(editingTask?.checklist_items || []).length" class="py-1 text-center text-[11px] text-gray-500">
+                                    لا توجد عناصر بعد.
+                                </p>
+                            </div>
+                        </div>
+                    </details>
+
+                    <div class="flex flex-col-reverse gap-1.5 border-t border-slate-200/50 pt-2 sm:flex-row sm:flex-wrap">
+                        <PrimaryButton :disabled="editForm.processing" type="submit" class="w-full justify-center py-2 text-sm sm:w-auto">
                             حفظ
                         </PrimaryButton>
                         <button
                             v-if="canDeleteRecords && editingTask"
                             type="button"
-                            class="inline-flex w-full items-center justify-center rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-red-50 sm:w-auto"
+                            class="inline-flex w-full items-center justify-center rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 shadow-sm hover:bg-red-50 sm:w-auto"
                             @click="deleteTask(editingTask.id)"
                         >
                             حذف المهمة
                         </button>
                         <button
                             type="button"
-                            class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-gray-50 sm:w-auto"
+                            class="inline-flex w-full items-center justify-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 sm:w-auto"
                             @click="closeEditModal"
                         >
                             إلغاء
@@ -1669,15 +1708,15 @@ async function toggleChecklistItem(item) {
             </div>
         </Modal>
 
-        <Modal :show="quickActionModalOpen" @close="closeQuickActionModal">
-            <div class="glass-modal p-4 sm:p-6">
-                <h2 class="text-lg font-semibold text-gray-900">إضافة متابعة للمهمة</h2>
-                <p class="mt-1 text-sm text-gray-600">{{ quickActionTask?.title || '' }}</p>
+        <Modal :show="quickActionModalOpen" max-width="md" @close="closeQuickActionModal">
+            <div class="glass-modal p-3 sm:p-4">
+                <h2 class="text-base font-semibold text-gray-900">إضافة متابعة للمهمة</h2>
+                <p class="mt-0.5 text-xs text-gray-600">{{ quickActionTask?.title || '' }}</p>
 
-                <form class="mt-4 space-y-4" @submit.prevent="submitReassignment">
-                    <div class="rounded-xl border border-white/30 bg-white/70 p-3 backdrop-blur">
-                        <h3 class="text-sm font-semibold text-gray-800">إعادة تعيين لموظف + استحقاق</h3>
-                        <div class="mt-2 space-y-2">
+                <form class="mt-3 space-y-3" @submit.prevent="submitReassignment">
+                    <div class="rounded-lg border border-white/30 bg-white/70 p-2.5 backdrop-blur">
+                        <h3 class="text-xs font-semibold text-gray-800">إعادة تعيين لموظف + استحقاق</h3>
+                        <div class="mt-1.5 space-y-1.5">
                             <div>
                                 <InputLabel for="qa_assignee" value="الموظف" />
                                 <select
@@ -1718,8 +1757,8 @@ async function toggleChecklistItem(item) {
                     </div>
                 </form>
 
-                <form class="mt-4 space-y-3 rounded-xl border border-white/30 bg-white/70 p-3 backdrop-blur" @submit.prevent="submitChecklistItem">
-                    <h3 class="text-sm font-semibold text-gray-800">إضافة قائمة تحقق متعددة</h3>
+                <form class="mt-3 space-y-2 rounded-lg border border-white/30 bg-white/70 p-2.5 backdrop-blur" @submit.prevent="submitChecklistItem">
+                    <h3 class="text-xs font-semibold text-gray-800">إضافة قائمة تحقق متعددة</h3>
                     <div class="space-y-2">
                         <div
                             v-for="(item, index) in quickActionForm.checklist_titles"

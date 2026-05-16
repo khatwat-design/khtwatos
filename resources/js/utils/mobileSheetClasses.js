@@ -24,6 +24,11 @@ export const mobileSheetMaxXl = 'max-h-[min(68dvh,28rem)] sm:max-h-[90vh] sm:max
 /** مهام، موظفين، اجتماعات */
 export const mobileSheetMax2xl = 'max-h-[min(72dvh,30rem)] sm:max-h-[90vh] sm:max-w-2xl';
 
+/** نماذج المهام (إنشاء/تعديل) — عرض أصغر وحد أقصى للارتفاع مع تمرير داخلي */
+export const mobileSheetMaxTask = 'max-h-[min(86dvh,34rem)] sm:max-h-[min(88vh,40rem)] sm:max-w-lg lg:max-w-xl';
+
+export const mobileSheetPanelTask = `${mobileSheetPanelBase} ${mobileSheetMaxTask}`;
+
 export const mobileSheetPanelSm = `${mobileSheetPanelBase} ${mobileSheetMaxSm}`;
 export const mobileSheetPanelMd = `${mobileSheetPanelBase} ${mobileSheetMaxMd}`;
 export const mobileSheetPanelLg = `${mobileSheetPanelBase} ${mobileSheetMaxLg}`;
@@ -37,6 +42,7 @@ export const modalMobilePanelByMaxWidth = {
     lg: mobileSheetPanelLg,
     xl: mobileSheetPanelXl,
     '2xl': mobileSheetPanel2xl,
+    task: mobileSheetPanelTask,
 };
 
 export const mobileSheetHeader =
