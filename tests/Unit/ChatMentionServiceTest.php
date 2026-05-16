@@ -27,4 +27,16 @@ class ChatMentionServiceTest extends TestCase
 
         $this->assertSame([5], $ids);
     }
+
+    public function test_resolves_mention_ids_without_username(): void
+    {
+        $service = new ChatMentionService(app(\App\Services\TeamChatMemberService::class));
+
+        $ids = $service->resolveMentionedUserIds('مرحبا @[9]', [
+            ['id' => 9, 'username' => ''],
+            ['id' => 5, 'username' => 'ahmed'],
+        ]);
+
+        $this->assertSame([9], $ids);
+    }
 }

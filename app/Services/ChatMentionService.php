@@ -38,37 +38,63 @@ class ChatMentionService
     }
 
     /**
+     * @return list<int>
+     */
+    public function extractMentionIds(string $body): array
+    {
+        if ($body === '') {
+            return [];
+        }
+
+        preg_match_all('/@\[(\d+)\]/', $body, $matches);
+
+        return array_values(array_unique(array_map(
+            fn (string $id) => (int) $id,
+            $matches[1] ?? [],
+        )));
+    }
+
+    /**
      * @param  iterable<int, User|array{id: int, username?: string|null}>  $allowedUsers
      * @return list<int>
      */
     public function resolveMentionedUserIds(string $body, iterable $allowedUsers): array
     {
-        $usernames = $this->extractUsernames($body);
-        if ($usernames === []) {
-            return [];
-        }
-
+        $allowedIds = [];
         $byUsername = [];
+
         foreach ($allowedUsers as $user) {
             if ($user instanceof User) {
+                $id = (int) $user->id;
+                $allowedIds[$id] = true;
                 $username = Str::lower(trim((string) $user->username));
                 if ($username !== '') {
-                    $byUsername[$username] = (int) $user->id;
+                    $byUsername[$username] = $id;
                 }
                 continue;
             }
 
-            $username = Str::lower(trim((string) ($user['username'] ?? '')));
             $id = (int) ($user['id'] ?? 0);
-            if ($username !== '' && $id > 0) {
+            if ($id <= 0) {
+                continue;
+            }
+            $allowedIds[$id] = true;
+            $username = Str::lower(trim((string) ($user['username'] ?? '')));
+            if ($username !== '') {
                 $byUsername[$username] = $id;
             }
         }
 
         $ids = [];
-        foreach ($usernames as $username) {
+        foreach ($this->extractUsernames($body) as $username) {
             if (isset($byUsername[$username])) {
                 $ids[] = $byUsername[$username];
+            }
+        }
+
+        foreach ($this->extractMentionIds($body) as $id) {
+            if (isset($allowedIds[$id])) {
+                $ids[] = $id;
             }
         }
 
@@ -110,7 +136,6 @@ class ChatMentionService
                 'name' => (string) ($mention->user?->name ?? ''),
                 'username' => (string) ($mention->user?->username ?? ''),
             ])
-            ->filter(fn (array $row) => $row['username'] !== '')
             ->values()
             ->all();
     }
@@ -298,14 +323,12 @@ class ChatMentionService
 
         return User::query()
             ->whereIn('id', $userIds)
-            ->whereNotNull('username')
-            ->where('username', '!=', '')
             ->orderBy('name')
             ->get(['id', 'name', 'username'])
             ->map(fn (User $user) => [
                 'id' => $user->id,
                 'name' => $user->name,
-                'username' => $user->username,
+                'username' => (string) ($user->username ?? ''),
             ])
             ->values()
             ->all();

@@ -9,6 +9,7 @@ import { isChatMobileViewport } from '@/utils/chatMobileViewport.js';
 import {
     filterMentionCandidates,
     findActiveMentionQuery,
+    mentionHintForUser,
     mentionTokenForUser,
 } from '@/utils/chatMentions.js';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
@@ -583,7 +584,7 @@ watch(
                 <div class="relative mb-1 min-w-0 flex-1">
                     <ul
                         v-if="mentionOpen && filteredMentionCandidates.length"
-                        class="absolute bottom-full z-40 mb-2 max-h-48 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
+                        class="absolute bottom-full z-40 mb-2 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
                         dir="rtl"
                     >
                         <li v-for="(user, index) in filteredMentionCandidates" :key="`mention-${user.id}`">
@@ -594,7 +595,7 @@ watch(
                                 @mousedown.prevent="insertMention(user)"
                             >
                                 <span class="font-semibold">{{ user.name }}</span>
-                                <span class="text-xs text-slate-500" dir="ltr">@{{ user.username }}</span>
+                                <span class="shrink-0 text-xs text-slate-500" dir="ltr">{{ mentionHintForUser(user) }}</span>
                             </button>
                         </li>
                     </ul>

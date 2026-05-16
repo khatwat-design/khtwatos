@@ -1,4 +1,6 @@
-/** @typedef {{ id: number, name: string, username: string }} MentionUser */
+/** @typedef {{ id: number, name: string, username?: string }} MentionUser */
+
+const MENTION_TOKEN_REGEX = /@\[(\d+)\]|@([a-zA-Z0-9][a-zA-Z0-9._-]{1,31})/g;
 
 /**
  * @param {string} text
@@ -7,7 +9,7 @@
  */
 export function findActiveMentionQuery(text, cursorPos) {
     const before = String(text || '').slice(0, cursorPos);
-    const match = before.match(/(^|[\s\n])@([a-zA-Z0-9._-]*)$/);
+    const match = before.match(/(^|[\s\n])@([^\s@]*)$/u);
     if (!match) {
         return null;
     }
@@ -26,22 +28,22 @@ export function findActiveMentionQuery(text, cursorPos) {
 export function filterMentionCandidates(candidates, query, excludeUserId = null) {
     const q = String(query || '').trim().toLowerCase();
 
-    return (candidates || [])
-        .filter((user) => {
-            if (excludeUserId && Number(user.id) === Number(excludeUserId)) {
-                return false;
-            }
-            if (!user?.username) {
-                return false;
-            }
-            if (!q) {
-                return true;
-            }
-            const username = String(user.username).toLowerCase();
-            const name = String(user.name || '').toLowerCase();
-            return username.includes(q) || name.includes(q);
-        })
-        .slice(0, 8);
+    const filtered = (candidates || []).filter((user) => {
+        if (!user?.id) {
+            return false;
+        }
+        if (excludeUserId && Number(user.id) === Number(excludeUserId)) {
+            return false;
+        }
+        if (!q) {
+            return true;
+        }
+        const username = String(user.username || '').toLowerCase();
+        const name = String(user.name || '').toLowerCase();
+        return username.includes(q) || name.includes(q);
+    });
+
+    return filtered;
 }
 
 /**
@@ -59,22 +61,27 @@ export function splitMessageBody(body, mentions = []) {
             .filter((m) => m?.username)
             .map((m) => [String(m.username).toLowerCase(), m]),
     );
+    const byId = new Map((mentions || []).filter((m) => m?.id).map((m) => [Number(m.id), m]));
 
     const parts = [];
-    const regex = /@([a-zA-Z0-9][a-zA-Z0-9._-]{1,31})/g;
     let last = 0;
     let match;
+
+    const regex = new RegExp(MENTION_TOKEN_REGEX.source, 'g');
 
     while ((match = regex.exec(text)) !== null) {
         if (match.index > last) {
             parts.push({ type: 'text', text: text.slice(last, match.index) });
         }
 
-        const username = match[1];
+        const userId = match[1] ? Number(match[1]) : null;
+        const username = match[2] || null;
+        const user = userId ? byId.get(userId) : username ? byUsername.get(username.toLowerCase()) : null;
+
         parts.push({
             type: 'mention',
-            text: `@${username}`,
-            user: byUsername.get(username.toLowerCase()) || null,
+            text: mentionDisplayLabel(user, match[0]),
+            user,
         });
         last = match.index + match[0].length;
     }
@@ -87,8 +94,37 @@ export function splitMessageBody(body, mentions = []) {
 }
 
 /**
+ * @param {MentionUser|null|undefined} user
+ * @param {string} rawToken
+ */
+export function mentionDisplayLabel(user, rawToken) {
+    if (user?.name) {
+        return `@${user.name}`;
+    }
+
+    return rawToken;
+}
+
+/**
  * @param {MentionUser} user
  */
 export function mentionTokenForUser(user) {
-    return `@${user.username} `;
+    const username = String(user?.username || '').trim();
+    if (username) {
+        return `@${username} `;
+    }
+
+    return `@[${user.id}] `;
+}
+
+/**
+ * @param {MentionUser} user
+ */
+export function mentionHintForUser(user) {
+    const username = String(user?.username || '').trim();
+    if (username) {
+        return `@${username}`;
+    }
+
+    return 'منشن بالاسم';
 }
