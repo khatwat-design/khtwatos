@@ -8,7 +8,6 @@ use App\Models\DirectMessage;
 use App\Models\PrivateChatMessage;
 use App\Models\PrivateChatRead;
 use App\Models\PrivateChatRoom;
-use App\Models\Team;
 use App\Models\TeamChatMessage;
 use App\Models\TeamChatRead;
 use App\Models\User;
@@ -17,6 +16,10 @@ use Illuminate\Support\Facades\Schema;
 
 class ChatUnreadService
 {
+    public function __construct(
+        private readonly TeamChatMemberService $teamChatMembers,
+    ) {}
+
     /**
      * عدّ رسائل الفريق غير المقروءة لكل فريق (معرف الفريق => العدد).
      *
@@ -28,13 +31,14 @@ class ChatUnreadService
             return [];
         }
 
-        $teams = Team::query()->get(['id']);
+        $teamIds = $this->teamChatMembers->accessibleTeamIdsForUser($user);
         $readMap = TeamChatRead::query()
             ->where('user_id', $user->id)
             ->pluck('last_read_message_id', 'team_id');
 
         $result = [];
-        foreach ($teams as $team) {
+        foreach ($teamIds as $teamId) {
+            $team = (object) ['id' => $teamId];
             $lastRead = (int) ($readMap[$team->id] ?? 0);
             $result[(int) $team->id] = (int) TeamChatMessage::query()
                 ->where('team_id', $team->id)

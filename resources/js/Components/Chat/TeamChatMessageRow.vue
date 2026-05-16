@@ -3,7 +3,7 @@ import ChatUserAvatar from '@/Components/Chat/ChatUserAvatar.vue';
 import ChatVoicePlayer from '@/Components/Chat/ChatVoicePlayer.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import { attachmentIsVoice } from '@/utils/chatVoiceAttachment.js';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     msg: { type: Object, required: true },
@@ -25,9 +25,48 @@ const emit = defineEmits([
     'remove',
     'open-media',
     'open-actions',
+    'reply',
 ]);
 
 const hasForward = computed(() => Boolean(props.msg?.forward));
+const hasReply = computed(() => Boolean(props.msg?.reply));
+const isSticker = computed(() => Boolean(props.msg?.sticker?.emoji));
+
+const swipeX = ref(0);
+const swiping = ref(false);
+let touchStartX = 0;
+let touchStartY = 0;
+
+function onTouchStart(event) {
+    if (props.isEditing || props.msg?.is_pending || props.msg?.kind === 'call') {
+        return;
+    }
+    touchStartX = event.touches[0].clientX;
+    touchStartY = event.touches[0].clientY;
+    swiping.value = true;
+}
+
+function onTouchMove(event) {
+    if (!swiping.value) {
+        return;
+    }
+    const dx = event.touches[0].clientX - touchStartX;
+    const dy = event.touches[0].clientY - touchStartY;
+    if (Math.abs(dy) > Math.abs(dx) * 1.2) {
+        swipeX.value = 0;
+        return;
+    }
+    const max = 72;
+    swipeX.value = Math.max(-max, Math.min(0, dx));
+}
+
+function onTouchEnd() {
+    if (swipeX.value < -48) {
+        emit('reply', props.msg);
+    }
+    swipeX.value = 0;
+    swiping.value = false;
+}
 const isVoiceMessage = computed(() => attachmentIsVoice(props.msg?.attachment));
 const forwardCaption = computed(() => {
     const f = props.msg?.forward;
@@ -140,9 +179,32 @@ function onBubbleClick() {
                     "
                     role="button"
                     tabindex="0"
+                    :style="swipeX ? { transform: `translateX(${swipeX}px)` } : undefined"
                     @click="onBubbleClick"
                     @keydown.enter.prevent="onBubbleClick"
+                    @touchstart.passive="onTouchStart"
+                    @touchmove.passive="onTouchMove"
+                    @touchend="onTouchEnd"
+                    @touchcancel="onTouchEnd"
                 >
+                    <span
+                        v-if="swipeX < -20"
+                        class="pointer-events-none absolute end-full top-1/2 me-2 -translate-y-1/2 text-[10px] font-bold text-brand-600"
+                    >
+                        رد
+                    </span>
+                    <div
+                        v-if="hasReply"
+                        class="mb-2 rounded-lg border-s-2 px-2 py-1.5 text-[10px] leading-snug"
+                        :class="
+                            isMine
+                                ? 'border-white/40 bg-white/10 text-white/95'
+                                : 'border-slate-300 bg-slate-50 text-slate-700'
+                        "
+                    >
+                        <p class="font-bold">{{ msg.reply.user_name }}</p>
+                        <p class="mt-0.5 truncate opacity-90">{{ msg.reply.preview }}</p>
+                    </div>
                     <div
                         v-if="hasForward"
                         class="mb-2 rounded-lg border-s-2 px-2 py-1.5 text-[10px] leading-snug"
@@ -179,7 +241,8 @@ function onBubbleClick() {
                         </div>
                     </div>
 
-                    <p v-if="msg.body" class="whitespace-pre-wrap break-words">{{ msg.body }}</p>
+                    <p v-if="isSticker" class="select-none text-4xl leading-none sm:text-5xl">{{ msg.sticker.emoji }}</p>
+                    <p v-else-if="msg.body" class="whitespace-pre-wrap break-words">{{ msg.body }}</p>
 
                     <p
                         v-if="msg.is_pending"

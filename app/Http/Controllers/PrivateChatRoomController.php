@@ -6,9 +6,10 @@ use App\Models\PrivateChatMessage;
 use App\Models\PrivateChatRoom;
 use App\Models\User;
 use App\Services\ChatReadReceiptService;
-use App\Support\ChatAttachmentRules;
 use App\Services\ChatUnreadService;
 use App\Services\SmartNotificationService;
+use App\Support\ChatAttachmentRules;
+use App\Support\ChatReplyResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -120,16 +121,19 @@ class PrivateChatRoomController extends Controller
             $attachmentSize = $stored['size'];
         }
 
+        $roomId = (int) $privateChatRoom->id;
         $message = PrivateChatMessage::query()->create([
-            'private_chat_room_id' => $privateChatRoom->id,
+            'private_chat_room_id' => $roomId,
             'user_id' => $user->id,
+            'reply_to_message_id' => ChatReplyResolver::resolvePrivateReplyId($request, $roomId),
+            'sticker_key' => $sticker['key'] ?? null,
             'body' => trim((string) ($data['body'] ?? '')),
             'attachment_path' => $attachmentPath,
             'attachment_name' => $attachmentName,
             'attachment_mime' => $attachmentMime,
             'attachment_size' => $attachmentSize,
         ]);
-        $message->load('user:id,name,avatar_path');
+        $message->load(['user:id,name,avatar_path', 'replyTo.user:id,name']);
         $this->smartNotifications->notifyPrivateRoomMessage($privateChatRoom, $message, (int) $user->id);
         $this->chatUnread->markPrivateRoomAsRead($request, (int) $privateChatRoom->id);
 
@@ -145,7 +149,7 @@ class PrivateChatRoomController extends Controller
         ]);
 
         $query = PrivateChatMessage::query()
-            ->with('user:id,name,avatar_path')
+            ->with(['user:id,name,avatar_path', 'replyTo.user:id,name'])
             ->where('private_chat_room_id', $privateChatRoom->id)
             ->orderBy('id');
 

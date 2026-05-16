@@ -13,12 +13,15 @@ use App\Models\Team;
 use App\Models\TeamChatMessage;
 use App\Models\TeamChatTypingState;
 use App\Models\User;
-use App\Support\ChatAttachmentRules;
-use App\Support\UserAvatar;
 use App\Services\ChatNotificationReadService;
 use App\Services\ChatReadReceiptService;
 use App\Services\ChatUnreadService;
 use App\Services\SmartNotificationService;
+use App\Services\TeamChatMemberService;
+use App\Support\ChatAttachmentRules;
+use App\Support\ChatReplyResolver;
+use App\Support\ChatStickerCatalog;
+use App\Support\UserAvatar;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -34,6 +37,7 @@ class TeamChatController extends Controller
         private readonly ChatUnreadService $chatUnread,
         private readonly ChatNotificationReadService $chatNotificationRead,
         private readonly ChatReadReceiptService $readReceipts,
+        private readonly TeamChatMemberService $teamChatMembers,
     ) {}
 
     public function index(Request $request): Response
@@ -119,10 +123,15 @@ class TeamChatController extends Controller
             $selectedTeam = $selectedSlug ? $teams->firstWhere('slug', $selectedSlug) : null;
 
             if ($selectedTeam) {
+                abort_unless(
+                    $this->teamChatMembers->userCanAccessTeam($user, (int) $selectedTeam->id),
+                    403,
+                    'ليس لديك صلاحية الدخول إلى دردشة هذا القسم.',
+                );
                 TeamNotebookController::rememberNotebookTeam($request, $selectedTeam);
                 $viewKind = 'team';
                 $teamRows = TeamChatMessage::query()
-                    ->with('user:id,name,avatar_path')
+                    ->with(['user:id,name,avatar_path', 'replyTo.user:id,name'])
                     ->where('team_id', $selectedTeam->id)
                     ->latest()
                     ->limit(150)
@@ -155,7 +164,10 @@ class TeamChatController extends Controller
 
         $teamLastChatAt = $this->lastTeamChatMessageAtByTeamId();
 
+        $accessibleTeamIds = $this->teamChatMembers->accessibleTeamIdsForUser($user);
+
         $teamsPayload = $teams
+            ->filter(fn (Team $t) => in_array((int) $t->id, $accessibleTeamIds, true))
             ->map(fn (Team $t) => [
                 'id' => $t->id,
                 'name' => $t->name,
@@ -182,6 +194,11 @@ class TeamChatController extends Controller
             'messages' => $messages,
             'unreadCounts' => $chatUnreadPayload['unreadCounts'],
             'chatUnread' => $chatUnreadPayload,
+            'stickerPacks' => ChatStickerCatalog::packsForFrontend(),
+            'canManageTeamChatMembers' => (bool) $user?->isAdmin(),
+            'selectedTeamChatMembers' => $selectedTeam && $user?->isAdmin()
+                ? $this->teamChatMembers->membersPayloadForTeam((int) $selectedTeam->id)
+                : [],
         ]);
     }
 
@@ -189,10 +206,26 @@ class TeamChatController extends Controller
     {
         $data = $request->validate([
             'team_id' => ['required', 'exists:teams,id'],
-            'body' => ['nullable', 'string', 'max:4000', 'required_without:attachment'],
+            'body' => ['nullable', 'string', 'max:4000'],
+            'reply_to_message_id' => ['nullable', 'integer', 'min:1'],
+            'sticker_key' => ['nullable', 'string', 'max:64'],
             'attachment' => ChatAttachmentRules::attachmentValidation(),
             'voice_note' => ['sometimes', 'boolean'],
         ]);
+
+        $teamId = (int) $data['team_id'];
+        abort_unless(
+            $this->teamChatMembers->userCanAccessTeam($request->user(), $teamId),
+            403,
+            'ليس لديك صلاحية الإرسال في هذه الغرفة.',
+        );
+
+        $sticker = ChatReplyResolver::validatedSticker($request);
+        if (! ChatReplyResolver::messageHasContent($request, $sticker)) {
+            return redirect()->back()->withErrors([
+                'body' => 'اكتب رسالة أو أرفق ملفًا أو اختر ملصقًا.',
+            ]);
+        }
 
         $attachmentPath = null;
         $attachmentName = null;
@@ -211,15 +244,17 @@ class TeamChatController extends Controller
         }
 
         $message = TeamChatMessage::query()->create([
-            'team_id' => $data['team_id'],
+            'team_id' => $teamId,
             'user_id' => $request->user()->id,
+            'reply_to_message_id' => ChatReplyResolver::resolveTeamReplyId($request, $teamId),
+            'sticker_key' => $sticker['key'] ?? null,
             'body' => trim((string) ($data['body'] ?? '')),
             'attachment_path' => $attachmentPath,
             'attachment_name' => $attachmentName,
             'attachment_mime' => $attachmentMime,
             'attachment_size' => $attachmentSize,
         ]);
-        $message->load('user:id,name,avatar_path');
+        $message->load(['user:id,name,avatar_path', 'replyTo.user:id,name']);
         broadcast(new TeamChatMessageCreated($message));
         $this->smartNotifications->notifyTeamChatMessage($message, $request->user()?->id);
         $this->chatUnread->markTeamAsRead($request, (int) $data['team_id']);
@@ -239,9 +274,15 @@ class TeamChatController extends Controller
             'after_id' => ['nullable', 'integer', 'min:0'],
         ]);
 
+        $teamId = (int) $data['team_id'];
+        abort_unless(
+            $this->teamChatMembers->userCanAccessTeam($request->user(), $teamId),
+            403,
+        );
+
         $query = TeamChatMessage::query()
-            ->with('user:id,name,avatar_path')
-            ->where('team_id', (int) $data['team_id'])
+            ->with(['user:id,name,avatar_path', 'replyTo.user:id,name'])
+            ->where('team_id', $teamId)
             ->orderBy('id');
 
         if (! empty($data['after_id'])) {
@@ -254,10 +295,9 @@ class TeamChatController extends Controller
         if (empty($data['after_id'])) {
             $rows = $rows->reverse()->values();
         }
-        $this->chatUnread->markTeamAsRead($request, (int) $data['team_id']);
+        $this->chatUnread->markTeamAsRead($request, $teamId);
 
         $userId = (int) $request->user()->id;
-        $teamId = (int) $data['team_id'];
         $enriched = $this->readReceipts->enrichTeamMessages($rows, $teamId, $userId);
 
         return response()->json(array_merge([
@@ -369,6 +409,9 @@ class TeamChatController extends Controller
             'team_id' => ['required', 'exists:teams,id'],
         ]);
 
+        $teamId = (int) $data['team_id'];
+        abort_unless($this->teamChatMembers->userCanAccessTeam($request->user(), $teamId), 403);
+
         TeamChatTypingState::query()->updateOrCreate(
             [
                 'team_id' => (int) $data['team_id'],
@@ -388,9 +431,12 @@ class TeamChatController extends Controller
             'team_id' => ['required', 'exists:teams,id'],
         ]);
 
+        $teamId = (int) $data['team_id'];
+        abort_unless($this->teamChatMembers->userCanAccessTeam($request->user(), $teamId), 403);
+
         $users = TeamChatTypingState::query()
             ->with('user:id,name,avatar_path')
-            ->where('team_id', (int) $data['team_id'])
+            ->where('team_id', $teamId)
             ->where('updated_at', '>=', now()->subSeconds(8))
             ->where('user_id', '!=', $request->user()->id)
             ->orderByDesc('updated_at')

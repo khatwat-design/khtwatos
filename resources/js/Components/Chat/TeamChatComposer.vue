@@ -19,6 +19,7 @@ const props = defineProps({
     keyboardLift: { type: Boolean, default: true },
     /** أنماط إضافية من الأب (مثلاً safe-area ولوحة المفاتيح في الوضع الغامر) */
     footerStyle: { type: Object, default: null },
+    stickersEnabled: { type: Boolean, default: true },
 });
 
 const emit = defineEmits([
@@ -28,6 +29,7 @@ const emit = defineEmits([
     'attachment-change',
     'clear-attachment',
     'send-voice',
+    'open-stickers',
 ]);
 
 const textareaRef = ref(null);
@@ -430,6 +432,16 @@ watch(
 
         <form class="px-2 pt-2 sm:px-3 sm:pt-2.5" @submit.prevent="trySubmit">
             <div class="flex items-end gap-1.5 sm:gap-2">
+                <button
+                    v-if="stickersEnabled"
+                    type="button"
+                    class="mb-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-slate-500 transition hover:bg-amber-50 hover:text-amber-700 active:scale-95 disabled:opacity-40"
+                    :disabled="disabled || processing || isRecording"
+                    aria-label="ملصقات"
+                    @click="emit('open-stickers')"
+                >
+                    <span class="text-lg" aria-hidden="true">😊</span>
+                </button>
                 <button
                     type="button"
                     class="mb-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-slate-500 transition hover:bg-slate-100 hover:text-brand-700 active:scale-95 disabled:opacity-40"

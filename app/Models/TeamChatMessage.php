@@ -2,16 +2,19 @@
 
 namespace App\Models;
 
+use App\Support\ChatMessagePayload;
+use App\Support\ChatStickerCatalog;
+use App\Support\UserAvatar;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Support\ChatMessagePayload;
-use App\Support\UserAvatar;
 
 class TeamChatMessage extends Model
 {
     protected $fillable = [
         'team_id',
         'user_id',
+        'reply_to_message_id',
+        'sticker_key',
         'body',
         'forwarded_from_user_name',
         'forwarded_from_context',
@@ -40,16 +43,23 @@ class TeamChatMessage extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function replyTo(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'reply_to_message_id');
+    }
+
     /**
      * @return array<string, mixed>
      */
     public function toChatArray(): array
     {
-        $this->loadMissing('user:id,name,avatar_path');
+        $this->loadMissing(['user:id,name,avatar_path', 'replyTo.user:id,name']);
 
         return [
             'id' => $this->id,
             'body' => $this->body,
+            'sticker' => ChatStickerCatalog::stickerPayload($this->sticker_key),
+            'reply' => ChatMessagePayload::replyPreview($this->replyTo),
             'created_at' => $this->created_at?->toIso8601String(),
             'edited_at' => $this->edited_at?->toIso8601String(),
             'forward' => ChatMessagePayload::forwardMeta($this->forwarded_from_user_name, $this->forwarded_from_context),

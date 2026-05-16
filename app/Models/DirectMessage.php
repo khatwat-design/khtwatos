@@ -2,17 +2,20 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Support\ChatMessagePayload;
+use App\Support\ChatStickerCatalog;
 use App\Support\EmployeeCallChatLog;
 use App\Support\UserAvatar;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DirectMessage extends Model
 {
     protected $fillable = [
         'direct_conversation_id',
         'user_id',
+        'reply_to_message_id',
+        'sticker_key',
         'body',
         'forwarded_from_user_name',
         'forwarded_from_context',
@@ -49,6 +52,11 @@ class DirectMessage extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function replyTo(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'reply_to_message_id');
+    }
+
     public function employeeCall(): BelongsTo
     {
         return $this->belongsTo(EmployeeCall::class);
@@ -59,12 +67,14 @@ class DirectMessage extends Model
      */
     public function toChatArray(?int $viewerId = null): array
     {
-        $this->loadMissing('user:id,name,avatar_path');
+        $this->loadMissing(['user:id,name,avatar_path', 'replyTo.user:id,name']);
 
         $payload = [
             'id' => $this->id,
             'kind' => 'message',
             'body' => $this->body,
+            'sticker' => ChatStickerCatalog::stickerPayload($this->sticker_key),
+            'reply' => ChatMessagePayload::replyPreview($this->replyTo),
             'created_at' => $this->created_at?->toIso8601String(),
             'edited_at' => $this->edited_at?->toIso8601String(),
             'forward' => ChatMessagePayload::forwardMeta($this->forwarded_from_user_name, $this->forwarded_from_context),

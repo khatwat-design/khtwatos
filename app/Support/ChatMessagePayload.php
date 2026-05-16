@@ -10,6 +10,48 @@ final class ChatMessagePayload
     /**
      * @return array<string, mixed>|null
      */
+    public static function replyPreview(?object $message): ?array
+    {
+        if ($message === null) {
+            return null;
+        }
+
+        $id = (int) ($message->id ?? 0);
+        if ($id <= 0) {
+            return null;
+        }
+
+        $user = $message->user ?? null;
+        $body = trim((string) ($message->body ?? ''));
+        $stickerKey = trim((string) ($message->sticker_key ?? ''));
+        $sticker = ChatStickerCatalog::stickerPayload($stickerKey !== '' ? $stickerKey : null);
+
+        $preview = $body;
+        if ($preview === '' && $sticker) {
+            $preview = $sticker['emoji'];
+        }
+        if ($preview === '' && ! empty($message->attachment_path)) {
+            $preview = 'مرفق';
+        }
+        if ($preview === '') {
+            $preview = 'رسالة';
+        }
+
+        if (mb_strlen($preview) > 120) {
+            $preview = mb_substr($preview, 0, 117).'…';
+        }
+
+        return [
+            'id' => $id,
+            'user_name' => $user?->name ?? 'عضو',
+            'preview' => $preview,
+            'sticker' => $sticker,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
     public static function forwardMeta(?string $fromUserName, ?string $fromContext): ?array
     {
         $name = trim((string) $fromUserName);

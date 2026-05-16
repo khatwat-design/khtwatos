@@ -6,6 +6,9 @@ import ChatUserAvatar from '@/Components/Chat/ChatUserAvatar.vue';
 import TeamChatComposer from '@/Components/Chat/TeamChatComposer.vue';
 import ChatCallLogRow from '@/Components/Chat/ChatCallLogRow.vue';
 import TeamChatMessageRow from '@/Components/Chat/TeamChatMessageRow.vue';
+import ChatReplyBar from '@/Components/Chat/ChatReplyBar.vue';
+import ChatStickerPicker from '@/Components/Chat/ChatStickerPicker.vue';
+import ChatTeamMembersModal from '@/Components/Chat/ChatTeamMembersModal.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import Modal from '@/Components/Modal.vue';
@@ -32,6 +35,9 @@ const props = defineProps({
     messages: Array,
     unreadCounts: Object,
     chatUnread: { type: Object, default: () => ({}) },
+    stickerPacks: { type: Array, default: () => [] },
+    canManageTeamChatMembers: { type: Boolean, default: false },
+    selectedTeamChatMembers: { type: Array, default: () => [] },
 });
 const page = usePage();
 
@@ -46,25 +52,38 @@ function normalizeChatUnreadPayload(bundle = {}) {
 
 const currentUserId = computed(() => page.props.auth?.user?.id || null);
 const canDeleteRecords = computed(() => Boolean(page.props.auth?.can?.deleteRecords));
+const isAdmin = computed(() => page.props.auth?.user?.role === 'admin');
 
 const form = useForm({
     team_id: props.selectedTeam?.id ?? null,
     body: '',
     attachment: null,
     voice_note: false,
+    reply_to_message_id: null,
+    sticker_key: null,
 });
 
 const privateForm = useForm({
     body: '',
     attachment: null,
     voice_note: false,
+    reply_to_message_id: null,
+    sticker_key: null,
 });
 
 const directForm = useForm({
     body: '',
     attachment: null,
     voice_note: false,
+    reply_to_message_id: null,
+    sticker_key: null,
 });
+
+const replyTo = ref(null);
+const pendingStickerKey = ref(null);
+const stickerPickerOpen = ref(false);
+const teamMembersModalOpen = ref(false);
+const teamMembersSaving = ref(false);
 
 const createRoomForm = useForm({
     name: '',
@@ -597,14 +616,20 @@ function submitMessage() {
 }
 
 function submitTeamMessage() {
-    if (!form.team_id || (!form.body.trim() && !form.attachment)) {
+    const stickerKey = pendingStickerKey.value;
+    if (!form.team_id || (!form.body.trim() && !form.attachment && !stickerKey)) {
         return;
     }
+
+    form.reply_to_message_id = replyTo.value?.id ?? null;
+    form.sticker_key = stickerKey;
 
     const tempId = `pending-${Date.now()}`;
     const optimisticMessage = {
         id: tempId,
         body: form.body,
+        sticker: stickerKey ? { key: stickerKey, emoji: findStickerEmoji(stickerKey) } : null,
+        reply: replyTo.value,
         created_at: new Date().toISOString(),
         user: {
             id: currentUserId.value,
@@ -627,6 +652,10 @@ function submitTeamMessage() {
             form.body = '';
             form.attachment = null;
             form.voice_note = false;
+            form.reply_to_message_id = null;
+            form.sticker_key = null;
+            pendingStickerKey.value = null;
+            clearReply();
             if (props.selectedTeam?.id) {
                 bumpInboxActivity(`team:${props.selectedTeam.id}`);
             }
@@ -634,19 +663,36 @@ function submitTeamMessage() {
         },
         onError: () => {
             pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
+            pendingStickerKey.value = null;
         },
     });
 }
 
+function findStickerEmoji(key) {
+    for (const pack of props.stickerPacks || []) {
+        const hit = (pack.stickers || []).find((s) => s.key === key);
+        if (hit) {
+            return hit.emoji;
+        }
+    }
+    return '⭐';
+}
+
 function submitPrivateMessage() {
-    if (!props.selectedPrivateRoom?.id || (!privateForm.body.trim() && !privateForm.attachment)) {
+    const stickerKey = pendingStickerKey.value;
+    if (!props.selectedPrivateRoom?.id || (!privateForm.body.trim() && !privateForm.attachment && !stickerKey)) {
         return;
     }
+
+    privateForm.reply_to_message_id = replyTo.value?.id ?? null;
+    privateForm.sticker_key = stickerKey;
 
     const tempId = `pending-${Date.now()}`;
     const optimisticMessage = {
         id: tempId,
         body: privateForm.body,
+        sticker: stickerKey ? { key: stickerKey, emoji: findStickerEmoji(stickerKey) } : null,
+        reply: replyTo.value,
         created_at: new Date().toISOString(),
         user: {
             id: currentUserId.value,
@@ -669,6 +715,10 @@ function submitPrivateMessage() {
             privateForm.body = '';
             privateForm.attachment = null;
             privateForm.voice_note = false;
+            privateForm.reply_to_message_id = null;
+            privateForm.sticker_key = null;
+            pendingStickerKey.value = null;
+            clearReply();
             if (props.selectedPrivateRoom?.id) {
                 bumpInboxActivity(`private:${props.selectedPrivateRoom.id}`);
             }
@@ -676,19 +726,26 @@ function submitPrivateMessage() {
         },
         onError: () => {
             pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
+            pendingStickerKey.value = null;
         },
     });
 }
 
 function submitDirectMessage() {
-    if (!props.selectedDirect?.id || (!directForm.body.trim() && !directForm.attachment)) {
+    const stickerKey = pendingStickerKey.value;
+    if (!props.selectedDirect?.id || (!directForm.body.trim() && !directForm.attachment && !stickerKey)) {
         return;
     }
+
+    directForm.reply_to_message_id = replyTo.value?.id ?? null;
+    directForm.sticker_key = stickerKey;
 
     const tempId = `pending-${Date.now()}`;
     const optimisticMessage = {
         id: tempId,
         body: directForm.body,
+        sticker: stickerKey ? { key: stickerKey, emoji: findStickerEmoji(stickerKey) } : null,
+        reply: replyTo.value,
         created_at: new Date().toISOString(),
         user: {
             id: currentUserId.value,
@@ -711,6 +768,10 @@ function submitDirectMessage() {
             directForm.body = '';
             directForm.attachment = null;
             directForm.voice_note = false;
+            directForm.reply_to_message_id = null;
+            directForm.sticker_key = null;
+            pendingStickerKey.value = null;
+            clearReply();
             if (props.selectedDirect?.id) {
                 bumpInboxActivity(`direct:${props.selectedDirect.id}`);
             }
@@ -718,6 +779,7 @@ function submitDirectMessage() {
         },
         onError: () => {
             pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
+            pendingStickerKey.value = null;
         },
     });
 }
@@ -1384,6 +1446,68 @@ const forwardTargets = computed(() => {
     return rows.sort((a, b) => String(a.label).localeCompare(String(b.label), 'ar'));
 });
 
+function buildReplyPreview(msg) {
+    if (!msg) {
+        return null;
+    }
+    let preview = String(msg.body || '').trim();
+    if (!preview && msg.sticker?.emoji) {
+        preview = msg.sticker.emoji;
+    }
+    if (!preview && msg.attachment) {
+        preview = 'مرفق';
+    }
+    return {
+        id: msg.id,
+        user_name: msg.user?.name || 'عضو',
+        preview: preview || 'رسالة',
+    };
+}
+
+function startReply(msg) {
+    if (!msg || msg.is_pending || msg.kind === 'call') {
+        return;
+    }
+    replyTo.value = buildReplyPreview(msg);
+    closeMessageActions();
+}
+
+function clearReply() {
+    replyTo.value = null;
+}
+
+function openStickerPicker() {
+    stickerPickerOpen.value = true;
+}
+
+function onStickerSelected(sticker) {
+    if (!sticker?.key) {
+        return;
+    }
+    pendingStickerKey.value = sticker.key;
+    submitMessage();
+}
+
+async function saveTeamChatMembers(memberIds) {
+    if (!props.selectedTeam?.id) {
+        return;
+    }
+    teamMembersSaving.value = true;
+    try {
+        await window.axios.put(
+            route('chat.teams.members.update', props.selectedTeam.id),
+            { member_ids: memberIds },
+            { headers: { Accept: 'application/json' } },
+        );
+        teamMembersModalOpen.value = false;
+        router.reload({ only: ['teams', 'selectedTeamChatMembers', 'messages'] });
+    } catch {
+        /* يمكن إظهار تنبيه لاحقًا */
+    } finally {
+        teamMembersSaving.value = false;
+    }
+}
+
 function openMessageActions(msg) {
     if (!msg || msg.is_pending || msg.kind === 'call') {
         return;
@@ -2024,6 +2148,14 @@ watch(
                                     </svg>
                                 </button>
                                 <button
+                                    v-if="viewKind === 'team' && canManageTeamChatMembers && selectedTeam"
+                                    type="button"
+                                    class="hidden rounded-lg border border-slate-300 bg-white px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-50 sm:inline-flex sm:px-2.5 sm:text-[11px]"
+                                    @click="teamMembersModalOpen = true"
+                                >
+                                    إدارة الأعضاء
+                                </button>
+                                <button
                                     v-if="viewKind === 'direct' && selectedDirect?.peer && employeeCallsEnabled"
                                     type="button"
                                     class="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-white shadow-md shadow-emerald-900/25 transition hover:bg-emerald-500 active:scale-95 sm:h-11 sm:w-auto sm:gap-2 sm:px-4"
@@ -2150,6 +2282,7 @@ watch(
                                 @remove="removeMessage(item.msg)"
                                 @open-media="openMediaLightbox"
                                 @open-actions="openMessageActions"
+                                @reply="startReply"
                             />
                             </template>
 
@@ -2164,6 +2297,8 @@ watch(
 
                         </div>
 
+                        <ChatReplyBar v-if="replyTo" :reply="replyTo" @clear="clearReply" />
+
                         <TeamChatComposer
                             v-model="composerBody"
                             class="team-chat-composer-bar relative z-30 shrink-0"
@@ -2173,12 +2308,14 @@ watch(
                             :attachment="activeComposerAttachment()"
                             :body-error="activeComposerErrors().body || ''"
                             :typing-hint="composerTypingHint"
+                            :stickers-enabled="(stickerPacks || []).length > 0"
                             @focusin="readImmersiveViewport"
                             @submit="submitMessage"
                             @typing="notifyComposerTyping"
                             @attachment-change="onAttachmentChange"
                             @clear-attachment="clearAttachment"
                             @send-voice="onSendVoice"
+                            @open-stickers="openStickerPicker"
                         />
                     </template>
 
@@ -2345,8 +2482,26 @@ watch(
             @close="closeMessageActions"
             @copy="copyMessageText(messageActions.msg)"
             @forward="openForwardFromActions"
+            @reply="startReply(messageActions.msg)"
             @start-edit="onMessageActionEdit"
             @remove="onMessageActionRemove"
+        />
+
+        <ChatStickerPicker
+            :open="stickerPickerOpen"
+            :packs="stickerPacks"
+            @close="stickerPickerOpen = false"
+            @select="onStickerSelected"
+        />
+
+        <ChatTeamMembersModal
+            :show="teamMembersModalOpen"
+            :team="selectedTeam"
+            :users="chatUsers"
+            :initial-member-ids="(selectedTeamChatMembers || []).map((m) => m.id)"
+            :processing="teamMembersSaving"
+            @close="teamMembersModalOpen = false"
+            @save="saveTeamChatMembers"
         />
 
         <ChatForwardModal

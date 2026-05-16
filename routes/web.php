@@ -9,8 +9,9 @@ use App\Http\Controllers\ClientPortalController;
 use App\Http\Controllers\DatabaseBackupController;
 use App\Http\Controllers\DevicePushTokenController;
 use App\Http\Controllers\DirectChatController;
-use App\Http\Controllers\EmployeeCallController;
 use App\Http\Controllers\EmployeeAttendanceController;
+use App\Http\Controllers\EmployeeCallController;
+use App\Http\Controllers\EmployeeCallDiagnosticController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\GoodsCustomerController;
 use App\Http\Controllers\HomeController;
@@ -22,10 +23,12 @@ use App\Http\Controllers\PrivateChatRoomController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicBookingController;
 use App\Http\Controllers\PushSubscriptionController;
+use App\Http\Controllers\SalesAnalyticsController;
 use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\SystemSettingsController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TeamChatController;
+use App\Http\Controllers\TeamChatMembersController;
 use App\Http\Controllers\TeamNotebookController;
 use App\Http\Controllers\WarehouseController;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
@@ -99,6 +102,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->where('path', '.*')
         ->name('chat.attachments.show');
     Route::post('/chat', [TeamChatController::class, 'store'])->name('chat.store');
+    Route::get('/chat/teams/{team}/members', [TeamChatMembersController::class, 'show'])->name('chat.teams.members.show');
+    Route::put('/chat/teams/{team}/members', [TeamChatMembersController::class, 'update'])->name('chat.teams.members.update');
     Route::get('/chat/messages', [TeamChatController::class, 'messages'])->name('chat.messages.index');
     Route::get('/chat/read-receipts', [TeamChatController::class, 'readReceipts'])->name('chat.read-receipts');
     Route::post('/chat/forward', [ChatForwardController::class, 'store'])->name('chat.forward');
@@ -111,8 +116,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/chat/private-rooms/{privateChatRoom}/leave', [PrivateChatRoomController::class, 'leave'])->name('chat.private-rooms.leave');
     Route::post('/chat/private-rooms/{privateChatRoom}/messages', [PrivateChatRoomController::class, 'storeMessage'])->name('chat.private-rooms.messages.store');
     Route::get('/chat/private-rooms/{privateChatRoom}/messages', [PrivateChatRoomController::class, 'messages'])->name('chat.private-rooms.messages.index');
-    Route::get('/chat/calls/diagnostics/status', [\App\Http\Controllers\EmployeeCallDiagnosticController::class, 'status'])->name('chat.calls.diagnostics.status');
-    Route::post('/chat/calls/diagnostics/client', [\App\Http\Controllers\EmployeeCallDiagnosticController::class, 'storeClientReport'])->name('chat.calls.diagnostics.client');
+    Route::get('/chat/calls/diagnostics/status', [EmployeeCallDiagnosticController::class, 'status'])->name('chat.calls.diagnostics.status');
+    Route::post('/chat/calls/diagnostics/client', [EmployeeCallDiagnosticController::class, 'storeClientReport'])->name('chat.calls.diagnostics.client');
     Route::post('/chat/calls/release-stale', [EmployeeCallController::class, 'releaseStale'])->name('chat.calls.release-stale');
     Route::get('/chat/calls/pending', [EmployeeCallController::class, 'pending'])->name('chat.calls.pending');
     Route::post('/chat/calls', [EmployeeCallController::class, 'store'])->name('chat.calls.store');
@@ -141,7 +146,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/goods/customers/{goodsCustomer}/sales-reminder', [GoodsCustomerController::class, 'sendSalesReminder'])->name('goods.customers.sales-reminder');
     Route::post('/goods/customers/{goodsCustomer}/weekly-survey', [GoodsCustomerController::class, 'sendWeeklySurvey'])->name('goods.customers.weekly-survey');
 
-    Route::get('/sales/analytics', [\App\Http\Controllers\SalesAnalyticsController::class, 'index'])->name('sales.analytics');
+    Route::get('/sales/analytics', [SalesAnalyticsController::class, 'index'])->name('sales.analytics');
 
     Route::get('/meetings', [MeetingController::class, 'index'])->name('meetings.index');
     Route::get('/meetings/create', [MeetingController::class, 'create'])->name('meetings.create');

@@ -6,7 +6,7 @@ const props = defineProps({
     viewKind: { type: String, default: 'team' },
 });
 
-const emit = defineEmits(['close', 'copy', 'forward', 'start-edit', 'remove']);
+const emit = defineEmits(['close', 'copy', 'forward', 'reply', 'start-edit', 'remove']);
 </script>
 
 <template>
@@ -39,6 +39,15 @@ const emit = defineEmits(['close', 'copy', 'forward', 'start-edit', 'remove']);
                     <button
                         type="button"
                         class="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-start text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+                        @click="emit('reply')"
+                    >
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">↩</span>
+                        رد على الرسالة
+                    </button>
+
+                    <button
+                        type="button"
+                        class="mt-1 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-start text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
                         @click="emit('copy')"
                     >
                         <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-700">📋</span>
