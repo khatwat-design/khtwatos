@@ -50,9 +50,15 @@ function pick(sticker) {
                 dir="rtl"
                 @click.self="emit('close')"
             >
-                <div class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl" @click.stop>
-                    <div class="mb-2 flex items-center justify-between gap-2">
-                        <p class="text-sm font-bold text-slate-900">الملصقات</p>
+                <div
+                    class="flex max-h-[min(72dvh,28rem)] w-full max-w-lg flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                    @click.stop
+                >
+                    <div class="flex shrink-0 items-center justify-between gap-2 border-b border-slate-100 px-3 py-2.5">
+                        <div>
+                            <p class="text-sm font-bold text-slate-900">الملصقات</p>
+                            <p v-if="activePack?.subtitle" class="text-[11px] text-slate-500">{{ activePack.subtitle }}</p>
+                        </div>
                         <button
                             type="button"
                             class="rounded-lg px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
@@ -61,12 +67,12 @@ function pick(sticker) {
                             إغلاق
                         </button>
                     </div>
-                    <div v-if="packs.length > 1" class="mb-2 flex flex-wrap gap-1">
+                    <div v-if="packs.length > 1" class="flex shrink-0 gap-1 overflow-x-auto border-b border-slate-100 px-2 py-2">
                         <button
                             v-for="pack in packs"
                             :key="pack.id"
                             type="button"
-                            class="rounded-full px-2.5 py-1 text-[11px] font-semibold transition"
+                            class="shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition"
                             :class="
                                 activePack?.id === pack.id
                                     ? 'bg-brand-600 text-white'
@@ -77,17 +83,26 @@ function pick(sticker) {
                             {{ pack.label }}
                         </button>
                     </div>
-                    <div class="grid grid-cols-4 gap-2 sm:grid-cols-6">
-                        <button
-                            v-for="sticker in activePack?.stickers || []"
-                            :key="sticker.key"
-                            type="button"
-                            class="flex h-12 items-center justify-center rounded-xl text-2xl transition hover:bg-slate-100 active:scale-95"
-                            :title="sticker.key"
-                            @click="pick(sticker)"
-                        >
-                            {{ sticker.emoji }}
-                        </button>
+                    <div class="min-h-0 flex-1 overflow-y-auto p-2">
+                        <div class="grid grid-cols-4 gap-2 sm:grid-cols-5">
+                            <button
+                                v-for="sticker in activePack?.stickers || []"
+                                :key="sticker.key"
+                                type="button"
+                                class="flex flex-col items-center gap-1 rounded-xl p-1.5 transition hover:bg-slate-50 active:scale-95"
+                                :title="sticker.label"
+                                @click="pick(sticker)"
+                            >
+                                <img
+                                    :src="sticker.url"
+                                    :alt="sticker.label"
+                                    class="h-14 w-14 object-contain"
+                                    loading="lazy"
+                                    draggable="false"
+                                />
+                                <span class="max-w-full truncate text-[9px] font-medium text-slate-500">{{ sticker.label }}</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

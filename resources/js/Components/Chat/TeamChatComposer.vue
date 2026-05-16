@@ -1,5 +1,6 @@
 <script setup>
 import ChatRecordingWaveform from '@/Components/Chat/ChatRecordingWaveform.vue';
+import ChatStickerIcon from '@/Components/Chat/ChatStickerIcon.vue';
 import InputError from '@/Components/InputError.vue';
 import { pickRecorderMimeType, voiceFileFromBlob } from '@/utils/chatRecorder.js';
 import { isVoiceFile } from '@/utils/chatVoiceAttachment.js';
@@ -440,7 +441,7 @@ watch(
                     aria-label="ملصقات"
                     @click="emit('open-stickers')"
                 >
-                    <span class="text-lg" aria-hidden="true">😊</span>
+                    <ChatStickerIcon class="h-5 w-5" />
                 </button>
                 <button
                     type="button"

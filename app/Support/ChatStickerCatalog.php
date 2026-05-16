@@ -5,7 +5,7 @@ namespace App\Support;
 final class ChatStickerCatalog
 {
     /**
-     * @return list<array{id: string, label: string, stickers: list<array{key: string, emoji: string}>}>
+     * @return list<array{id: string, label: string, subtitle: string, stickers: list<array{key: string, label: string, url: string}>}>
      */
     public static function packsForFrontend(): array
     {
@@ -16,61 +16,80 @@ final class ChatStickerCatalog
                 return null;
             }
 
-            $id = (string) ($pack['id'] ?? '');
+            $packId = (string) ($pack['id'] ?? '');
             $label = (string) ($pack['label'] ?? '');
+            $subtitle = (string) ($pack['subtitle'] ?? '');
             $stickers = [];
+
             foreach ($pack['stickers'] ?? [] as $sticker) {
                 if (! is_array($sticker)) {
                     continue;
                 }
-                $key = (string) ($sticker['key'] ?? '');
-                $emoji = (string) ($sticker['emoji'] ?? '');
-                if ($key !== '' && $emoji !== '') {
-                    $stickers[] = ['key' => $key, 'emoji' => $emoji];
+                $stickerId = (string) ($sticker['id'] ?? '');
+                if ($packId === '' || $stickerId === '') {
+                    continue;
                 }
+                $key = self::composeKey($packId, $stickerId);
+                $url = self::urlForPackAndId($packId, $stickerId);
+                if ($url === null) {
+                    continue;
+                }
+                $stickers[] = [
+                    'key' => $key,
+                    'label' => (string) ($sticker['label'] ?? $stickerId),
+                    'url' => $url,
+                ];
             }
 
-            if ($id === '' || $stickers === []) {
+            if ($packId === '' || $stickers === []) {
                 return null;
             }
 
             return [
-                'id' => $id,
-                'label' => $label !== '' ? $label : $id,
+                'id' => $packId,
+                'label' => $label !== '' ? $label : $packId,
+                'subtitle' => $subtitle,
                 'stickers' => $stickers,
             ];
         }, $packs)));
     }
 
-    public static function isValidKey(?string $key): bool
+    public static function composeKey(string $packId, string $stickerId): string
     {
-        $key = trim((string) $key);
-        if ($key === '') {
-            return false;
-        }
-
-        foreach (self::packsForFrontend() as $pack) {
-            foreach ($pack['stickers'] as $sticker) {
-                if ($sticker['key'] === $key) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return $packId.':'.$stickerId;
     }
 
-    public static function emojiForKey(?string $key): ?string
+    public static function urlForKey(?string $key): ?string
+    {
+        $parsed = self::parseKey($key);
+        if ($parsed === null) {
+            return null;
+        }
+
+        return self::urlForPackAndId($parsed['pack'], $parsed['id']);
+    }
+
+    public static function labelForKey(?string $key): ?string
     {
         $key = trim((string) $key);
         if ($key === '') {
             return null;
         }
 
-        foreach (self::packsForFrontend() as $pack) {
-            foreach ($pack['stickers'] as $sticker) {
-                if ($sticker['key'] === $key) {
-                    return $sticker['emoji'];
+        foreach (config('chat_stickers.packs', []) as $pack) {
+            if (! is_array($pack)) {
+                continue;
+            }
+            $packId = (string) ($pack['id'] ?? '');
+            foreach ($pack['stickers'] ?? [] as $sticker) {
+                if (! is_array($sticker)) {
+                    continue;
+                }
+                $stickerId = (string) ($sticker['id'] ?? '');
+                if (self::composeKey($packId, $stickerId) === $key) {
+                    $label = trim((string) ($sticker['label'] ?? ''));
+
+                    return $label !== '' ? $label : $stickerId;
                 }
             }
         }
@@ -78,21 +97,62 @@ final class ChatStickerCatalog
         return null;
     }
 
+    public static function isValidKey(?string $key): bool
+    {
+        return self::urlForKey($key) !== null;
+    }
+
     /**
-     * @return array{key: string, emoji: string}|null
+     * @return array{key: string, url: string, label: string, pack_id: string}|null
      */
     public static function stickerPayload(?string $key): ?array
     {
-        $emoji = self::emojiForKey($key);
         $key = trim((string) $key);
+        $url = self::urlForKey($key);
+        $parsed = self::parseKey($key);
 
-        if ($emoji === null || $key === '') {
+        if ($url === null || $parsed === null) {
             return null;
         }
 
         return [
             'key' => $key,
-            'emoji' => $emoji,
+            'url' => $url,
+            'label' => self::labelForKey($key) ?? $parsed['id'],
+            'pack_id' => $parsed['pack'],
         ];
+    }
+
+    /**
+     * @return array{pack: string, id: string}|null
+     */
+    private static function parseKey(?string $key): ?array
+    {
+        $key = trim((string) $key);
+        if ($key === '' || ! str_contains($key, ':')) {
+            return null;
+        }
+
+        [$pack, $id] = explode(':', $key, 2);
+        $pack = trim($pack);
+        $id = trim($id);
+
+        if ($pack === '' || $id === '') {
+            return null;
+        }
+
+        return ['pack' => $pack, 'id' => $id];
+    }
+
+    private static function urlForPackAndId(string $packId, string $stickerId): ?string
+    {
+        $relative = 'chat/stickers/'.$packId.'/'.$stickerId.'.svg';
+        $absolute = public_path($relative);
+
+        if (! is_file($absolute)) {
+            return null;
+        }
+
+        return asset($relative);
     }
 }

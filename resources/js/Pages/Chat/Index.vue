@@ -628,7 +628,7 @@ function submitTeamMessage() {
     const optimisticMessage = {
         id: tempId,
         body: form.body,
-        sticker: stickerKey ? { key: stickerKey, emoji: findStickerEmoji(stickerKey) } : null,
+        sticker: stickerKey ? findStickerMeta(stickerKey) : null,
         reply: replyTo.value,
         created_at: new Date().toISOString(),
         user: {
@@ -691,7 +691,7 @@ function submitPrivateMessage() {
     const optimisticMessage = {
         id: tempId,
         body: privateForm.body,
-        sticker: stickerKey ? { key: stickerKey, emoji: findStickerEmoji(stickerKey) } : null,
+        sticker: stickerKey ? findStickerMeta(stickerKey) : null,
         reply: replyTo.value,
         created_at: new Date().toISOString(),
         user: {
@@ -744,7 +744,7 @@ function submitDirectMessage() {
     const optimisticMessage = {
         id: tempId,
         body: directForm.body,
-        sticker: stickerKey ? { key: stickerKey, emoji: findStickerEmoji(stickerKey) } : null,
+        sticker: stickerKey ? findStickerMeta(stickerKey) : null,
         reply: replyTo.value,
         created_at: new Date().toISOString(),
         user: {
@@ -1451,8 +1451,8 @@ function buildReplyPreview(msg) {
         return null;
     }
     let preview = String(msg.body || '').trim();
-    if (!preview && msg.sticker?.emoji) {
-        preview = msg.sticker.emoji;
+    if (!preview && msg.sticker?.label) {
+        preview = msg.sticker.label;
     }
     if (!preview && msg.attachment) {
         preview = 'مرفق';

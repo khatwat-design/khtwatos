@@ -28,7 +28,7 @@ final class ChatMessagePayload
 
         $preview = $body;
         if ($preview === '' && $sticker) {
-            $preview = $sticker['emoji'];
+            $preview = $sticker['label'];
         }
         if ($preview === '' && ! empty($message->attachment_path)) {
             $preview = 'مرفق';

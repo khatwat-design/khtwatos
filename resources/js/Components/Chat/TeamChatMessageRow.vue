@@ -30,7 +30,7 @@ const emit = defineEmits([
 
 const hasForward = computed(() => Boolean(props.msg?.forward));
 const hasReply = computed(() => Boolean(props.msg?.reply));
-const isSticker = computed(() => Boolean(props.msg?.sticker?.emoji));
+const isSticker = computed(() => Boolean(props.msg?.sticker?.url));
 
 const swipeX = ref(0);
 const swiping = ref(false);
@@ -241,7 +241,14 @@ function onBubbleClick() {
                         </div>
                     </div>
 
-                    <p v-if="isSticker" class="select-none text-4xl leading-none sm:text-5xl">{{ msg.sticker.emoji }}</p>
+                    <img
+                        v-if="isSticker"
+                        :src="msg.sticker.url"
+                        :alt="msg.sticker.label || 'ملصق'"
+                        class="mx-auto h-28 w-28 select-none object-contain sm:h-32 sm:w-32"
+                        loading="lazy"
+                        draggable="false"
+                    />
                     <p v-else-if="msg.body" class="whitespace-pre-wrap break-words">{{ msg.body }}</p>
 
                     <p
