@@ -347,6 +347,13 @@ class TaskController extends Controller
 
     public function update(Request $request, Task $task): RedirectResponse
     {
+        $task->loadMissing('assignees:id');
+
+        $previousPrimary = (int) ($task->assignee_id ?? 0);
+        if ($previousPrimary === 0 && $task->assignees->isNotEmpty()) {
+            $previousPrimary = (int) $task->assignees->pluck('id')->first();
+        }
+
         $request->merge([
             'due_at' => $request->filled('due_at') ? $request->input('due_at') : null,
             'client_id' => $request->filled('client_id') ? $request->input('client_id') : null,
@@ -369,6 +376,17 @@ class TaskController extends Controller
         unset($data['assignee_ids']);
         $task->update($data);
         $task->assignees()->sync($assigneeIds);
+
+        $newPrimary = isset($assigneeIds[0]) ? (int) $assigneeIds[0] : null;
+        if ($newPrimary > 0 && $newPrimary !== $previousPrimary) {
+            $task->reassignments()->create([
+                'assigned_by_id' => (int) $request->user()->id,
+                'assigned_to_id' => $newPrimary,
+                'due_at' => $data['due_at'] ?? null,
+                'note' => 'من تعديل نموذج المهمة',
+            ]);
+            $this->smartNotifications->notifyTaskAssigned($task->fresh(['assignees']), $request->user()?->id);
+        }
 
         return redirect()->back();
     }

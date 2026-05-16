@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\BoardColumn;
 use App\Models\Task;
 use App\Models\TaskBoard;
 use App\Models\TaskReassignment;
@@ -16,12 +17,19 @@ class TasksSyncAssigneesFromHistoryCommand extends Command
     protected $signature = 'tasks:sync-assignees-from-history
                             {--dry-run : عرض التغييرات دون الكتابة في قاعدة البيانات}
                             {--with-time-logs : توحيد سجلات task_time_logs مع المكلّف النهائي (إنجاز المهمة)}
-                            {--fix-writing-dual : تصحيح مهام فريق الكتابة التي لا تزال فيها مكلّفان (مدير افتراضي + موظف) بدون سجل إعادة تعيين}';
+                            {--fix-writing-dual : تصحيح مهام فريق الكتابة التي لا تزال فيها مكلّفان (مدير افتراضي + موظف) بدون سجل إعادة تعيين}
+                            {--report-writing-lead-open : عرض المهام المفتوحة على لوح الكتابة والمكلّف الأساسي فيها قائد الفريق فقط (لا يعدّل البيانات)}';
 
     protected $description = 'مزامنة assignee_id و task_assignees مع آخر إعادة تعيين، وإصلاح بيانات المهام القديمة لعدم ضياع حق الموظفين في التحليلات';
 
     public function handle(): int
     {
+        if ($this->option('report-writing-lead-open')) {
+            $this->reportWritingLeadOpenTasks();
+
+            return self::SUCCESS;
+        }
+
         $dry = (bool) $this->option('dry-run');
         $withTimeLogs = (bool) $this->option('with-time-logs');
         $fixWritingDual = (bool) $this->option('fix-writing-dual');
@@ -46,6 +54,82 @@ class TasksSyncAssigneesFromHistoryCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * مهام لا تزال مسندَة لقائد فريق الكتابة فقط (المشكلة الشائعة بعد الإنشاء الافتراضي).
+     */
+    private function reportWritingLeadOpenTasks(): int
+    {
+        $writingTeam = Team::query()->where('slug', 'writing')->first();
+        if (! $writingTeam) {
+            $this->warn('لا يوجد فريق بمعرّف writing.');
+
+            return 0;
+        }
+
+        $leadIds = DB::table('team_user')
+            ->where('team_id', $writingTeam->id)
+            ->where('is_lead', true)
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if ($leadIds === []) {
+            $this->warn('لا يوجد مستخدم بـ is_lead لفريق الكتابة في team_user.');
+
+            return 0;
+        }
+
+        $boardIds = TaskBoard::query()
+            ->where('team_id', $writingTeam->id)
+            ->pluck('id');
+
+        if ($boardIds->isEmpty()) {
+            $this->warn('لا يوجد لوح مهام مربوط بفريق الكتابة.');
+
+            return 0;
+        }
+
+        $doneColumnNames = ['تم', 'مكتمل', 'منجز', 'Done', 'Completed'];
+        $doneColumnIds = Schema::hasTable('board_columns')
+            ? BoardColumn::query()->whereIn('name', $doneColumnNames)->pluck('id')->all()
+            : [];
+
+        $query = Task::query()
+            ->whereIn('task_board_id', $boardIds)
+            ->whereIn('assignee_id', $leadIds);
+
+        if (Schema::hasColumn('tasks', 'archived_at')) {
+            $query->whereNull('archived_at');
+        }
+        if ($doneColumnIds !== []) {
+            $query->whereNotIn('board_column_id', $doneColumnIds);
+        }
+
+        $tasks = $query->orderBy('id')->get(['id', 'title', 'assignee_id']);
+
+        $this->info('مهام مفتوحة على لوح الكتابة — المكلّف الأساسي (assignee_id) هو قائد الفريق فقط:');
+        $this->newLine();
+
+        if ($tasks->isEmpty()) {
+            $this->comment('لا توجد مهام مطابقة.');
+
+            return 0;
+        }
+
+        $rows = $tasks->map(fn (Task $t) => [
+            $t->id,
+            $t->assignee_id,
+            mb_substr((string) ($t->title ?? ''), 0, 56),
+        ])->all();
+
+        $this->table(['id', 'assignee_id', 'عنوان'], $rows);
+        $this->newLine();
+        $this->info('العدد الإجمالي: '.$tasks->count());
+        $this->comment('لتحديث المكلّف: من لوحة المهام عيّن الموظف وأعد الحفظ، أو استخدم «إعادة تعيين» من النافذة السريعة. بعد آخر تحديث للكود يُسجَّل ذلك أيضًا في task_reassignments.');
+
+        return $tasks->count();
     }
 
     /**
