@@ -702,14 +702,39 @@ function applyChatSendResponse(data, tempId, stickerKey, bodyText) {
     pullMessages().finally(() => dropPendingIfSynced(tempId, stickerKey, bodyText));
 }
 
-function handleChatSendFailure(err, tempId) {
+function handleChatSendFailure(err, tempId, stickerKey, bodyText, onFormReset) {
+    const alreadySynced = messagesState.value.some((m) => {
+        const id = Number(m.id);
+        if (!Number.isFinite(id) || id <= 0) {
+            return false;
+        }
+        if (Number(m.user?.id) !== Number(currentUserId.value)) {
+            return false;
+        }
+        if (stickerKey) {
+            return stickerKeyForMessage(m) === stickerKey;
+        }
+        return String(m.body || '').trim() === String(bodyText || '').trim();
+    });
+
     pendingMessages.value = pendingMessages.value.filter((msg) => msg.id !== tempId);
+
+    if (alreadySynced) {
+        sendErrorBanner.value = '';
+        if (typeof onFormReset === 'function') {
+            onFormReset();
+        }
+        return;
+    }
+
     sendErrorBanner.value =
         err?.response?.data?.message ||
         err?.response?.data?.errors?.body?.[0] ||
         err?.response?.data?.errors?.sticker_key?.[0] ||
         err?.response?.data?.errors?.attachment?.[0] ||
-        'تعذر إرسال الرسالة.';
+        err?.message === 'invalid_response'
+            ? 'تعذّر قراءة رد السيرفر.'
+            : 'تعذر إرسال الرسالة.';
 }
 
 function postChatForm(url, formData, tempId, stickerKey, bodyText, onFormReset) {
@@ -725,10 +750,12 @@ function postChatForm(url, formData, tempId, stickerKey, bodyText, onFormReset) 
                 throw new Error('invalid_response');
             }
             applyChatSendResponse(res.data, tempId, stickerKey, bodyText);
-            onFormReset();
+            if (typeof onFormReset === 'function') {
+                onFormReset();
+            }
             nextTick(() => scrollToBottom());
         })
-        .catch((err) => handleChatSendFailure(err, tempId))
+        .catch((err) => handleChatSendFailure(err, tempId, stickerKey, bodyText, onFormReset))
         .finally(() => {
             sendingMessage.value = false;
         });
@@ -774,7 +801,7 @@ function submitTeamMessage() {
         fd.append('voice_note', form.voice_note ? '1' : '0');
     }
 
-    postChatForm(route('chat.store'), fd, tempId, () => {
+    postChatForm(route('chat.store'), fd, tempId, stickerKey, form.body, () => {
         form.body = '';
         form.attachment = null;
         form.voice_note = false;
