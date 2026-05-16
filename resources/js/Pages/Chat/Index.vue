@@ -668,14 +668,14 @@ function submitTeamMessage() {
     });
 }
 
-function findStickerEmoji(key) {
+function findStickerMeta(key) {
     for (const pack of props.stickerPacks || []) {
         const hit = (pack.stickers || []).find((s) => s.key === key);
         if (hit) {
-            return hit.emoji;
+            return { key: hit.key, url: hit.url, label: hit.label };
         }
     }
-    return '⭐';
+    return { key, url: '', label: 'ملصق' };
 }
 
 function submitPrivateMessage() {

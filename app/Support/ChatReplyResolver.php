@@ -56,7 +56,7 @@ final class ChatReplyResolver
     }
 
     /**
-     * @return array{key: string, emoji: string}|null
+     * @return array{key: string, url: string, label: string, pack_id: string}|null
      */
     public static function validatedSticker(Request $request): ?array
     {
