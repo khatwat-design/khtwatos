@@ -91,13 +91,14 @@ const panelBoxClass = computed(() => {
     const safeBottom = 'pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]';
 
     if (isNativeShell) {
-        return ['modal-content-light w-full max-w-none mx-0 mb-0 shadow-xl transition-all transform', mobilePanelClass.value, safeBottom];
+        return ['modal-content-light w-full max-w-none mx-0 mb-0 shadow-xl transition-all transform flex min-h-0 flex-col !overflow-hidden', mobilePanelClass.value, safeBottom];
     }
 
     return [
-        'modal-content-light mb-6 overflow-hidden transition-all transform sm:mx-auto sm:mb-6 sm:w-full sm:overflow-hidden sm:rounded-lg',
+        'modal-content-light mb-6 transition-all transform sm:mx-auto sm:mb-6 sm:w-full sm:rounded-lg',
         'max-lg:mb-0 max-lg:mx-auto max-lg:w-full max-lg:max-w-[calc(100%-0.25rem)]',
         mobilePanelClass.value,
+        'flex min-h-0 flex-col !overflow-hidden',
         safeBottom,
     ];
 });
@@ -110,7 +111,7 @@ const panelBoxClass = computed(() => {
             ref="dialog"
         >
             <div
-                class="fixed inset-0 z-[100] max-lg:flex max-lg:flex-col max-lg:justify-end max-lg:overflow-hidden max-lg:bg-black/45 max-lg:p-4 max-lg:pt-8 max-lg:pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] sm:z-50 sm:block sm:overflow-y-auto sm:px-4 sm:py-6 sm:pt-6"
+                class="fixed inset-0 z-[100] max-lg:flex max-lg:flex-col max-lg:justify-end max-lg:overflow-y-auto max-lg:bg-black/45 max-lg:p-4 max-lg:pt-8 max-lg:pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] sm:z-50 sm:block sm:overflow-y-auto sm:px-4 sm:py-6 sm:pt-6"
                 scroll-region
             >
             <Transition
@@ -139,7 +140,9 @@ const panelBoxClass = computed(() => {
                 :leave-to-class="panelTransitionLeaveTo"
             >
                 <div v-show="show" class="bg-white max-lg:relative max-lg:shrink-0" :class="panelBoxClass" @click.stop>
-                    <slot v-if="showSlot" />
+                    <div class="modal-panel-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
+                        <slot v-if="showSlot" />
+                    </div>
                 </div>
             </Transition>
             </div>
@@ -193,9 +196,8 @@ const panelBoxClass = computed(() => {
 .modal-content-light :deep(.glass-modal) {
     background: transparent !important;
     backdrop-filter: none !important;
-    max-height: none !important;
-    overflow: visible !important;
     padding: 0 !important;
     border-radius: 0 !important;
+    min-height: 0;
 }
 </style>

@@ -1328,7 +1328,7 @@ async function toggleChecklistItem(item) {
                                 v-model="taskForm.assignee_ids"
                                 multiple
                                 size="4"
-                                class="mt-1 block w-full rounded-xl border-slate-200 text-sm shadow-sm"
+                                class="mt-1 max-h-28 w-full overflow-y-auto rounded-xl border-slate-200 text-sm shadow-sm sm:max-h-44"
                             >
                                 <option
                                     v-for="u in users || []"
@@ -1465,7 +1465,7 @@ async function toggleChecklistItem(item) {
                             v-model="editForm.assignee_ids"
                             multiple
                             size="4"
-                            class="mt-1 block w-full rounded-md border-gray-300 text-sm shadow-sm"
+                            class="mt-1 max-h-28 w-full overflow-y-auto rounded-xl border-gray-300 text-sm shadow-sm sm:max-h-40"
                         >
                             <option
                                 v-for="u in users || []"
@@ -1485,7 +1485,8 @@ async function toggleChecklistItem(item) {
                             id="et_due"
                             v-model="editForm.due_at"
                             type="datetime-local"
-                            class="mt-1 block w-full"
+                            dir="ltr"
+                            class="mt-1 block w-full text-start font-mono"
                         />
                         <InputError class="mt-1" :message="editForm.errors.due_at" />
                     </div>
