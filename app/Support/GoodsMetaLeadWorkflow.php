@@ -50,8 +50,11 @@ final class GoodsMetaLeadWorkflow
         if (str_contains($outcome, 'رفض')) {
             return GoodsMetaLead::WORKFLOW_REJECTED;
         }
-        if (str_contains($outcome, 'تم') || str_contains($outcome, 'بيع') || str_contains($outcome, 'اشتر')) {
+        if (str_contains($outcome, 'اتفاق') || str_contains($outcome, 'تم') || str_contains($outcome, 'بيع') || str_contains($outcome, 'اشتر')) {
             return GoodsMetaLead::WORKFLOW_WON;
+        }
+        if (str_contains($outcome, 'اترك') || str_contains($outcome, 'رفضالمشروع')) {
+            return GoodsMetaLead::WORKFLOW_REJECTED;
         }
         if (str_contains($outcome, 'مفقود') || str_contains($outcome, 'لم يرد')) {
             return GoodsMetaLead::WORKFLOW_LOST;

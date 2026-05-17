@@ -26,7 +26,11 @@ class GoodsMetaLeadSheetMapper
         }
 
         $probability = $this->stringValue($normalized, ['احتماليةالعميل', 'probability_label', 'probability']);
+        $callFeedback = $this->stringValue($normalized, ['فيدباكالمكالمة']);
         $outcome = $this->stringValue($normalized, ['النتيجه', 'النتيجة', 'outcome_label', 'outcome']);
+        if ($outcome === '' && $callFeedback !== '') {
+            $outcome = $callFeedback;
+        }
 
         $monthly = $this->stringValue($normalized, [
             'كمعددطلباتكالشهريهحاليا',
@@ -49,12 +53,9 @@ class GoodsMetaLeadSheetMapper
             }
         }
 
-        $sheetName = $this->stringValue($normalized, ['_sheet_name', 'sheet_name']);
-
         return [
             'meta_lead_id' => $metaLeadId,
-            'sheet_name' => $sheetName !== '' ? $sheetName : null,
-            'lead_created_at' => $this->parseDateTime($normalized['created_time'] ?? null),
+            'lead_created_at' => $this->parseDateTime($normalized['created_time'] ?? $normalized['created_at'] ?? null),
             'full_name' => $this->stringValue($normalized, ['full_name', 'name', 'الاسم']),
             'phone' => $this->cleanPhone($this->stringValue($normalized, ['phone_number', 'phone', 'الهاتف'])),
             'platform' => $this->stringValue($normalized, ['platform']),
@@ -70,14 +71,19 @@ class GoodsMetaLeadSheetMapper
             'meta_lead_status' => $this->stringValue($normalized, ['lead_status', 'meta_lead_status']),
             'monthly_orders_answer' => $monthly,
             'goal_answer' => $goal,
-            'team_notes' => $this->stringValue($normalized, ['الملاحظات', 'team_notes', 'notes']),
+            'team_notes' => $this->stringValue($normalized, ['الملاحظات', 'team_notes', 'notes']) ?: $callFeedback,
             'probability_label' => $probability,
             'reason_label' => $this->stringValue($normalized, ['السبب', 'reason_label', 'reason']),
             'outcome_label' => $outcome,
             'workflow_status' => GoodsMetaLeadWorkflow::inferFromSheetLabels($probability, $outcome),
             'first_contact_date' => $this->parseSheetDate($normalized['تاريخالاتصالالاول'] ?? $normalized['first_contact_date'] ?? null),
             'last_contact_date' => $this->parseSheetDate($normalized['تاريخالاتصالالاخير'] ?? $normalized['last_contact_date'] ?? null),
-            'next_contact_date' => $this->parseSheetDate($normalized['تاريخالاتصالالقادم'] ?? $normalized['next_contact_date'] ?? null),
+            'next_contact_date' => $this->parseSheetDate(
+                $normalized['تاريخالاتصالالقادم']
+                    ?? $normalized['الموعدالقادم']
+                    ?? $normalized['next_contact_date']
+                    ?? null
+            ),
             'form_answers' => array_filter([
                 'monthly_orders' => $monthly,
                 'goal' => $goal,
@@ -98,10 +104,13 @@ class GoodsMetaLeadSheetMapper
             'campaign_id', 'campaign_name', 'form_id', 'form_name', 'is_organic', 'platform',
             'full_name', 'name', 'phone_number', 'phone', 'lead_status', 'meta_lead_status',
             'كمعددطلباتكالشهريهحاليا', 'شنوالمشكلةالليتواجهكاوشنوهدفكمنالعملويانه',
-            'الملاحظات', 'احتماليةالعميل', 'السبب', 'النتيجه', 'النتيجة',
+            'نوعمشروعك؟', 'اذاعندكمنتجاتاملئهذاالحقل؟', 'تقدرتصرفمن50$إلى400$فياليوم؟',
+            'اذاعندكبراندشاركنارابطالموقعأوالانستجرام؟', 'city',
+            'الملاحظات', 'احتماليةالعميل', 'فيدباكالمكالمة', 'الفيديوالليأجهمنه', 'الموعدالقادم',
+            'السبب', 'النتيجه', 'النتيجة', 'created_at',
             'تاريخالاتصالالاول', 'تاريخالاتصالالاخير', 'تاريخالاتصالالقادم',
             'first_contact_date', 'last_contact_date', 'next_contact_date',
-            '_row_number', '_sheet_name', 'sheet_name',
+            '_row_number',
         ];
     }
 
