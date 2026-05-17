@@ -183,7 +183,129 @@ function submitEdit(leadId) {
             <TextInput v-model="search" class="min-h-11 flex-1 rounded-xl text-sm" placeholder="بحث بالاسم، الهاتف، الحملة…" />
         </div>
 
-        <div class="ui-card overflow-x-auto">
+        <!-- موبايل: بطاقات (نفس أسلوب عملاء البضاعة) -->
+        <div class="space-y-3 md:hidden">
+            <template v-for="lead in filteredLeads" :key="`meta-card-${lead.id}`">
+                <article class="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ring-1 ring-gray-100/80">
+                    <div class="flex gap-3 p-4">
+                        <div class="relative shrink-0">
+                            <div
+                                class="flex h-14 w-14 items-center justify-center rounded-2xl border border-gray-100 bg-gradient-to-br from-sky-50 to-white text-lg font-black text-sky-700 shadow-inner ring-2 ring-white"
+                            >
+                                {{ String(lead.full_name || '?').trim().charAt(0) || '؟' }}
+                            </div>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <h3 class="text-base font-bold leading-snug text-gray-900">
+                                {{ lead.full_name || '—' }}
+                            </h3>
+                            <p class="mt-1 font-mono text-xs text-gray-600" dir="ltr">{{ lead.phone || '—' }}</p>
+                            <p v-if="lead.platform" class="mt-0.5 text-[10px] font-semibold uppercase text-gray-400">
+                                {{ lead.platform }}
+                            </p>
+                            <span
+                                class="mt-2 inline-flex max-w-full items-center rounded-lg px-2.5 py-1 text-[11px] font-semibold leading-tight ring-1 ring-black/5"
+                                :class="statusClass(lead.workflow_status)"
+                            >
+                                {{ statusLabel(lead.workflow_status) }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 border-t border-gray-50 bg-gradient-to-b from-gray-50/40 to-white px-3 pb-2 pt-2">
+                        <div class="rounded-xl bg-white/90 px-2.5 py-2 shadow-sm ring-1 ring-gray-100/80">
+                            <p class="text-[10px] font-semibold text-gray-400">التاريخ</p>
+                            <p class="mt-0.5 text-xs font-semibold text-gray-800">{{ formatDt(lead.lead_created_at) }}</p>
+                        </div>
+                        <div class="rounded-xl bg-white/90 px-2.5 py-2 shadow-sm ring-1 ring-gray-100/80">
+                            <p class="text-[10px] font-semibold text-gray-400">المسؤول</p>
+                            <p class="mt-0.5 truncate text-xs font-semibold text-gray-800">{{ lead.owner?.name || '—' }}</p>
+                        </div>
+                    </div>
+                    <div v-if="lead.campaign_name || lead.ad_name" class="border-t border-gray-50 px-3 py-2">
+                        <p class="text-[10px] font-semibold text-gray-400">الحملة</p>
+                        <p class="mt-0.5 text-xs font-medium text-gray-800">{{ lead.campaign_name || '—' }}</p>
+                        <p v-if="lead.adset_name" class="text-[11px] text-gray-500">{{ lead.adset_name }}</p>
+                        <p v-if="lead.ad_name" class="text-[11px] text-gray-400">{{ lead.ad_name }}</p>
+                    </div>
+                    <div
+                        v-if="lead.monthly_orders_answer || lead.goal_answer || lead.reason_label"
+                        class="border-t border-gray-50 px-3 py-2 text-xs text-gray-700"
+                    >
+                        <p v-if="lead.monthly_orders_answer">
+                            <span class="font-semibold text-gray-500">طلبات شهرية:</span>
+                            {{ lead.monthly_orders_answer }}
+                        </p>
+                        <p v-if="lead.goal_answer" class="mt-1 line-clamp-3">
+                            <span class="font-semibold text-gray-500">الهدف:</span>
+                            {{ lead.goal_answer }}
+                        </p>
+                        <p v-if="lead.reason_label" class="mt-1 text-gray-500">{{ lead.reason_label }}</p>
+                    </div>
+                    <div
+                        v-if="lead.probability_label || lead.outcome_label || lead.team_notes"
+                        class="border-t border-gray-50 px-3 py-2 text-[11px] text-gray-600"
+                    >
+                        <p v-if="lead.probability_label">إحتمالية: {{ lead.probability_label }}</p>
+                        <p v-if="lead.outcome_label">النتيجة: {{ lead.outcome_label }}</p>
+                        <p v-if="lead.team_notes" class="mt-1 line-clamp-2 text-gray-500">{{ lead.team_notes }}</p>
+                    </div>
+                    <div class="space-y-3 border-t border-gray-100 px-3 pb-4 pt-3">
+                        <button
+                            v-if="editingId !== lead.id"
+                            type="button"
+                            class="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-brand-300 bg-brand-50 px-3 text-sm font-semibold text-brand-800 transition hover:bg-brand-100"
+                            @click="openEdit(lead)"
+                        >
+                            تعديل المتابعة
+                        </button>
+                        <form v-else class="space-y-3" @submit.prevent="submitEdit(lead.id)">
+                            <div>
+                                <InputLabel value="حالة المتابعة" />
+                                <select v-model="editForm.workflow_status" class="mt-1 min-h-11 w-full rounded-xl border-gray-300 text-sm">
+                                    <option v-for="s in meta_lead_status_options" :key="`mc-s-${s.value}`" :value="s.value">
+                                        {{ s.label }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div>
+                                <InputLabel value="المسؤول" />
+                                <select v-model="editForm.owner_user_id" class="mt-1 min-h-11 w-full rounded-xl border-gray-300 text-sm">
+                                    <option :value="null">—</option>
+                                    <option v-for="o in owners" :key="`mc-o-${o.id}`" :value="o.id">{{ o.name }}</option>
+                                </select>
+                            </div>
+                            <div>
+                                <InputLabel value="إحتمالية العميل" />
+                                <TextInput v-model="editForm.probability_label" class="mt-1 w-full text-sm" />
+                            </div>
+                            <div>
+                                <InputLabel value="النتيجة" />
+                                <TextInput v-model="editForm.outcome_label" class="mt-1 w-full text-sm" />
+                            </div>
+                            <div>
+                                <InputLabel value="ملاحظات الفريق" />
+                                <textarea v-model="editForm.team_notes" rows="2" class="mt-1 w-full rounded-xl border-gray-300 text-sm" />
+                            </div>
+                            <div class="flex gap-2">
+                                <PrimaryButton class="flex-1 justify-center" :disabled="editForm.processing">حفظ</PrimaryButton>
+                                <button type="button" class="min-h-11 rounded-xl px-3 text-sm text-gray-600" @click="editingId = null">
+                                    إلغاء
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </article>
+            </template>
+            <p
+                v-if="!filteredLeads.length"
+                class="rounded-2xl border border-dashed border-gray-200 bg-white/80 px-4 py-10 text-center text-sm text-gray-500"
+            >
+                لا توجد ليدز ميتا بعد. بعد ربط Apps Script ستظهر هنا تلقائياً.
+            </p>
+        </div>
+
+        <!-- سطح المكتب والتابلت: جدول -->
+        <div class="ui-card hidden overflow-x-auto md:block">
             <table class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead class="bg-slate-50/90">
                     <tr>
