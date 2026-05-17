@@ -145,19 +145,17 @@ function submitEdit(leadId) {
             </div>
         </div>
 
-        <div class="flex flex-col gap-2 sm:flex-row sm:items-stretch sm:gap-3">
-            <GoodsMetaLeadsFilters
-                :meta-lead-status-options="meta_lead_status_options"
-                :meta-filters="meta_filters"
-                :meta-campaign-options="meta_campaign_options"
-                :meta-assignee-stats="meta_assignee_stats"
-            />
-            <TextInput
-                v-model="search"
-                class="min-h-11 w-full rounded-2xl border-slate-200 text-sm shadow-sm sm:flex-1"
-                placeholder="بحث بالاسم، الهاتف، الحملة…"
-            />
-        </div>
+        <GoodsMetaLeadsFilters
+            :meta-lead-status-options="meta_lead_status_options"
+            :meta-filters="meta_filters"
+            :meta-campaign-options="meta_campaign_options"
+            :meta-assignee-stats="meta_assignee_stats"
+        />
+        <TextInput
+            v-model="search"
+            class="min-h-11 w-full rounded-2xl border-slate-200 text-sm shadow-sm"
+            placeholder="بحث بالاسم، الهاتف، الحملة…"
+        />
 
         <!-- موبايل: بطاقات (نفس أسلوب عملاء البضاعة) -->
         <div class="space-y-3 md:hidden">

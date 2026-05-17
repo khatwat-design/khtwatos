@@ -30,16 +30,16 @@ const activeChips = computed(() => {
     const ownerId = Number(props.meta_filters?.owner || 0);
     if (ownerId > 0) {
         const rep = props.meta_assignee_stats?.find((r) => Number(r.id) === ownerId);
-        chips.push({ key: 'owner', label: rep?.name || 'موظف', tone: 'brand' });
+        chips.push({ key: 'owner', label: rep?.name || 'موظف' });
     }
     if (props.meta_filters?.status) {
-        chips.push({ key: 'status', label: statusLabel(props.meta_filters.status), tone: 'emerald' });
+        chips.push({ key: 'status', label: statusLabel(props.meta_filters.status) });
     }
     if (props.meta_filters?.campaign) {
-        chips.push({ key: 'campaign', label: props.meta_filters.campaign, tone: 'slate' });
+        chips.push({ key: 'campaign', label: props.meta_filters.campaign });
     }
     if (props.meta_filters?.view === 'upcoming_calls') {
-        chips.push({ key: 'view', label: 'مكالمات قادمة', tone: 'sky' });
+        chips.push({ key: 'view', label: 'مكالمات قادمة' });
     }
     return chips;
 });
@@ -49,6 +49,17 @@ const activeFilterCount = computed(() => activeChips.value.length);
 const assigneeInitial = (name) => {
     const t = String(name || '?').trim();
     return t.charAt(0) || '؟';
+};
+
+const assigneeAccent = (name) => {
+    const n = String(name || '');
+    if (n.includes('نبراس')) {
+        return { ring: 'ring-violet-200', bg: 'from-violet-500 to-violet-700', light: 'from-violet-50 to-white border-violet-200' };
+    }
+    if (n.includes('حسين')) {
+        return { ring: 'ring-sky-200', bg: 'from-sky-500 to-sky-700', light: 'from-sky-50 to-white border-sky-200' };
+    }
+    return { ring: 'ring-brand-200', bg: 'from-brand-500 to-brand-700', light: 'from-brand-50 to-white border-brand-200' };
 };
 
 function navigate(extra = {}) {
@@ -62,13 +73,7 @@ function navigate(extra = {}) {
             meta_view: props.meta_filters?.view || undefined,
             ...extra,
         },
-        {
-            preserveState: true,
-            replace: true,
-            onSuccess: () => {
-                showModal.value = false;
-            },
-        },
+        { preserveState: true, replace: true, onSuccess: () => { showModal.value = false; } },
     );
 }
 
@@ -87,7 +92,7 @@ function clearAssigneeFilter() {
             meta_clear: 1,
             meta_campaign: props.meta_filters?.campaign || undefined,
         },
-        { preserveState: true, replace: true, onSuccess: () => { showModal.value = false; } },
+        { preserveState: true, replace: true },
     );
 }
 
@@ -105,73 +110,111 @@ function clearAllFilters() {
         { preserveState: true, replace: true, onSuccess: () => { showModal.value = false; } },
     );
 }
-
-const chipToneClass = (tone) => {
-    const map = {
-        brand: 'bg-brand-50 text-brand-800 ring-brand-200',
-        emerald: 'bg-emerald-50 text-emerald-800 ring-emerald-200',
-        sky: 'bg-sky-50 text-sky-800 ring-sky-200',
-        slate: 'bg-slate-100 text-slate-700 ring-slate-200',
-    };
-    return map[tone] || map.slate;
-};
 </script>
 
 <template>
-    <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-        <button
-            type="button"
-            class="group relative flex min-h-11 w-full items-center gap-3 overflow-hidden rounded-2xl border border-slate-200/90 bg-gradient-to-l from-white via-white to-slate-50/80 px-3 py-2.5 text-start shadow-sm ring-1 ring-slate-100 transition hover:border-brand-200 hover:shadow-md sm:flex-1 sm:max-w-md"
-            @click="showModal = true"
-        >
-            <span
-                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-sm"
+    <div class="space-y-3">
+        <!-- بطاقات الفريق — دائماً ظاهرة -->
+        <div v-if="meta_assignee_stats?.length" class="space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <p class="text-xs font-semibold text-slate-600">توزيع الفريق</p>
+                <button
+                    v-if="meta_filters?.owner || meta_filters?.assignee_defaults_active"
+                    type="button"
+                    class="text-[11px] font-semibold text-slate-500 underline decoration-slate-300 hover:text-rose-700"
+                    @click="clearAssigneeFilter"
+                >
+                    إلغاء فلتر الموظف
+                </button>
+            </div>
+            <div class="grid gap-2.5 sm:grid-cols-2">
+                <button
+                    v-for="rep in meta_assignee_stats"
+                    :key="`rep-card-${rep.id}`"
+                    type="button"
+                    class="group relative overflow-hidden rounded-2xl border p-3.5 text-start shadow-sm transition duration-200"
+                    :class="[
+                        Number(meta_filters?.owner) === rep.id
+                            ? `border-2 bg-gradient-to-br ${assigneeAccent(rep.name).light} ring-2 ${assigneeAccent(rep.name).ring}`
+                            : 'border-slate-200/90 bg-white hover:border-slate-300 hover:shadow-md',
+                    ]"
+                    @click="selectAssignee(rep)"
+                >
+                    <div class="flex items-center gap-3">
+                        <div
+                            class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-lg font-black text-white shadow-md"
+                            :class="assigneeAccent(rep.name).bg"
+                        >
+                            {{ assigneeInitial(rep.name) }}
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm font-bold text-slate-900">{{ rep.name }}</p>
+                            <div class="mt-2 flex flex-wrap gap-2">
+                                <span
+                                    class="inline-flex items-center rounded-lg bg-white/90 px-2 py-1 text-[11px] font-semibold text-slate-700 ring-1 ring-slate-200/80"
+                                >
+                                    ليدز اليوم
+                                    <span class="ms-1 tabular-nums text-slate-900">{{ rep.leads_today }}</span>
+                                </span>
+                                <button
+                                    type="button"
+                                    class="inline-flex items-center rounded-lg bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-800 ring-1 ring-sky-200/80 transition hover:bg-sky-100"
+                                    @click.stop="selectAssignee(rep, 'upcoming_calls')"
+                                >
+                                    مكالمات {{ rep.upcoming_calls }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </button>
+            </div>
+            <p v-if="meta_filters?.view === 'upcoming_calls'" class="text-[11px] font-medium text-sky-800">
+                عرض المكالمات القادمة فقط
+            </p>
+        </div>
+
+        <!-- زر فلترة مضغوط -->
+        <div class="flex flex-wrap items-center gap-2">
+            <button
+                type="button"
+                class="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-brand-300 hover:bg-brand-50/50"
+                @click="showModal = true"
             >
-                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
-                    <path d="M4 6h16M7 12h10M10 18h4" stroke-linecap="round" />
-                </svg>
-            </span>
-            <span class="min-w-0 flex-1">
-                <span class="block text-sm font-bold text-slate-900">فلترة الليدز</span>
-                <span v-if="activeFilterCount" class="mt-0.5 block truncate text-[11px] text-slate-500">
-                    {{ activeChips.map((c) => c.label).join(' · ') }}
+                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                        <path d="M4 6h16M7 12h10M10 18h4" stroke-linecap="round" />
+                    </svg>
                 </span>
-                <span v-else class="mt-0.5 block text-[11px] text-slate-400">الموظف، الحالة، الحملة…</span>
-            </span>
-            <span
-                v-if="activeFilterCount"
-                class="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-brand-600 px-1.5 text-[10px] font-bold text-white"
-            >
-                {{ activeFilterCount }}
-            </span>
-            <svg
-                class="h-4 w-4 shrink-0 text-slate-400 transition group-hover:text-brand-600"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-            >
-                <path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-        </button>
+                <span>فلترة</span>
+                <span
+                    v-if="activeFilterCount"
+                    class="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-600 px-1.5 text-[10px] font-bold text-white"
+                >
+                    {{ activeFilterCount }}
+                </span>
+            </button>
+            <div v-if="activeChips.length" class="flex min-w-0 flex-1 flex-wrap gap-1">
+                <span
+                    v-for="chip in activeChips"
+                    :key="chip.key"
+                    class="max-w-full truncate rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-700"
+                >
+                    {{ chip.label }}
+                </span>
+            </div>
+        </div>
 
         <Modal :show="showModal" max-width="lg" @close="showModal = false">
-            <div class="relative overflow-hidden rounded-t-2xl sm:rounded-2xl">
-                <div
-                    class="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-brand-500/10 via-sky-500/5 to-transparent"
-                />
-
-                <div class="relative border-b border-slate-100 px-4 pb-4 pt-5 sm:px-6">
+            <div class="relative overflow-hidden rounded-t-2xl bg-white sm:rounded-2xl">
+                <div class="border-b border-slate-100 px-4 pb-3 pt-4 sm:px-5">
                     <div class="flex items-start justify-between gap-3">
                         <div>
-                            <p class="text-[11px] font-semibold uppercase tracking-wide text-brand-600">ليدز ميتا</p>
-                            <h2 class="mt-0.5 text-lg font-bold text-slate-900">فلترة وتوزيع الفريق</h2>
-                            <p class="mt-1 text-xs text-slate-500">اختر الموظف والحالة ثم طبّق — أو اضغط بطاقة الموظف مباشرة</p>
+                            <h2 class="text-base font-bold text-slate-900">فلترة الليدز</h2>
+                            <p class="mt-0.5 text-xs text-slate-500">الحالة والحملة</p>
                         </div>
                         <button
                             type="button"
-                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200"
+                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600"
                             aria-label="إغلاق"
                             @click="showModal = false"
                         >
@@ -180,119 +223,89 @@ const chipToneClass = (tone) => {
                             </svg>
                         </button>
                     </div>
-
-                    <div v-if="activeChips.length" class="mt-3 flex flex-wrap gap-1.5">
-                        <span
-                            v-for="chip in activeChips"
-                            :key="chip.key"
-                            class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1"
-                            :class="chipToneClass(chip.tone)"
-                        >
-                            {{ chip.label }}
-                        </span>
-                    </div>
                 </div>
 
-                <div class="max-h-[min(70vh,32rem)] space-y-5 overflow-y-auto px-4 py-4 sm:px-6">
-                    <section v-if="meta_assignee_stats?.length">
-                        <h3 class="text-xs font-bold text-slate-700">توزيع الفريق</h3>
-                        <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                <div class="max-h-[min(70vh,28rem)] space-y-5 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+                    <section>
+                        <h3 class="mb-2 text-xs font-bold text-slate-700">حالة المتابعة</h3>
+                        <div class="flex flex-wrap gap-2">
                             <button
-                                v-for="rep in meta_assignee_stats"
-                                :key="`filter-rep-${rep.id}`"
                                 type="button"
-                                class="group relative overflow-hidden rounded-2xl border p-3 text-start transition"
+                                class="rounded-xl border px-3 py-2 text-xs font-semibold transition"
                                 :class="
-                                    Number(meta_filters?.owner) === rep.id
-                                        ? 'border-brand-400 bg-gradient-to-br from-brand-50 to-white shadow-sm ring-2 ring-brand-200'
-                                        : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                                    draftStatus === ''
+                                        ? 'border-brand-500 bg-brand-600 text-white shadow-sm'
+                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                                 "
-                                @click="selectAssignee(rep)"
+                                @click="draftStatus = ''"
                             >
-                                <div class="flex items-start gap-3">
-                                    <div
-                                        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-base font-black shadow-inner"
-                                        :class="
-                                            Number(meta_filters?.owner) === rep.id
-                                                ? 'bg-brand-600 text-white'
-                                                : 'bg-slate-100 text-slate-700 group-hover:bg-brand-100 group-hover:text-brand-800'
-                                        "
-                                    >
-                                        {{ assigneeInitial(rep.name) }}
-                                    </div>
-                                    <div class="min-w-0 flex-1">
-                                        <p class="truncate font-bold text-slate-900">{{ rep.name }}</p>
-                                        <p class="mt-1 text-[11px] text-slate-600">
-                                            ليدز اليوم:
-                                            <span class="font-bold tabular-nums text-slate-900">{{ rep.leads_today }}</span>
-                                        </p>
-                                        <button
-                                            type="button"
-                                            class="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 hover:text-sky-900"
-                                            @click.stop="selectAssignee(rep, 'upcoming_calls')"
-                                        >
-                                            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <path d="M8 7V3m8 4V3M4 11h16M5 21h14a2 2 0 002-2V7H3v12a2 2 0 002 2z" stroke-linecap="round" />
-                                            </svg>
-                                            مكالمات قادمة: {{ rep.upcoming_calls }}
-                                        </button>
-                                    </div>
-                                </div>
+                                كل الحالات
+                            </button>
+                            <button
+                                v-for="s in meta_lead_status_options"
+                                :key="`st-pick-${s.value}`"
+                                type="button"
+                                class="rounded-xl border px-3 py-2 text-xs font-semibold transition"
+                                :class="
+                                    draftStatus === s.value
+                                        ? 'border-brand-500 bg-brand-600 text-white shadow-sm'
+                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                                "
+                                @click="draftStatus = s.value"
+                            >
+                                {{ s.label }}
                             </button>
                         </div>
-                        <button
-                            v-if="meta_filters?.owner || meta_filters?.assignee_defaults_active"
-                            type="button"
-                            class="mt-2 w-full rounded-xl border border-dashed border-slate-300 py-2.5 text-xs font-semibold text-slate-600 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-800"
-                            @click="clearAssigneeFilter"
-                        >
-                            إلغاء فلتر الموظف
-                        </button>
                     </section>
 
                     <section>
-                        <h3 class="text-xs font-bold text-slate-700">حالة المتابعة</h3>
-                        <select
-                            v-model="draftStatus"
-                            class="mt-2 min-h-11 w-full rounded-xl border-slate-200 bg-slate-50/50 text-sm shadow-sm focus:border-brand-400 focus:ring-brand-400"
-                        >
-                            <option value="">كل حالات المتابعة</option>
-                            <option v-for="s in meta_lead_status_options" :key="`modal-st-${s.value}`" :value="s.value">
-                                {{ s.label }}
-                            </option>
-                        </select>
+                        <h3 class="mb-2 text-xs font-bold text-slate-700">الحملة</h3>
+                        <div class="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                class="rounded-xl border px-3 py-2 text-xs font-semibold transition"
+                                :class="
+                                    draftCampaign === ''
+                                        ? 'border-brand-500 bg-brand-600 text-white shadow-sm'
+                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                                "
+                                @click="draftCampaign = ''"
+                            >
+                                كل الحملات
+                            </button>
+                            <button
+                                v-for="c in meta_campaign_options"
+                                :key="`camp-pick-${c}`"
+                                type="button"
+                                class="max-w-full rounded-xl border px-3 py-2 text-start text-xs font-semibold transition"
+                                :class="
+                                    draftCampaign === c
+                                        ? 'border-brand-500 bg-brand-600 text-white shadow-sm'
+                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                                "
+                                @click="draftCampaign = c"
+                            >
+                                <span class="line-clamp-2">{{ c }}</span>
+                            </button>
+                        </div>
+                        <p v-if="!meta_campaign_options?.length" class="text-xs text-slate-400">لا توجد حملات بعد.</p>
                     </section>
-
-                    <section>
-                        <h3 class="text-xs font-bold text-slate-700">الحملة</h3>
-                        <select
-                            v-model="draftCampaign"
-                            class="mt-2 min-h-11 w-full rounded-xl border-slate-200 bg-slate-50/50 text-sm shadow-sm focus:border-brand-400 focus:ring-brand-400"
-                        >
-                            <option value="">كل الحملات</option>
-                            <option v-for="c in meta_campaign_options" :key="`modal-c-${c}`" :value="c">{{ c }}</option>
-                        </select>
-                    </section>
-
-                    <p v-if="meta_filters?.view === 'upcoming_calls'" class="rounded-xl bg-sky-50 px-3 py-2 text-[11px] font-medium text-sky-800 ring-1 ring-sky-100">
-                        عرض المكالمات القادمة فقط — مرتبة حسب الموعد
-                    </p>
                 </div>
 
-                <div class="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/80 px-4 py-4 sm:flex-row sm:px-6">
+                <div class="flex gap-2 border-t border-slate-100 bg-slate-50/90 p-4 sm:px-5">
                     <button
                         type="button"
-                        class="min-h-11 flex-1 rounded-xl bg-gradient-to-l from-brand-600 to-brand-700 px-4 text-sm font-bold text-white shadow-md transition hover:from-brand-700 hover:to-brand-800"
+                        class="min-h-11 flex-1 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-brand-700"
                         @click="applyDraftFilters"
                     >
-                        تطبيق الفلتر
+                        تطبيق
                     </button>
                     <button
                         type="button"
-                        class="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                        class="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                         @click="clearAllFilters"
                     >
-                        مسح الكل
+                        مسح
                     </button>
                 </div>
             </div>
