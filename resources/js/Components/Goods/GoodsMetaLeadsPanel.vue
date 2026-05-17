@@ -1,10 +1,9 @@
 <script setup>
 import GoodsLeadPhoneActions from '@/Components/Goods/GoodsLeadPhoneActions.vue';
-import GoodsMetaLeadsFilters from '@/Components/Goods/GoodsMetaLeadsFilters.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
-import { useForm } from '@inertiajs/vue3';
+import { router, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -33,6 +32,54 @@ const editForm = useForm({
     has_whatsapp: true,
     note: '',
 });
+
+function metaQuery(extra = {}) {
+    return {
+        tab: 'meta_leads',
+        meta_status: props.meta_filters?.status || undefined,
+        meta_campaign: props.meta_filters?.campaign || undefined,
+        meta_owner: props.meta_filters?.owner || undefined,
+        meta_view: props.meta_filters?.view || undefined,
+        ...extra,
+    };
+}
+
+function filterByAssignee(assignee, view = null) {
+    router.get(
+        route('goods.index'),
+        metaQuery({
+            meta_owner: assignee.id,
+            meta_view: view || undefined,
+        }),
+        { preserveState: true, replace: true },
+    );
+}
+
+function clearAssigneeFilter() {
+    router.get(
+        route('goods.index'),
+        {
+            tab: 'meta_leads',
+            meta_clear: 1,
+            meta_campaign: props.meta_filters?.campaign || undefined,
+        },
+        { preserveState: true, replace: true },
+    );
+}
+
+function onMetaStatusFilter(event) {
+    router.get(route('goods.index'), metaQuery({ meta_status: event.target.value || undefined }), {
+        preserveState: true,
+        replace: true,
+    });
+}
+
+function onMetaCampaignFilter(event) {
+    router.get(route('goods.index'), metaQuery({ meta_campaign: event.target.value || undefined }), {
+        preserveState: true,
+        replace: true,
+    });
+}
 
 function toDatetimeLocal(iso) {
     if (!iso) return '';
@@ -145,17 +192,70 @@ function submitEdit(leadId) {
             </div>
         </div>
 
-        <GoodsMetaLeadsFilters
-            :meta-lead-status-options="meta_lead_status_options"
-            :meta-filters="meta_filters"
-            :meta-campaign-options="meta_campaign_options"
-            :meta-assignee-stats="meta_assignee_stats"
-        />
-        <TextInput
-            v-model="search"
-            class="min-h-11 w-full rounded-2xl border-slate-200 text-sm shadow-sm"
-            placeholder="بحث بالاسم، الهاتف، الحملة…"
-        />
+        <div v-if="meta_assignee_stats?.length" class="flex flex-col gap-2">
+            <p class="text-xs font-semibold text-slate-600">توزيع الفريق — اضغط للفلترة</p>
+            <div class="flex flex-wrap gap-2">
+                <button
+                    v-for="rep in meta_assignee_stats"
+                    :key="`rep-${rep.id}`"
+                    type="button"
+                    class="flex min-w-[9rem] flex-col rounded-xl border px-3 py-2 text-start text-xs transition touch-manipulation"
+                    :class="
+                        Number(meta_filters?.owner) === rep.id
+                            ? 'border-brand-400 bg-brand-50 ring-1 ring-brand-300'
+                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                    "
+                    @click="filterByAssignee(rep)"
+                >
+                    <span class="font-bold text-slate-900">{{ rep.name }}</span>
+                    <span class="mt-1 text-slate-600">ليدز اليوم: {{ rep.leads_today }}</span>
+                    <span
+                        role="button"
+                        tabindex="0"
+                        class="mt-1 font-semibold text-sky-700 underline decoration-sky-300"
+                        @click.stop="filterByAssignee(rep, 'upcoming_calls')"
+                        @keydown.enter.stop.prevent="filterByAssignee(rep, 'upcoming_calls')"
+                    >
+                        مكالمات قادمة: {{ rep.upcoming_calls }}
+                    </span>
+                </button>
+                <button
+                    v-if="meta_filters?.owner || meta_filters?.assignee_defaults_active"
+                    type="button"
+                    class="self-center rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 touch-manipulation"
+                    @click="clearAssigneeFilter"
+                >
+                    إلغاء فلتر الموظف
+                </button>
+            </div>
+            <p v-if="meta_filters?.view === 'upcoming_calls'" class="text-[11px] text-sky-800">
+                عرض المكالمات القادمة فقط — مرتبة حسب الموعد
+            </p>
+        </div>
+
+        <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <select
+                class="min-h-11 w-full touch-manipulation rounded-xl border border-gray-300 bg-white px-3 text-sm"
+                :value="meta_filters?.status || ''"
+                @change="onMetaStatusFilter"
+            >
+                <option value="">كل حالات المتابعة</option>
+                <option v-for="s in meta_lead_status_options" :key="`mf-${s.value}`" :value="s.value">{{ s.label }}</option>
+            </select>
+            <select
+                class="min-h-11 w-full touch-manipulation rounded-xl border border-gray-300 bg-white px-3 text-sm sm:min-w-[12rem]"
+                :value="meta_filters?.campaign || ''"
+                @change="onMetaCampaignFilter"
+            >
+                <option value="">كل الحملات</option>
+                <option v-for="c in meta_campaign_options" :key="`mc-${c}`" :value="c">{{ c }}</option>
+            </select>
+            <TextInput
+                v-model="search"
+                class="min-h-11 w-full flex-1 rounded-xl border-slate-200 text-sm shadow-sm"
+                placeholder="بحث بالاسم، الهاتف، الحملة…"
+            />
+        </div>
 
         <!-- موبايل: بطاقات (نفس أسلوب عملاء البضاعة) -->
         <div class="space-y-3 md:hidden">

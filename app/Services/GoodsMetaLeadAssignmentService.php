@@ -150,6 +150,11 @@ class GoodsMetaLeadAssignmentService
             if ($byName) {
                 return $byName;
             }
+
+            $byName = User::query()->where('name', 'like', '%'.$name.'%')->first();
+            if ($byName) {
+                return $byName;
+            }
         }
 
         if ($username !== '') {
