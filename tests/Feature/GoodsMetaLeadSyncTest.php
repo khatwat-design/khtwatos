@@ -1,0 +1,66 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\GoodsMetaLead;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Config;
+use Tests\TestCase;
+
+class GoodsMetaLeadSyncTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Config::set('services.goods.meta_leads_webhook_secret', 'test-secret');
+    }
+
+    public function test_webhook_upserts_meta_lead_from_sheet_row(): void
+    {
+        $payload = [
+            'secret' => 'test-secret',
+            'rows' => [
+                [
+                    'id' => 'l:4235976496655120',
+                    'created_time' => '2026-05-05T05:31:22-05:00',
+                    'campaign_name' => 'Abdullah Leads',
+                    'platform' => 'ig',
+                    'full_name' => 'حيدر المخزومي',
+                    'phone_number' => 'p:+9647824462427',
+                    'lead_status' => 'CREATED',
+                    'الملاحظات ' => 'تم الاتصال',
+                    'إحتمالية العميل' => 'عميل محتمل',
+                    'السبب' => 'تاجر زيوت',
+                    'النتيجة' => 'قيد المتابعة',
+                ],
+            ],
+        ];
+
+        $response = $this->postJson(route('goods.meta-leads.sync'), $payload, [
+            'X-Goods-Meta-Leads-Secret' => 'test-secret',
+        ]);
+
+        $response->assertOk()->assertJsonPath('stats.created', 1);
+
+        $this->assertDatabaseHas('goods_meta_leads', [
+            'meta_lead_id' => 'l:4235976496655120',
+            'full_name' => 'حيدر المخزومي',
+            'workflow_status' => 'following',
+        ]);
+
+        $lead = GoodsMetaLead::query()->where('meta_lead_id', 'l:4235976496655120')->first();
+        $this->assertNotNull($lead);
+        $this->assertSame('9647824462427', $lead->phone_normalized);
+    }
+
+    public function test_webhook_rejects_invalid_secret(): void
+    {
+        $this->postJson(route('goods.meta-leads.sync'), [
+            'rows' => [['id' => 'l:1', 'full_name' => 'x']],
+        ], [
+            'X-Goods-Meta-Leads-Secret' => 'wrong',
+        ])->assertUnauthorized();
+    }
+}

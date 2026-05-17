@@ -138,6 +138,8 @@ return [
     'goods' => [
         /** وقت إرسال تذكير المبيعات اليومي (توقيت التطبيق APP_TIMEZONE) */
         'daily_sales_reminder_at' => env('GOODS_DAILY_SALES_REMINDER_AT', '09:00'),
+        /** سرّ مزامنة ليدز ميتا من Google Apps Script → POST /goods/meta-leads/sync */
+        'meta_leads_webhook_secret' => env('GOODS_META_LEADS_WEBHOOK_SECRET'),
     ],
 
     /*

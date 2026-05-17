@@ -1,0 +1,288 @@
+<script setup>
+import InputLabel from '@/Components/InputLabel.vue';
+import PrimaryButton from '@/Components/PrimaryButton.vue';
+import TextInput from '@/Components/TextInput.vue';
+import { router, useForm } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
+
+const props = defineProps({
+    meta_leads: { type: Array, default: () => [] },
+    meta_lead_status_options: { type: Array, default: () => [] },
+    meta_filters: { type: Object, default: () => ({}) },
+    meta_campaign_options: { type: Array, default: () => [] },
+    meta_analytics: { type: Object, default: () => ({}) },
+    owners: { type: Array, default: () => [] },
+    meta_leads_webhook_configured: { type: Boolean, default: false },
+});
+
+const search = ref('');
+const editingId = ref(null);
+
+const editForm = useForm({
+    workflow_status: 'new',
+    owner_user_id: null,
+    team_notes: '',
+    probability_label: '',
+    reason_label: '',
+    outcome_label: '',
+    next_contact_date: '',
+    note: '',
+});
+
+const filteredLeads = computed(() => {
+    const q = search.value.trim().toLowerCase();
+    if (!q) {
+        return props.meta_leads || [];
+    }
+    return (props.meta_leads || []).filter((lead) => {
+        const hay = [
+            lead.full_name,
+            lead.phone,
+            lead.campaign_name,
+            lead.ad_name,
+            lead.team_notes,
+            lead.probability_label,
+            lead.outcome_label,
+        ]
+            .join(' ')
+            .toLowerCase();
+        return hay.includes(q);
+    });
+});
+
+function statusLabel(status) {
+    return props.meta_lead_status_options?.find((s) => s.value === status)?.label || status;
+}
+
+function statusClass(status) {
+    const map = {
+        new: 'bg-emerald-100 text-emerald-800',
+        following: 'bg-sky-100 text-sky-800',
+        potential: 'bg-amber-100 text-amber-800',
+        unlikely: 'bg-rose-100 text-rose-800',
+        qualified: 'bg-indigo-100 text-indigo-800',
+        won: 'bg-emerald-100 text-emerald-700',
+        lost: 'bg-slate-100 text-slate-700',
+        rejected: 'bg-rose-100 text-rose-700',
+    };
+    return map[status] || 'bg-gray-100 text-gray-700';
+}
+
+function applyMetaFilters() {
+    router.get(
+        route('goods.index'),
+        {
+            tab: 'meta_leads',
+            meta_status: props.meta_filters?.status || undefined,
+            meta_campaign: props.meta_filters?.campaign || undefined,
+        },
+        { preserveState: true, replace: true },
+    );
+}
+
+function onMetaStatusFilter(event) {
+    router.get(
+        route('goods.index'),
+        {
+            tab: 'meta_leads',
+            meta_status: event.target.value || undefined,
+            meta_campaign: props.meta_filters?.campaign || undefined,
+        },
+        { preserveState: true, replace: true },
+    );
+}
+
+function onMetaCampaignFilter(event) {
+    router.get(
+        route('goods.index'),
+        {
+            tab: 'meta_leads',
+            meta_status: props.meta_filters?.status || undefined,
+            meta_campaign: event.target.value || undefined,
+        },
+        { preserveState: true, replace: true },
+    );
+}
+
+function formatDt(iso) {
+    if (!iso) return '—';
+    try {
+        return new Date(iso).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' });
+    } catch {
+        return '—';
+    }
+}
+
+function openEdit(lead) {
+    editingId.value = lead.id;
+    editForm.workflow_status = lead.workflow_status;
+    editForm.owner_user_id = lead.owner?.id ?? null;
+    editForm.team_notes = lead.team_notes || '';
+    editForm.probability_label = lead.probability_label || '';
+    editForm.reason_label = lead.reason_label || '';
+    editForm.outcome_label = lead.outcome_label || '';
+    editForm.next_contact_date = lead.next_contact_date || '';
+    editForm.note = '';
+}
+
+function submitEdit(leadId) {
+    editForm.patch(route('goods.meta-leads.update', leadId), {
+        preserveScroll: true,
+        onSuccess: () => {
+            editingId.value = null;
+        },
+    });
+}
+</script>
+
+<template>
+    <div class="space-y-4" data-tour-page-anchor>
+        <div
+            v-if="!meta_leads_webhook_configured"
+            class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+        >
+            مزامنة Google Sheet غير مفعّلة بعد — أضف <code class="rounded bg-amber-100 px-1">GOODS_META_LEADS_WEBHOOK_SECRET</code> في السيرفر ثم ربط Apps Script.
+        </div>
+
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <p class="text-[11px] font-semibold text-slate-500">إجمالي الليدز</p>
+                <p class="mt-1 text-2xl font-bold tabular-nums text-slate-900">{{ meta_analytics?.total ?? 0 }}</p>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <p class="text-[11px] font-semibold text-slate-500">قيد المتابعة</p>
+                <p class="mt-1 text-2xl font-bold tabular-nums text-sky-700">{{ meta_analytics?.following_count ?? 0 }}</p>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <p class="text-[11px] font-semibold text-slate-500">عملاء محتملون</p>
+                <p class="mt-1 text-2xl font-bold tabular-nums text-amber-700">{{ meta_analytics?.potential_count ?? 0 }}</p>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <p class="text-[11px] font-semibold text-slate-500">نسبة الإغلاق (بيع)</p>
+                <p class="mt-1 text-2xl font-bold tabular-nums text-emerald-700">{{ meta_analytics?.conversion_rate ?? 0 }}%</p>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <select
+                class="min-h-11 rounded-xl border border-gray-300 bg-white px-3 text-sm"
+                :value="meta_filters?.status || ''"
+                @change="onMetaStatusFilter"
+            >
+                <option value="">كل حالات المتابعة</option>
+                <option v-for="s in meta_lead_status_options" :key="`mf-${s.value}`" :value="s.value">{{ s.label }}</option>
+            </select>
+            <select
+                class="min-h-11 rounded-xl border border-gray-300 bg-white px-3 text-sm sm:min-w-[12rem]"
+                :value="meta_filters?.campaign || ''"
+                @change="onMetaCampaignFilter"
+            >
+                <option value="">كل الحملات</option>
+                <option v-for="c in meta_campaign_options" :key="`mc-${c}`" :value="c">{{ c }}</option>
+            </select>
+            <TextInput v-model="search" class="min-h-11 flex-1 rounded-xl text-sm" placeholder="بحث بالاسم، الهاتف، الحملة…" />
+        </div>
+
+        <div class="ui-card overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-slate-50/90">
+                    <tr>
+                        <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">التاريخ</th>
+                        <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">العميل</th>
+                        <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">الحملة</th>
+                        <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">الإجابات</th>
+                        <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">المتابعة</th>
+                        <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">إجراء</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <template v-for="lead in filteredLeads" :key="lead.id">
+                        <tr class="align-top hover:bg-slate-50/50">
+                            <td class="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">{{ formatDt(lead.lead_created_at) }}</td>
+                            <td class="px-3 py-2">
+                                <p class="font-semibold text-gray-900">{{ lead.full_name || '—' }}</p>
+                                <p class="font-mono text-xs text-gray-600" dir="ltr">{{ lead.phone || '—' }}</p>
+                                <p v-if="lead.platform" class="mt-0.5 text-[10px] uppercase text-gray-400">{{ lead.platform }}</p>
+                            </td>
+                            <td class="px-3 py-2 text-xs text-gray-700">
+                                <p class="font-medium">{{ lead.campaign_name || '—' }}</p>
+                                <p class="text-gray-500">{{ lead.adset_name }}</p>
+                                <p class="text-gray-400">{{ lead.ad_name }}</p>
+                            </td>
+                            <td class="px-3 py-2 text-xs text-gray-700 max-w-[14rem]">
+                                <p v-if="lead.monthly_orders_answer"><span class="text-gray-500">طلبات:</span> {{ lead.monthly_orders_answer }}</p>
+                                <p v-if="lead.goal_answer" class="mt-0.5 line-clamp-2">{{ lead.goal_answer }}</p>
+                                <p v-if="lead.reason_label" class="mt-0.5 text-gray-500">{{ lead.reason_label }}</p>
+                            </td>
+                            <td class="px-3 py-2">
+                                <span class="inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold" :class="statusClass(lead.workflow_status)">
+                                    {{ statusLabel(lead.workflow_status) }}
+                                </span>
+                                <p v-if="lead.probability_label" class="mt-1 text-[10px] text-gray-500">{{ lead.probability_label }}</p>
+                                <p v-if="lead.outcome_label" class="text-[10px] text-gray-500">{{ lead.outcome_label }}</p>
+                                <p v-if="lead.owner?.name" class="mt-1 text-[10px] text-gray-600">مسؤول: {{ lead.owner.name }}</p>
+                            </td>
+                            <td class="px-3 py-2">
+                                <button
+                                    type="button"
+                                    class="rounded-lg border border-brand-200 bg-brand-50 px-2 py-1 text-xs font-semibold text-brand-800 hover:bg-brand-100"
+                                    @click="openEdit(lead)"
+                                >
+                                    تعديل
+                                </button>
+                            </td>
+                        </tr>
+                        <tr v-if="editingId === lead.id" class="bg-brand-50/30">
+                            <td colspan="6" class="px-3 py-3">
+                                <form class="grid gap-3 md:grid-cols-2" @submit.prevent="submitEdit(lead.id)">
+                                    <div>
+                                        <InputLabel value="حالة المتابعة" />
+                                        <select v-model="editForm.workflow_status" class="mt-1 w-full rounded-md border-gray-300 text-sm">
+                                            <option v-for="s in meta_lead_status_options" :key="`es-${s.value}`" :value="s.value">{{ s.label }}</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <InputLabel value="المسؤول" />
+                                        <select v-model="editForm.owner_user_id" class="mt-1 w-full rounded-md border-gray-300 text-sm">
+                                            <option :value="null">—</option>
+                                            <option v-for="o in owners" :key="`own-${o.id}`" :value="o.id">{{ o.name }}</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <InputLabel value="إحتمالية العميل (نص الشيت)" />
+                                        <TextInput v-model="editForm.probability_label" class="mt-1 w-full text-sm" />
+                                    </div>
+                                    <div>
+                                        <InputLabel value="النتيجة (نص الشيت)" />
+                                        <TextInput v-model="editForm.outcome_label" class="mt-1 w-full text-sm" />
+                                    </div>
+                                    <div>
+                                        <InputLabel value="السبب" />
+                                        <TextInput v-model="editForm.reason_label" class="mt-1 w-full text-sm" />
+                                    </div>
+                                    <div>
+                                        <InputLabel value="موعد الاتصال القادم" />
+                                        <TextInput v-model="editForm.next_contact_date" type="date" class="mt-1 w-full text-sm" />
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <InputLabel value="ملاحظات الفريق" />
+                                        <textarea v-model="editForm.team_notes" rows="2" class="mt-1 w-full rounded-md border-gray-300 text-sm" />
+                                    </div>
+                                    <div class="flex gap-2 md:col-span-2">
+                                        <PrimaryButton :disabled="editForm.processing">حفظ</PrimaryButton>
+                                        <button type="button" class="text-sm text-gray-600" @click="editingId = null">إلغاء</button>
+                                    </div>
+                                </form>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr v-if="!filteredLeads.length">
+                        <td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">
+                            لا توجد ليدز ميتا بعد. بعد ربط Apps Script ستظهر هنا تلقائياً.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</template>

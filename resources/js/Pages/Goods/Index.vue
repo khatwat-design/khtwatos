@@ -1,4 +1,5 @@
 <script setup>
+import GoodsMetaLeadsPanel from '@/Components/Goods/GoodsMetaLeadsPanel.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputError from '@/Components/InputError.vue';
 import InputLabel from '@/Components/InputLabel.vue';
@@ -8,11 +9,18 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
+    active_tab: { type: String, default: 'customers' },
     customers: Array,
     owners: Array,
     contacts: Array,
     status_options: Array,
     filters: Object,
+    meta_leads: { type: Array, default: () => [] },
+    meta_lead_status_options: { type: Array, default: () => [] },
+    meta_filters: { type: Object, default: () => ({}) },
+    meta_campaign_options: { type: Array, default: () => [] },
+    meta_analytics: { type: Object, default: () => ({}) },
+    meta_leads_webhook_configured: { type: Boolean, default: false },
 });
 
 const showCreateModal = ref(false);
@@ -49,7 +57,14 @@ const filteredCustomers = computed(() => {
 
 function applyStatusFilter(event) {
     const status = event.target.value || undefined;
-    router.get(route('goods.index'), { status }, { preserveState: true, replace: true });
+    router.get(route('goods.index'), { tab: 'customers', status }, { preserveState: true, replace: true });
+}
+
+function switchTab(tab) {
+    if (tab === props.active_tab) {
+        return;
+    }
+    router.get(route('goods.index'), { tab }, { preserveState: true, replace: true });
 }
 
 function submitCreate() {
@@ -119,6 +134,26 @@ function statusClass(status) {
                 {{ page.props.flash?.error || reminderForm.errors.goods_reminder }}
             </div>
 
+            <div class="flex gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+                <button
+                    type="button"
+                    class="flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition"
+                    :class="active_tab === 'customers' ? 'bg-brand-600 text-white' : 'text-gray-700 hover:bg-gray-50'"
+                    @click="switchTab('customers')"
+                >
+                    عملاء البضاعة
+                </button>
+                <button
+                    type="button"
+                    class="flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition"
+                    :class="active_tab === 'meta_leads' ? 'bg-brand-600 text-white' : 'text-gray-700 hover:bg-gray-50'"
+                    @click="switchTab('meta_leads')"
+                >
+                    ليدز ميتا
+                </button>
+            </div>
+
+            <template v-if="active_tab === 'customers'">
             <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-stretch sm:justify-between sm:gap-2">
                 <div class="flex w-full flex-col gap-2 sm:flex-1 sm:flex-row sm:items-center sm:gap-2">
                     <select
@@ -318,10 +353,22 @@ function statusClass(status) {
                     </tbody>
                 </table>
             </div>
+            </template>
+
+            <GoodsMetaLeadsPanel
+                v-else
+                :meta_leads="meta_leads"
+                :meta_lead_status_options="meta_lead_status_options"
+                :meta_filters="meta_filters"
+                :meta_campaign_options="meta_campaign_options"
+                :meta_analytics="meta_analytics"
+                :owners="owners"
+                :meta_leads_webhook_configured="meta_leads_webhook_configured"
+            />
         </div>
 
         <div
-            v-if="showCreateModal"
+            v-if="showCreateModal && active_tab === 'customers'"
             class="mobile-sheet-backdrop"
             @click.self="showCreateModal = false"
         >

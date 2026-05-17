@@ -14,6 +14,8 @@ use App\Http\Controllers\EmployeeCallController;
 use App\Http\Controllers\EmployeeCallDiagnosticController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\GoodsCustomerController;
+use App\Http\Controllers\GoodsMetaLeadController;
+use App\Http\Controllers\GoodsMetaLeadWebhookController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\NotificationController;
@@ -66,6 +68,10 @@ Route::get('/outside/webhook', [OutsideWebhookController::class, 'verify'])
 
 Route::post('/outside/webhook', [OutsideWebhookController::class, 'receive'])
     ->name('outside.webhook.receive')
+    ->withoutMiddleware([ValidateCsrfToken::class]);
+
+Route::post('/goods/meta-leads/sync', [GoodsMetaLeadWebhookController::class, 'receive'])
+    ->name('goods.meta-leads.sync')
     ->withoutMiddleware([ValidateCsrfToken::class]);
 
 Route::get('/dashboard', function () {
@@ -151,6 +157,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/goods/customers/{goodsCustomer}/status', [GoodsCustomerController::class, 'updateStatus'])->name('goods.customers.status');
     Route::post('/goods/customers/{goodsCustomer}/sales-reminder', [GoodsCustomerController::class, 'sendSalesReminder'])->name('goods.customers.sales-reminder');
     Route::post('/goods/customers/{goodsCustomer}/weekly-survey', [GoodsCustomerController::class, 'sendWeeklySurvey'])->name('goods.customers.weekly-survey');
+    Route::patch('/goods/meta-leads/{goodsMetaLead}', [GoodsMetaLeadController::class, 'update'])->name('goods.meta-leads.update');
 
     Route::get('/sales/analytics', [SalesAnalyticsController::class, 'index'])->name('sales.analytics');
 

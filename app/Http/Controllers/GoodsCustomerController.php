@@ -4,12 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\GoodsCustomer;
 use App\Models\GoodsCustomerStatusHistory;
+use App\Models\GoodsMetaLead;
 use App\Models\OutsideContact;
 use App\Models\OutsideConversation;
 use App\Models\OutsideMessage;
 use App\Models\User;
+use App\Services\GoodsMetaLeadAnalyticsService;
 use App\Services\OutsideGoodsClientBridgeService;
 use App\Services\WhatsAppCloudService;
+use App\Support\GoodsMetaLeadWorkflow;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +30,9 @@ class GoodsCustomerController extends Controller
     public function index(Request $request): Response
     {
         $filterStatus = trim((string) $request->query('status', ''));
+        $tab = trim((string) $request->query('tab', 'customers'));
+        $metaFilterStatus = trim((string) $request->query('meta_status', ''));
+        $metaCampaign = trim((string) $request->query('meta_campaign', ''));
 
         $customers = GoodsCustomer::query()
             ->with(['owner:id,name', 'contact:id,name,phone', 'client:id,name'])
@@ -34,7 +40,27 @@ class GoodsCustomerController extends Controller
             ->orderByDesc('updated_at')
             ->get();
 
+        $metaLeadsQuery = GoodsMetaLead::query()
+            ->with(['owner:id,name'])
+            ->when($metaFilterStatus !== '', fn ($q) => $q->where('workflow_status', $metaFilterStatus))
+            ->when($metaCampaign !== '', fn ($q) => $q->where('campaign_name', $metaCampaign))
+            ->orderByDesc('lead_created_at')
+            ->orderByDesc('id');
+
+        $metaLeads = $metaLeadsQuery->limit(500)->get();
+        $campaignOptions = GoodsMetaLead::query()
+            ->whereNotNull('campaign_name')
+            ->where('campaign_name', '!=', '')
+            ->distinct()
+            ->orderBy('campaign_name')
+            ->pluck('campaign_name')
+            ->values()
+            ->all();
+
+        $metaAnalytics = app(GoodsMetaLeadAnalyticsService::class)->summary();
+
         return Inertia::render('Goods/Index', [
+            'active_tab' => in_array($tab, ['customers', 'meta_leads'], true) ? $tab : 'customers',
             'customers' => $customers->map(fn (GoodsCustomer $customer) => [
                 'id' => $customer->id,
                 'name' => $customer->name,
@@ -69,6 +95,36 @@ class GoodsCustomerController extends Controller
             'filters' => [
                 'status' => $filterStatus,
             ],
+            'meta_leads' => $metaLeads->map(fn (GoodsMetaLead $lead) => [
+                'id' => $lead->id,
+                'meta_lead_id' => $lead->meta_lead_id,
+                'full_name' => $lead->full_name,
+                'phone' => $lead->phone,
+                'platform' => $lead->platform,
+                'campaign_name' => $lead->campaign_name,
+                'adset_name' => $lead->adset_name,
+                'ad_name' => $lead->ad_name,
+                'monthly_orders_answer' => $lead->monthly_orders_answer,
+                'goal_answer' => $lead->goal_answer,
+                'team_notes' => $lead->team_notes,
+                'probability_label' => $lead->probability_label,
+                'reason_label' => $lead->reason_label,
+                'outcome_label' => $lead->outcome_label,
+                'workflow_status' => $lead->workflow_status,
+                'lead_created_at' => $lead->lead_created_at?->toIso8601String(),
+                'first_contact_date' => $lead->first_contact_date?->format('Y-m-d'),
+                'last_contact_date' => $lead->last_contact_date?->format('Y-m-d'),
+                'next_contact_date' => $lead->next_contact_date?->format('Y-m-d'),
+                'owner' => $lead->owner ? ['id' => $lead->owner->id, 'name' => $lead->owner->name] : null,
+            ])->values(),
+            'meta_lead_status_options' => GoodsMetaLeadWorkflow::statusOptions(),
+            'meta_filters' => [
+                'status' => $metaFilterStatus,
+                'campaign' => $metaCampaign,
+            ],
+            'meta_campaign_options' => $campaignOptions,
+            'meta_analytics' => $metaAnalytics,
+            'meta_leads_webhook_configured' => (string) config('services.goods.meta_leads_webhook_secret', '') !== '',
         ]);
     }
 
