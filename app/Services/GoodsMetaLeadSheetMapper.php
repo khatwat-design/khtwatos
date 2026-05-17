@@ -49,8 +49,11 @@ class GoodsMetaLeadSheetMapper
             }
         }
 
+        $sheetName = $this->stringValue($normalized, ['_sheet_name', 'sheet_name']);
+
         return [
             'meta_lead_id' => $metaLeadId,
+            'sheet_name' => $sheetName !== '' ? $sheetName : null,
             'lead_created_at' => $this->parseDateTime($normalized['created_time'] ?? null),
             'full_name' => $this->stringValue($normalized, ['full_name', 'name', 'الاسم']),
             'phone' => $this->cleanPhone($this->stringValue($normalized, ['phone_number', 'phone', 'الهاتف'])),
@@ -98,7 +101,7 @@ class GoodsMetaLeadSheetMapper
             'الملاحظات', 'احتماليةالعميل', 'السبب', 'النتيجه', 'النتيجة',
             'تاريخالاتصالالاول', 'تاريخالاتصالالاخير', 'تاريخالاتصالالقادم',
             'first_contact_date', 'last_contact_date', 'next_contact_date',
-            '_row_number',
+            '_row_number', '_sheet_name', 'sheet_name',
         ];
     }
 

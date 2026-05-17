@@ -26,6 +26,7 @@ class GoodsMetaLead extends Model
 
     protected $fillable = [
         'meta_lead_id',
+        'sheet_name',
         'lead_created_at',
         'full_name',
         'phone',

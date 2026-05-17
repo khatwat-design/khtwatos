@@ -19,6 +19,7 @@ const props = defineProps({
     meta_lead_status_options: { type: Array, default: () => [] },
     meta_filters: { type: Object, default: () => ({}) },
     meta_campaign_options: { type: Array, default: () => [] },
+    meta_sheet_options: { type: Array, default: () => [] },
     meta_analytics: { type: Object, default: () => ({}) },
     meta_leads_webhook_configured: { type: Boolean, default: false },
 });
@@ -361,6 +362,7 @@ function statusClass(status) {
                 :meta_lead_status_options="meta_lead_status_options"
                 :meta_filters="meta_filters"
                 :meta_campaign_options="meta_campaign_options"
+                :meta_sheet_options="meta_sheet_options"
                 :meta_analytics="meta_analytics"
                 :owners="owners"
                 :meta_leads_webhook_configured="meta_leads_webhook_configured"

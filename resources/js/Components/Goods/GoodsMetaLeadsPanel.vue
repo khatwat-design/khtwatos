@@ -10,6 +10,7 @@ const props = defineProps({
     meta_lead_status_options: { type: Array, default: () => [] },
     meta_filters: { type: Object, default: () => ({}) },
     meta_campaign_options: { type: Array, default: () => [] },
+    meta_sheet_options: { type: Array, default: () => [] },
     meta_analytics: { type: Object, default: () => ({}) },
     owners: { type: Array, default: () => [] },
     meta_leads_webhook_configured: { type: Boolean, default: false },
@@ -39,6 +40,7 @@ const filteredLeads = computed(() => {
             lead.full_name,
             lead.phone,
             lead.campaign_name,
+            lead.sheet_name,
             lead.ad_name,
             lead.team_notes,
             lead.probability_label,
@@ -87,6 +89,7 @@ function onMetaStatusFilter(event) {
             tab: 'meta_leads',
             meta_status: event.target.value || undefined,
             meta_campaign: props.meta_filters?.campaign || undefined,
+            meta_sheet: props.meta_filters?.sheet || undefined,
         },
         { preserveState: true, replace: true },
     );
@@ -99,6 +102,20 @@ function onMetaCampaignFilter(event) {
             tab: 'meta_leads',
             meta_status: props.meta_filters?.status || undefined,
             meta_campaign: event.target.value || undefined,
+            meta_sheet: props.meta_filters?.sheet || undefined,
+        },
+        { preserveState: true, replace: true },
+    );
+}
+
+function onMetaSheetFilter(event) {
+    router.get(
+        route('goods.index'),
+        {
+            tab: 'meta_leads',
+            meta_status: props.meta_filters?.status || undefined,
+            meta_campaign: props.meta_filters?.campaign || undefined,
+            meta_sheet: event.target.value || undefined,
         },
         { preserveState: true, replace: true },
     );
@@ -180,6 +197,15 @@ function submitEdit(leadId) {
                 <option value="">كل الحملات</option>
                 <option v-for="c in meta_campaign_options" :key="`mc-${c}`" :value="c">{{ c }}</option>
             </select>
+            <select
+                v-if="meta_sheet_options?.length"
+                class="min-h-11 rounded-xl border border-gray-300 bg-white px-3 text-sm sm:min-w-[10rem]"
+                :value="meta_filters?.sheet || ''"
+                @change="onMetaSheetFilter"
+            >
+                <option value="">كل الأوراق</option>
+                <option v-for="s in meta_sheet_options" :key="`ms-${s}`" :value="s">{{ s }}</option>
+            </select>
             <TextInput v-model="search" class="min-h-11 flex-1 rounded-xl text-sm" placeholder="بحث بالاسم، الهاتف، الحملة…" />
         </div>
 
@@ -200,6 +226,9 @@ function submitEdit(leadId) {
                                 {{ lead.full_name || '—' }}
                             </h3>
                             <p class="mt-1 font-mono text-xs text-gray-600" dir="ltr">{{ lead.phone || '—' }}</p>
+                            <p v-if="lead.sheet_name" class="mt-1 text-[10px] font-semibold text-violet-700">
+                                ورقة: {{ lead.sheet_name }}
+                            </p>
                             <p v-if="lead.platform" class="mt-0.5 text-[10px] font-semibold uppercase text-gray-400">
                                 {{ lead.platform }}
                             </p>
@@ -311,6 +340,7 @@ function submitEdit(leadId) {
                     <tr>
                         <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">التاريخ</th>
                         <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">العميل</th>
+                        <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">الورقة</th>
                         <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">الحملة</th>
                         <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">الإجابات</th>
                         <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">المتابعة</th>
@@ -326,6 +356,7 @@ function submitEdit(leadId) {
                                 <p class="font-mono text-xs text-gray-600" dir="ltr">{{ lead.phone || '—' }}</p>
                                 <p v-if="lead.platform" class="mt-0.5 text-[10px] uppercase text-gray-400">{{ lead.platform }}</p>
                             </td>
+                            <td class="px-3 py-2 text-xs font-medium text-violet-800">{{ lead.sheet_name || '—' }}</td>
                             <td class="px-3 py-2 text-xs text-gray-700">
                                 <p class="font-medium">{{ lead.campaign_name || '—' }}</p>
                                 <p class="text-gray-500">{{ lead.adset_name }}</p>
@@ -355,7 +386,7 @@ function submitEdit(leadId) {
                             </td>
                         </tr>
                         <tr v-if="editingId === lead.id" class="bg-brand-50/30">
-                            <td colspan="6" class="px-3 py-3">
+                            <td colspan="7" class="px-3 py-3">
                                 <form class="grid gap-3 md:grid-cols-2" @submit.prevent="submitEdit(lead.id)">
                                     <div>
                                         <InputLabel value="حالة المتابعة" />
@@ -399,7 +430,7 @@ function submitEdit(leadId) {
                         </tr>
                     </template>
                     <tr v-if="!filteredLeads.length">
-                        <td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">
+                        <td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">
                             لا توجد ليدز ميتا بعد. بعد ربط Apps Script ستظهر هنا تلقائياً.
                         </td>
                     </tr>

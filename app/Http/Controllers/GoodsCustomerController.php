@@ -33,6 +33,7 @@ class GoodsCustomerController extends Controller
         $tab = trim((string) $request->query('tab', 'customers'));
         $metaFilterStatus = trim((string) $request->query('meta_status', ''));
         $metaCampaign = trim((string) $request->query('meta_campaign', ''));
+        $metaSheet = trim((string) $request->query('meta_sheet', ''));
 
         $customers = GoodsCustomer::query()
             ->with(['owner:id,name', 'contact:id,name,phone', 'client:id,name'])
@@ -44,6 +45,7 @@ class GoodsCustomerController extends Controller
             ->with(['owner:id,name'])
             ->when($metaFilterStatus !== '', fn ($q) => $q->where('workflow_status', $metaFilterStatus))
             ->when($metaCampaign !== '', fn ($q) => $q->where('campaign_name', $metaCampaign))
+            ->when($metaSheet !== '', fn ($q) => $q->where('sheet_name', $metaSheet))
             ->orderByDesc('lead_created_at')
             ->orderByDesc('id');
 
@@ -54,6 +56,15 @@ class GoodsCustomerController extends Controller
             ->distinct()
             ->orderBy('campaign_name')
             ->pluck('campaign_name')
+            ->values()
+            ->all();
+
+        $sheetOptions = GoodsMetaLead::query()
+            ->whereNotNull('sheet_name')
+            ->where('sheet_name', '!=', '')
+            ->distinct()
+            ->orderBy('sheet_name')
+            ->pluck('sheet_name')
             ->values()
             ->all();
 
@@ -98,6 +109,7 @@ class GoodsCustomerController extends Controller
             'meta_leads' => $metaLeads->map(fn (GoodsMetaLead $lead) => [
                 'id' => $lead->id,
                 'meta_lead_id' => $lead->meta_lead_id,
+                'sheet_name' => $lead->sheet_name,
                 'full_name' => $lead->full_name,
                 'phone' => $lead->phone,
                 'platform' => $lead->platform,
@@ -121,8 +133,10 @@ class GoodsCustomerController extends Controller
             'meta_filters' => [
                 'status' => $metaFilterStatus,
                 'campaign' => $metaCampaign,
+                'sheet' => $metaSheet,
             ],
             'meta_campaign_options' => $campaignOptions,
+            'meta_sheet_options' => $sheetOptions,
             'meta_analytics' => $metaAnalytics,
             'meta_leads_webhook_configured' => (string) config('services.goods.meta_leads_webhook_secret', '') !== '',
         ]);
