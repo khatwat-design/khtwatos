@@ -214,6 +214,7 @@ class HomeController extends Controller
                     'id' => $t->id,
                     'title' => $t->title,
                     'due_at' => $t->due_at?->toIso8601String(),
+                    'board_column_id' => $t->board_column_id,
                     'column_name' => $t->column?->name,
                     'team_slug' => $t->taskBoard?->team?->slug,
                     'team_name' => $t->taskBoard?->team?->name,
@@ -233,6 +234,7 @@ class HomeController extends Controller
             'id' => $firstOverdueTask->id,
             'title' => $firstOverdueTask->title,
             'team_slug' => $firstOverdueTask->taskBoard?->team?->slug,
+            'board_column_id' => $firstOverdueTask->board_column_id,
         ] : null;
 
         $upcomingMeetings = Meeting::query()
@@ -362,6 +364,7 @@ class HomeController extends Controller
                 ? array_filter([
                     'task' => $firstOverdueTask['id'],
                     'team' => $firstOverdueTask['team_slug'] ?? null,
+                    'column' => $firstOverdueTask['board_column_id'] ?? null,
                 ], fn ($v) => $v !== null && $v !== '')
                 : [];
 

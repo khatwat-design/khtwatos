@@ -10,6 +10,8 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import draggable from 'vuedraggable';
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 
+const HIGHLIGHT_TASK_MS = 2200;
+
 const props = defineProps({
     teams: Array,
     team: Object,
@@ -19,6 +21,7 @@ const props = defineProps({
     filters: Object,
     filterClient: Object,
     open_task_id: { type: Number, default: null },
+    focus_column_id: { type: Number, default: null },
 });
 const page = usePage();
 const canDeleteRecords = computed(() => Boolean(page.props.auth?.can?.deleteRecords));
@@ -472,18 +475,72 @@ function findTaskOnBoard(taskId) {
     return null;
 }
 
+function findColumnIdForTask(taskId) {
+    const id = Number(taskId);
+    if (!id) {
+        return null;
+    }
+    for (const column of boardState.columns) {
+        if (column.tasks.some((t) => Number(t.id) === id)) {
+            return Number(column.id);
+        }
+    }
+
+    return null;
+}
+
+const highlightedTaskId = ref(null);
+let highlightTimer;
+
+function scrollToTaskOnBoard(taskId, columnId) {
+    const colId = columnId || findColumnIdForTask(taskId);
+    nextTick(() => {
+        requestAnimationFrame(() => {
+            const board = document.querySelector('[data-tour="tasks-board"]');
+            const columnEl = colId ? document.getElementById(`task-column-${colId}`) : null;
+            if (columnEl) {
+                columnEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            }
+            const taskEl = document.querySelector(`[data-task-card-id="${taskId}"]`);
+            if (taskEl) {
+                taskEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+            } else if (board && columnEl) {
+                board.scrollLeft = columnEl.offsetLeft - board.clientWidth / 2 + columnEl.clientWidth / 2;
+            }
+        });
+    });
+}
+
+function flashTaskCard(taskId) {
+    highlightedTaskId.value = Number(taskId);
+    clearTimeout(highlightTimer);
+    highlightTimer = setTimeout(() => {
+        highlightedTaskId.value = null;
+    }, HIGHLIGHT_TASK_MS);
+}
+
 function tryOpenTaskFromQuery() {
     if (!props.open_task_id || editModalOpen.value) {
         return;
     }
     const task = findTaskOnBoard(props.open_task_id);
-    if (task) {
-        openEdit(task);
+    if (!task) {
+        return;
     }
+
+    const columnId = props.focus_column_id || findColumnIdForTask(props.open_task_id);
+    scrollToTaskOnBoard(props.open_task_id, columnId);
+    flashTaskCard(props.open_task_id);
+
+    window.setTimeout(() => {
+        if (Number(props.open_task_id) === Number(task.id)) {
+            openEdit(task);
+        }
+    }, 420);
 }
 
 watch(
-    () => [props.board, props.open_task_id],
+    () => [props.board, props.open_task_id, props.focus_column_id],
     () => {
         tryOpenTaskFromQuery();
     },
@@ -976,6 +1033,7 @@ async function toggleChecklistItem(item) {
                 >
                     <div
                         v-for="col in boardState.columns"
+                        :id="`task-column-${col.id}`"
                         :key="col.id"
                         class="ui-card task-column-dropzone shrink-0 snap-start p-3 transition-all duration-200 ease-out lg:p-4"
                         :class="
@@ -1010,7 +1068,13 @@ async function toggleChecklistItem(item) {
                         >
                             <template #item="{ element }">
                                 <div
+                                    :data-task-card-id="element.id"
                                     class="relative flex cursor-grab flex-col gap-0 rounded-xl border border-white/40 bg-white/80 p-3 text-sm shadow-sm ring-1 ring-slate-200/60 transition-all duration-200 ease-out hover:shadow-md active:cursor-grabbing sm:p-2 sm:pe-24 sm:hover:scale-[1.01] lg:flex-row lg:items-start lg:gap-3 lg:p-3.5 lg:pe-3.5 lg:hover:scale-[1.005]"
+                                    :class="
+                                        Number(highlightedTaskId) === Number(element.id)
+                                            ? 'ring-2 ring-brand-500 ring-offset-1'
+                                            : ''
+                                    "
                                 >
                                     <div class="min-w-0 flex-1 lg:min-w-0">
                                     <p class="font-medium leading-snug text-slate-900 lg:text-[15px] lg:leading-snug">

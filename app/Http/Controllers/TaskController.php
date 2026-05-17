@@ -42,7 +42,9 @@ class TaskController extends Controller
         $teams = $this->ensureTeams();
         $requestedSlug = $request->query('team');
         $openTaskId = $request->filled('task') ? (int) $request->query('task') : null;
+        $focusColumnId = $request->filled('column') ? (int) $request->query('column') : null;
         $team = null;
+        $taskForOpen = null;
 
         if ($openTaskId > 0) {
             $taskForOpen = Task::query()
@@ -51,6 +53,9 @@ class TaskController extends Controller
             if ($taskForOpen?->taskBoard?->team) {
                 $team = $teams->firstWhere('id', $taskForOpen->taskBoard->team->id)
                     ?? $taskForOpen->taskBoard->team;
+            }
+            if ($focusColumnId <= 0 && $taskForOpen?->board_column_id) {
+                $focusColumnId = (int) $taskForOpen->board_column_id;
             }
         }
 
@@ -164,6 +169,7 @@ class TaskController extends Controller
                 'name' => $filterClient->name,
             ] : null,
             'open_task_id' => $openTaskId > 0 ? $openTaskId : null,
+            'focus_column_id' => $focusColumnId > 0 ? $focusColumnId : null,
         ]);
     }
 

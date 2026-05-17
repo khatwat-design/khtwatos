@@ -598,11 +598,7 @@ const outsideMetricTiles = computed(() => [
                 </ul>
             </section>
 
-            <StaffActiveTasksCard
-                :tasks="staff.recent_tasks"
-                :cards="staff.cards"
-                :first-overdue-task="staff.first_overdue_task"
-            />
+            <StaffActiveTasksCard :tasks="staff.recent_tasks" :cards="staff.cards" />
 
             <!-- KPIs: سطح واحد لتقليل تنافس البطاقات -->
             <section class="ops-surface overflow-hidden p-0 shadow-sm">
