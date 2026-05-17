@@ -41,9 +41,22 @@ class TaskController extends Controller
 
         $teams = $this->ensureTeams();
         $requestedSlug = $request->query('team');
-        $team = $requestedSlug
-            ? Team::where('slug', $requestedSlug)->first()
-            : null;
+        $openTaskId = $request->filled('task') ? (int) $request->query('task') : null;
+        $team = null;
+
+        if ($openTaskId > 0) {
+            $taskForOpen = Task::query()
+                ->with(['taskBoard.team:id,slug,name'])
+                ->find($openTaskId);
+            if ($taskForOpen?->taskBoard?->team) {
+                $team = $teams->firstWhere('id', $taskForOpen->taskBoard->team->id)
+                    ?? $taskForOpen->taskBoard->team;
+            }
+        }
+
+        if (! $team && is_string($requestedSlug) && $requestedSlug !== '') {
+            $team = Team::where('slug', $requestedSlug)->first();
+        }
         if (! $team) {
             $team = $this->defaultTaskTeam($request->user(), $teams);
         }
@@ -52,7 +65,9 @@ class TaskController extends Controller
             TeamNotebookController::rememberNotebookTeam($request, $team);
         }
 
-        $clientId = $request->filled('client_id') ? (int) $request->query('client_id') : null;
+        $clientId = $request->filled('client_id') && $openTaskId <= 0
+            ? (int) $request->query('client_id')
+            : null;
         $includeArchived = $request->boolean('include_archived');
 
         $board = null;
@@ -148,6 +163,7 @@ class TaskController extends Controller
                 'id' => $filterClient->id,
                 'name' => $filterClient->name,
             ] : null,
+            'open_task_id' => $openTaskId > 0 ? $openTaskId : null,
         ]);
     }
 

@@ -1,4 +1,5 @@
 <script setup>
+import StaffPersonalTodoPanel from '@/Components/Home/StaffPersonalTodoPanel.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
@@ -12,6 +13,7 @@ const props = defineProps({
         type: Object,
         default: null,
     },
+    staff_personal_todos: { type: Array, default: () => [] },
     outside_metrics: Object,
     cards: Object,
     clientsByStage: Array,
@@ -31,6 +33,13 @@ function formatStaffDateTime(iso) {
     }
 }
 
+function staffTaskHref(task) {
+    return route('tasks.index', {
+        team: task.team_slug || undefined,
+        task: task.id,
+    });
+}
+
 /** بطاقات KPI للموظف (قيم من staff.cards فقط) */
 const staffKpiCards = computed(() => {
     const c = props.staff?.cards || {};
@@ -40,6 +49,7 @@ const staffKpiCards = computed(() => {
             title: 'مهامي النشطة',
             value: Number(c.tasks_assigned || 0),
             sub: `متأخرة: ${Number(c.tasks_overdue || 0)}`,
+            route: 'tasks.index',
         },
         {
             key: 'meetings',
@@ -630,28 +640,58 @@ const outsideMetricTiles = computed(() => [
                 </div>
             </section>
 
+            <StaffPersonalTodoPanel :items="staff_personal_todos" />
+
             <section class="grid gap-4 lg:grid-cols-2">
                 <div
                     class="ops-surface p-4 sm:p-5"
                 >
                     <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-4">
-                        <h3 class="ops-section-title">مهامك القريبة</h3>
+                        <div>
+                            <h3 class="ops-section-title">مهامي</h3>
+                            <p class="mt-0.5 text-[11px] text-slate-500">اضغط على مهمة للانتقال إليها في لوحة المهام</p>
+                        </div>
                         <Link
                             :href="route('tasks.index')"
                             class="rounded-lg px-2 py-1 text-[11px] font-bold text-brand-700 transition hover:bg-brand-50 hover:text-brand-900"
                         >
-                            كل المهام
+                            لوحة المهام
                         </Link>
                     </div>
                     <ul v-if="staff.recent_tasks?.length" class="mt-4 space-y-2" role="list">
                         <li v-for="t in staff.recent_tasks" :key="`rt-${t.id}`">
                             <Link
-                                :href="route('tasks.details', t.id)"
-                                class="block rounded-xl border border-slate-100 bg-slate-50/50 px-3 py-2.5 transition hover:border-brand-300/60 hover:bg-brand-50/35"
+                                :href="staffTaskHref(t)"
+                                class="group block rounded-xl border px-3 py-2.5 transition"
+                                :class="
+                                    t.is_overdue
+                                        ? 'border-rose-200/80 bg-rose-50/40 hover:border-rose-300 hover:bg-rose-50/70'
+                                        : 'border-slate-100 bg-slate-50/50 hover:border-brand-300/60 hover:bg-brand-50/35'
+                                "
                             >
-                                <p class="text-[13px] font-semibold text-slate-900">{{ t.title }}</p>
+                                <div class="flex items-start justify-between gap-2">
+                                    <p class="min-w-0 flex-1 text-[13px] font-semibold text-slate-900 group-hover:text-brand-900">
+                                        {{ t.title }}
+                                    </p>
+                                    <svg
+                                        class="mt-0.5 h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-brand-600"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                </div>
                                 <p class="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
-                                    <span v-if="t.column_name" class="rounded-md bg-white px-1.5 py-0.5 font-medium text-slate-600 ring-1 ring-slate-200/80">{{ t.column_name }}</span>
+                                    <span
+                                        v-if="t.column_name"
+                                        class="rounded-md bg-white px-1.5 py-0.5 font-medium text-slate-600 ring-1 ring-slate-200/80"
+                                    >
+                                        {{ t.column_name }}
+                                    </span>
+                                    <span v-if="t.is_overdue" class="font-bold text-rose-700">متأخرة</span>
                                     <span class="tabular-nums">{{ formatStaffDateTime(t.due_at) }}</span>
                                 </p>
                             </Link>

@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\Meeting;
 use App\Models\OutsideConversation;
 use App\Models\PipelineStage;
+use App\Models\StaffPersonalTodo;
 use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
@@ -106,6 +107,7 @@ class HomeController extends Controller
         return Inertia::render('Home/Index', [
             'dashboard_mode' => 'admin',
             'staff' => null,
+            'staff_personal_todos' => [],
             'outside_metrics' => OutsideConversationMetrics::summary(),
             'cards' => [
                 'clients_total' => Client::query()
@@ -196,18 +198,26 @@ class HomeController extends Controller
             ->count();
 
         $recentTasks = (clone $assignedTasksQuery)
-            ->with(['column:id,name'])
+            ->with(['column:id,name', 'taskBoard.team:id,slug'])
             ->orderByRaw('CASE WHEN due_at IS NULL THEN 1 ELSE 0 END')
             ->orderBy('due_at')
             ->orderByDesc('id')
             ->limit(8)
             ->get()
-            ->map(fn (Task $t) => [
-                'id' => $t->id,
-                'title' => $t->title,
-                'due_at' => $t->due_at?->toIso8601String(),
-                'column_name' => $t->column?->name,
-            ])
+            ->map(function (Task $t) use ($now) {
+                $isDone = in_array($t->column?->name, ['تم', 'مكتمل', 'منجز', 'Done', 'Completed'], true);
+
+                return [
+                    'id' => $t->id,
+                    'title' => $t->title,
+                    'due_at' => $t->due_at?->toIso8601String(),
+                    'column_name' => $t->column?->name,
+                    'team_slug' => $t->taskBoard?->team?->slug,
+                    'is_overdue' => ! $isDone
+                        && $t->due_at !== null
+                        && $t->due_at->lt($now),
+                ];
+            })
             ->values();
 
         $upcomingMeetings = Meeting::query()
@@ -250,8 +260,24 @@ class HomeController extends Controller
 
         $metaLeadCounts = app(GoodsMetaLeadAssignmentService::class)->staffDashboardCounts((int) $user->id);
 
+        $personalTodos = StaffPersonalTodo::query()
+            ->where('user_id', $user->id)
+            ->orderBy('is_done')
+            ->orderByDesc('completed_at')
+            ->orderBy('sort_order')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (StaffPersonalTodo $todo) => [
+                'id' => $todo->id,
+                'title' => $todo->title,
+                'is_done' => (bool) $todo->is_done,
+                'completed_at' => $todo->completed_at?->toIso8601String(),
+            ])
+            ->values();
+
         return Inertia::render('Home/Index', [
             'dashboard_mode' => 'staff',
+            'staff_personal_todos' => $personalTodos,
             'staff' => [
                 'role_key' => $user->role,
                 'role_label' => $this->staffRoleLabelAr($user->role),

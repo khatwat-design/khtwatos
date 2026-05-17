@@ -18,6 +18,7 @@ const props = defineProps({
     users: Array,
     filters: Object,
     filterClient: Object,
+    open_task_id: { type: Number, default: null },
 });
 const page = usePage();
 const canDeleteRecords = computed(() => Boolean(page.props.auth?.can?.deleteRecords));
@@ -210,6 +211,7 @@ function teamHref(slug) {
         team: slug,
         client_id: props.filters?.client_id || undefined,
         include_archived: props.filters?.include_archived ? 1 : undefined,
+        task: props.open_task_id || undefined,
     });
 }
 
@@ -454,6 +456,39 @@ async function openEdit(task) {
         taskDetailsLoading.value = false;
     }
 }
+
+function findTaskOnBoard(taskId) {
+    const id = Number(taskId);
+    if (!id) {
+        return null;
+    }
+    for (const column of boardState.columns) {
+        const task = column.tasks.find((t) => Number(t.id) === id);
+        if (task) {
+            return task;
+        }
+    }
+
+    return null;
+}
+
+function tryOpenTaskFromQuery() {
+    if (!props.open_task_id || editModalOpen.value) {
+        return;
+    }
+    const task = findTaskOnBoard(props.open_task_id);
+    if (task) {
+        openEdit(task);
+    }
+}
+
+watch(
+    () => [props.board, props.open_task_id],
+    () => {
+        tryOpenTaskFromQuery();
+    },
+    { immediate: true },
+);
 
 function openQuickAction(task) {
     quickActionTask.value = task;

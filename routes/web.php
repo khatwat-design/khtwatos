@@ -28,6 +28,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicBookingController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\SalesAnalyticsController;
+use App\Http\Controllers\StaffPersonalTodoController;
 use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\SystemSettingsController;
 use App\Http\Controllers\TaskController;
@@ -81,6 +82,10 @@ Route::get('/dashboard', function () {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/home', [HomeController::class, 'index'])->name('home.index');
+
+    Route::post('/staff-personal-todos', [StaffPersonalTodoController::class, 'store'])->name('staff-personal-todos.store');
+    Route::patch('/staff-personal-todos/{staffPersonalTodo}', [StaffPersonalTodoController::class, 'update'])->name('staff-personal-todos.update');
+    Route::delete('/staff-personal-todos/{staffPersonalTodo}', [StaffPersonalTodoController::class, 'destroy'])->name('staff-personal-todos.destroy');
 
     Route::get('/tasks', [TaskController::class, 'index'])->name('tasks.index');
     Route::get('/tasks/{task}/details', [TaskController::class, 'details'])->name('tasks.details');
