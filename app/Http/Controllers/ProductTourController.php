@@ -14,6 +14,8 @@ class ProductTourController extends Controller
 
     public function complete(Request $request, string $tour): JsonResponse
     {
+        abort_unless($this->productTours->isEnabled(), 404);
+
         $user = $request->user();
         abort_unless($user, 403);
         abort_unless($this->productTours->userCanAccessTour($user, $tour, $request), 404);
@@ -27,6 +29,8 @@ class ProductTourController extends Controller
 
     public function skip(Request $request, string $tour): JsonResponse
     {
+        abort_unless($this->productTours->isEnabled(), 404);
+
         $user = $request->user();
         abort_unless($user, 403);
         abort_unless($this->productTours->userCanAccessTour($user, $tour, $request), 404);
@@ -40,6 +44,8 @@ class ProductTourController extends Controller
 
     public function reset(Request $request): JsonResponse
     {
+        abort_unless($this->productTours->isEnabled(), 404);
+
         $user = $request->user();
         abort_unless($user, 403);
 
@@ -52,6 +58,8 @@ class ProductTourController extends Controller
 
     public function restart(Request $request, string $tour): JsonResponse
     {
+        abort_unless($this->productTours->isEnabled(), 404);
+
         $user = $request->user();
         abort_unless($user, 403);
         abort_unless($this->productTours->userCanAccessTour($user, $tour, $request), 404);

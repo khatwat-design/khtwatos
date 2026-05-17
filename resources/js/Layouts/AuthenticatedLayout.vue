@@ -161,6 +161,7 @@ const showMobileAnalyticsHeaderLink = computed(
 const isAttendanceModalOpen = ref(false);
 const attendanceDismissed = ref(false);
 const productTourHostRef = ref(null);
+const productToursEnabled = computed(() => page.props.product_tours?.enabled === true);
 
 const needsCheckIn = computed(() => Boolean(page.props.attendance?.needs_check_in));
 const openTicketsCount = computed(() => Number(page.props.tickets_meta?.open_count || 0));
@@ -490,6 +491,7 @@ async function openNotification(note) {
                     </div>
                     <div class="ms-auto flex items-center gap-2">
                         <button
+                            v-if="productToursEnabled"
                             type="button"
                             data-tour="tour-help-btn"
                             class="relative inline-flex h-9 w-9 items-center justify-center rounded-md border transition-colors"
@@ -674,6 +676,7 @@ async function openNotification(note) {
                 <EmployeeCallOverlay />
 
                 <ProductTourHost
+                    v-if="productToursEnabled"
                     ref="productTourHostRef"
                     :blocked="isAttendanceModalOpen && needsCheckIn"
                 />

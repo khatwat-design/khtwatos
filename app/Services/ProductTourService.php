@@ -15,8 +15,14 @@ class ProductTourService
         private readonly NavigationVisibilityService $navigationVisibility,
     ) {}
 
+    public function isEnabled(): bool
+    {
+        return (bool) config('product_tours.enabled', false);
+    }
+
     /**
      * @return array{
+     *     enabled: bool,
      *     persona: string,
      *     persona_label: string,
      *     catalog: list<array<string, mixed>>,
@@ -28,6 +34,10 @@ class ProductTourService
      */
     public function payloadForUser(User $user, Request $request): array
     {
+        if (! $this->isEnabled()) {
+            return $this->disabledPayload();
+        }
+
         $profile = $this->userProfile($user);
         $eligible = $this->eligibleTours($user, $profile, $request);
         $progress = $this->progressMap((int) $user->id);
@@ -59,6 +69,7 @@ class ProductTourService
         $completedCount = count(array_filter($catalog, fn ($row) => $row['status'] !== 'pending'));
 
         return [
+            'enabled' => true,
             'persona' => $profile['persona'],
             'persona_label' => $profile['persona_label'],
             'catalog' => $catalog,
@@ -69,8 +80,38 @@ class ProductTourService
         ];
     }
 
+    /**
+     * @return array{
+     *     enabled: bool,
+     *     persona: string,
+     *     persona_label: string,
+     *     catalog: list<array>,
+     *     pending_ids: list<string>,
+     *     auto_start_id: null,
+     *     completed_count: int,
+     *     total_count: int
+     * }
+     */
+    private function disabledPayload(): array
+    {
+        return [
+            'enabled' => false,
+            'persona' => '',
+            'persona_label' => '',
+            'catalog' => [],
+            'pending_ids' => [],
+            'auto_start_id' => null,
+            'completed_count' => 0,
+            'total_count' => 0,
+        ];
+    }
+
     public function markFinished(User $user, string $tourId, string $status): void
     {
+        if (! $this->isEnabled()) {
+            return;
+        }
+
         if (! in_array($status, [UserProductTourProgress::STATUS_COMPLETED, UserProductTourProgress::STATUS_SKIPPED], true)) {
             return;
         }
@@ -97,6 +138,10 @@ class ProductTourService
 
     public function resetAllForUser(User $user): void
     {
+        if (! $this->isEnabled()) {
+            return;
+        }
+
         if (! Schema::hasTable('user_product_tour_progress')) {
             return;
         }
@@ -106,6 +151,10 @@ class ProductTourService
 
     public function restartTour(User $user, string $tourId): void
     {
+        if (! $this->isEnabled()) {
+            return;
+        }
+
         if (! ProductTourCatalog::find($tourId) || ! Schema::hasTable('user_product_tour_progress')) {
             return;
         }
@@ -118,6 +167,10 @@ class ProductTourService
 
     public function userCanAccessTour(User $user, string $tourId, Request $request): bool
     {
+        if (! $this->isEnabled()) {
+            return false;
+        }
+
         $def = ProductTourCatalog::find($tourId);
         if (! $def) {
             return false;
