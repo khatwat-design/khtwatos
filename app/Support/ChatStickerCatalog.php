@@ -150,7 +150,7 @@ final class ChatStickerCatalog
 
     private static function urlForPackAndId(string $packId, string $stickerId): ?string
     {
-        $base = 'chat/stickers/'.$packId.'/'.$stickerId;
+        $base = 'chat-stickers/stickers/'.$packId.'/'.$stickerId;
 
         foreach (['webp', 'png', 'gif', 'svg'] as $ext) {
             $relative = $base.'.'.$ext;

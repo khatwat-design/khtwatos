@@ -430,40 +430,190 @@
         border-color: rgba(229, 72, 77, 0.36) !important;
     }
 
-    /* نوافذ منبثقة على الجوال — لوحات مضغوطة (متزامنة مع mobileSheetClasses.js) */
+    /* ——— نوافذ منبثقة موحّدة (modals.css) ——— */
+    .app-modal-backdrop {
+        @apply fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto overscroll-contain;
+        padding: max(0.75rem, env(safe-area-inset-top, 0px)) 0.75rem
+            max(0.75rem, env(safe-area-inset-bottom, 0px));
+        background: rgb(15 23 42 / 0.42);
+        -webkit-backdrop-filter: blur(3px);
+        backdrop-filter: blur(3px);
+    }
+
+    .app-modal-panel {
+        @apply relative flex w-full min-w-0 flex-col overflow-hidden;
+        @apply rounded-2xl border border-slate-200/90 bg-white text-slate-900 shadow-2xl;
+        @apply max-h-[min(92dvh,calc(100vh-1.5rem))];
+        width: min(100%, calc(100vw - 1.5rem));
+        -webkit-overflow-scrolling: touch;
+        animation: app-modal-panel-in 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .app-modal-panel--sm {
+        @apply sm:max-w-sm;
+        max-height: min(88dvh, 22rem);
+    }
+
+    @media (min-width: 640px) {
+        .app-modal-panel--sm {
+            max-height: min(90vh, 28rem);
+        }
+    }
+
+    .app-modal-panel--md {
+        @apply sm:max-w-md;
+        max-height: min(90dvh, 26rem);
+    }
+
+    @media (min-width: 640px) {
+        .app-modal-panel--md {
+            max-height: min(90vh, 32rem);
+        }
+    }
+
+    .app-modal-panel--lg {
+        @apply sm:max-w-lg;
+        max-height: min(92dvh, 30rem);
+    }
+
+    @media (min-width: 640px) {
+        .app-modal-panel--lg {
+            max-height: min(90vh, 36rem);
+        }
+    }
+
+    .app-modal-panel--xl {
+        @apply sm:max-w-xl;
+        max-height: min(92dvh, 34rem);
+    }
+
+    @media (min-width: 640px) {
+        .app-modal-panel--xl {
+            max-height: min(90vh, 40rem);
+        }
+    }
+
+    .app-modal-panel--2xl {
+        @apply sm:max-w-2xl;
+        max-height: min(94dvh, 38rem);
+    }
+
+    @media (min-width: 640px) {
+        .app-modal-panel--2xl {
+            max-height: min(90vh, 44rem);
+        }
+    }
+
+    .app-modal-panel--task {
+        @apply sm:max-w-lg lg:max-w-xl;
+        max-height: min(94dvh, 36rem);
+    }
+
+    @media (min-width: 640px) {
+        .app-modal-panel--task {
+            max-height: min(88vh, 40rem);
+        }
+    }
+
+    .app-modal-header {
+        @apply flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 bg-white px-4 py-3 sm:px-5 sm:py-3.5;
+    }
+
+    .app-modal-title {
+        @apply text-base font-bold leading-snug text-slate-900 sm:text-lg;
+    }
+
+    .app-modal-subtitle {
+        @apply mt-0.5 text-xs leading-relaxed text-slate-500 sm:text-sm;
+    }
+
+    .app-modal-close {
+        @apply inline-flex h-9 min-w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition;
+        @apply hover:bg-slate-100 hover:text-slate-800 active:scale-95;
+    }
+
+    .app-modal-body {
+        @apply min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 sm:px-5 sm:py-4;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .app-modal-body--flush {
+        @apply px-0 py-0;
+    }
+
+    .app-modal-footer {
+        @apply flex shrink-0 flex-col-reverse gap-2 border-t border-slate-100 bg-white px-4 py-3 sm:flex-row sm:justify-end sm:gap-3 sm:px-5 sm:py-3.5;
+    }
+
+    .app-modal-scroll {
+        @apply min-h-0 flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch];
+    }
+
+    .app-modal-inner {
+        @apply p-4 sm:p-5;
+    }
+
+    .app-modal-inner :deep(.glass-modal) {
+        background: transparent !important;
+        backdrop-filter: none !important;
+        border: none !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        min-height: 0;
+        animation: none !important;
+    }
+
     .mobile-sheet-backdrop {
-        @apply fixed inset-0 z-50 flex flex-col justify-end bg-black/45 p-4 pt-8 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] sm:items-center sm:justify-center sm:bg-black/40 sm:p-4 sm:pt-4;
+        @apply app-modal-backdrop;
     }
 
     .mobile-sheet-panel {
-        @apply w-full max-h-[min(64dvh,26rem)] overflow-y-auto overscroll-contain rounded-2xl border border-gray-200 bg-white shadow-xl [-webkit-overflow-scrolling:touch] sm:mx-auto sm:max-h-[90vh] sm:rounded-2xl;
+        @apply app-modal-panel;
     }
 
     .mobile-sheet-panel--sm {
-        @apply max-h-[min(52dvh,20rem)] sm:max-w-sm;
+        @apply app-modal-panel--sm;
     }
 
     .mobile-sheet-panel--md {
-        @apply max-h-[min(58dvh,22rem)] sm:max-w-md;
+        @apply app-modal-panel--md;
     }
 
     .mobile-sheet-panel--lg {
-        @apply max-h-[min(64dvh,26rem)] sm:max-w-lg;
+        @apply app-modal-panel--lg;
     }
 
     .mobile-sheet-panel--xl {
-        @apply max-h-[min(68dvh,28rem)] sm:max-w-xl;
+        @apply app-modal-panel--xl;
     }
 
     .mobile-sheet-panel--2xl {
-        @apply max-h-[min(72dvh,30rem)] sm:max-w-2xl;
+        @apply app-modal-panel--2xl;
     }
 
     .mobile-sheet-header {
-        @apply sticky top-0 z-10 flex shrink-0 items-center justify-between gap-2 border-b border-gray-100 bg-white px-3.5 py-2 sm:px-4 sm:py-2.5;
+        @apply app-modal-header;
     }
 
     .mobile-sheet-footer {
-        @apply sticky bottom-0 z-10 flex shrink-0 flex-col-reverse gap-2 border-t border-gray-100 bg-white px-3.5 py-2.5 sm:flex-row sm:justify-end sm:px-4 sm:py-3;
+        @apply app-modal-footer;
+    }
+}
+
+@keyframes app-modal-panel-in {
+    from {
+        opacity: 0;
+        transform: scale(0.97) translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-modal-panel {
+        animation: none;
     }
 }

@@ -39,6 +39,7 @@ const emit = defineEmits([
     'clear-attachment',
     'send-voice',
     'open-stickers',
+    'open-create-task',
 ]);
 
 const textareaRef = ref(null);
@@ -530,6 +531,17 @@ watch(
 
         <form class="px-2 pt-2 sm:px-3 sm:pt-2.5" @submit.prevent="trySubmit">
             <div class="flex items-end gap-1.5 sm:gap-2">
+                <button
+                    type="button"
+                    class="mb-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-slate-500 transition hover:bg-violet-50 hover:text-violet-700 active:scale-95 disabled:opacity-40"
+                    :disabled="disabled || processing || isRecording"
+                    aria-label="إنشاء مهمة"
+                    @click="emit('open-create-task')"
+                >
+                    <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                </button>
                 <button
                     v-if="stickersEnabled"
                     type="button"

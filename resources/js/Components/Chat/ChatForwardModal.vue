@@ -1,4 +1,5 @@
 <script setup>
+import AppModalShell from '@/Components/AppModalShell.vue';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
@@ -21,76 +22,60 @@ const filteredTargets = computed(() => {
 </script>
 
 <template>
-    <Teleport to="body">
-        <Transition
-            enter-active-class="transition duration-200 ease-out"
-            enter-from-class="opacity-0"
-            enter-to-class="opacity-100"
-            leave-active-class="transition duration-150 ease-in"
-            leave-from-class="opacity-100"
-            leave-to-class="opacity-0"
-        >
-            <div
-                v-if="open"
-                class="mobile-sheet-backdrop z-[111] !bg-slate-950/55 p-3 backdrop-blur-[2px] sm:items-center"
-                role="dialog"
-                aria-modal="true"
-                aria-label="تحويل الرسالة"
-                @click.self="emit('close')"
-            >
-                <div
-                    class="mobile-sheet-panel mobile-sheet-panel--md flex max-w-md flex-col overflow-hidden p-0 shadow-2xl"
-                    dir="rtl"
-                    @click.stop
+    <AppModalShell
+        :open="open"
+        size="md"
+        :z-index="111"
+        aria-label="تحويل الرسالة"
+        @close="emit('close')"
+    >
+        <header class="app-modal-header !items-center">
+            <div class="min-w-0 flex-1">
+                <h3 class="app-modal-title">تحويل إلى محادثة</h3>
+                <p class="app-modal-subtitle">ستظهر للطرف الآخر كرسالة محوّلة مع اسم المرسل الأصلي.</p>
+                <input
+                    v-model="filter"
+                    type="search"
+                    autocomplete="off"
+                    placeholder="بحث عن محادثة…"
+                    class="mt-3 block w-full rounded-xl border-slate-200 bg-slate-50 py-2.5 text-sm focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20"
                 >
-                    <div class="shrink-0 border-b border-slate-200 px-4 py-3">
-                        <h3 class="text-base font-bold text-slate-900">تحويل إلى محادثة</h3>
-                        <p class="mt-0.5 text-xs text-slate-500">ستظهر للطرف الآخر كرسالة محوّلة مع اسم المرسل الأصلي.</p>
-                        <input
-                            v-model="filter"
-                            type="search"
-                            autocomplete="off"
-                            placeholder="بحث عن محادثة…"
-                            class="mt-3 block w-full rounded-xl border-slate-200 bg-slate-50 py-2.5 text-sm focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20"
-                        >
-                    </div>
-
-                    <div class="min-h-0 flex-1 overflow-y-auto px-2 py-2">
-                        <button
-                            v-for="target in filteredTargets"
-                            :key="target.key"
-                            type="button"
-                            class="mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-start transition hover:bg-slate-50 disabled:opacity-50"
-                            :disabled="processing"
-                            @click="emit('select', target)"
-                        >
-                            <span
-                                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white"
-                                :class="target.badgeClass"
-                            >
-                                {{ target.initial }}
-                            </span>
-                            <span class="min-w-0 flex-1">
-                                <span class="block truncate text-sm font-semibold text-slate-900">{{ target.label }}</span>
-                                <span class="mt-0.5 block text-[11px] text-slate-500">{{ target.hint }}</span>
-                            </span>
-                        </button>
-                        <p v-if="!filteredTargets.length" class="px-3 py-8 text-center text-sm text-slate-500">
-                            لا توجد محادثات أخرى متاحة للتحويل.
-                        </p>
-                    </div>
-
-                    <div class="shrink-0 border-t border-slate-100 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-                        <button
-                            type="button"
-                            class="w-full rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50"
-                            @click="emit('close')"
-                        >
-                            إلغاء
-                        </button>
-                    </div>
-                </div>
             </div>
-        </Transition>
-    </Teleport>
+        </header>
+
+        <div class="app-modal-body app-modal-body--flush !px-2">
+            <button
+                v-for="target in filteredTargets"
+                :key="target.key"
+                type="button"
+                class="mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-start transition hover:bg-slate-50 disabled:opacity-50"
+                :disabled="processing"
+                @click="emit('select', target)"
+            >
+                <span
+                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white"
+                    :class="target.badgeClass"
+                >
+                    {{ target.initial }}
+                </span>
+                <span class="min-w-0 flex-1">
+                    <span class="block truncate text-sm font-semibold text-slate-900">{{ target.label }}</span>
+                    <span class="mt-0.5 block text-[11px] text-slate-500">{{ target.hint }}</span>
+                </span>
+            </button>
+            <p v-if="!filteredTargets.length" class="px-3 py-8 text-center text-sm text-slate-500">
+                لا توجد محادثات أخرى متاحة للتحويل.
+            </p>
+        </div>
+
+        <footer class="app-modal-footer">
+            <button
+                type="button"
+                class="w-full rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 sm:w-auto sm:min-w-[7rem]"
+                @click="emit('close')"
+            >
+                إلغاء
+            </button>
+        </footer>
+    </AppModalShell>
 </template>

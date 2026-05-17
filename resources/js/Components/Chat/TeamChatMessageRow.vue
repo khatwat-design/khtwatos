@@ -1,5 +1,6 @@
 <script setup>
 import ChatMessageBody from '@/Components/Chat/ChatMessageBody.vue';
+import ChatTaskCardBubble from '@/Components/Chat/ChatTaskCardBubble.vue';
 import ChatUserAvatar from '@/Components/Chat/ChatUserAvatar.vue';
 import ChatVoicePlayer from '@/Components/Chat/ChatVoicePlayer.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
@@ -267,6 +268,12 @@ function onBubbleClick() {
                         v-else-if="msg.body"
                         :body="msg.body"
                         :mentions="msg.mentions || []"
+                        :is-mine="isMine"
+                    />
+
+                    <ChatTaskCardBubble
+                        v-if="msg.task_card"
+                        :card="msg.task_card"
                         :is-mine="isMine"
                     />
 

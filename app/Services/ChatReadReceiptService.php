@@ -13,6 +13,10 @@ use Illuminate\Support\Collection;
 
 class ChatReadReceiptService
 {
+    public function __construct(
+        private readonly ChatTaskCardEnricher $taskCards,
+    ) {}
+
     /**
      * @param  Collection<int, TeamChatMessage|array<string, mixed>>  $messages
      * @return Collection<int, array<string, mixed>>
@@ -30,7 +34,7 @@ class ChatReadReceiptService
 
         $recipientCount = $readMap->count();
 
-        return $messages->map(function ($msg) use ($readMap, $recipientCount, $viewerId) {
+        $mapped = $messages->map(function ($msg) use ($readMap, $recipientCount, $viewerId) {
             $arr = $msg instanceof TeamChatMessage ? $msg->toChatArray() : $msg;
             $senderId = (int) ($arr['user']['id'] ?? 0);
 
@@ -44,6 +48,8 @@ class ChatReadReceiptService
 
             return $arr;
         });
+
+        return $this->taskCards->enrichForModel($mapped, TeamChatMessage::class);
     }
 
     /**
@@ -68,7 +74,7 @@ class ChatReadReceiptService
 
         $recipientCount = max($memberIds->count(), $readMap->count());
 
-        return $messages->map(function ($msg) use ($readMap, $recipientCount, $viewerId) {
+        $mapped = $messages->map(function ($msg) use ($readMap, $recipientCount, $viewerId) {
             $arr = $msg instanceof PrivateChatMessage ? $msg->toChatArray() : $msg;
             $senderId = (int) ($arr['user']['id'] ?? 0);
 
@@ -82,6 +88,8 @@ class ChatReadReceiptService
 
             return $arr;
         });
+
+        return $this->taskCards->enrichForModel($mapped, PrivateChatMessage::class);
     }
 
     /**
@@ -127,6 +135,8 @@ class ChatReadReceiptService
 
             return $arr;
         });
+
+        return $this->taskCards->enrichForModel($mapped, DirectMessage::class);
     }
 
     /**

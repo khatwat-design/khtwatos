@@ -10,6 +10,7 @@ use App\Models\DirectMessage;
 use App\Models\PrivateChatMessage;
 use App\Models\PrivateChatRoom;
 use App\Models\ChatMentionRead;
+use App\Models\Client;
 use App\Models\Team;
 use App\Models\TeamChatMessage;
 use App\Models\TeamChatTypingState;
@@ -213,6 +214,16 @@ class TeamChatController extends Controller
                 $selectedDirect,
             ),
             'mentionInbox' => $this->activeMentionInbox($user, $viewKind, $selectedTeam, $selectedPrivateRoom, $selectedDirect),
+            'taskClients' => Client::query()
+                ->whereDoesntHave('currentStage', fn ($q) => $q->where('key', 'lead'))
+                ->orderByRaw('COALESCE(name, company, "")')
+                ->get(['id', 'name', 'company'])
+                ->map(fn (Client $c) => [
+                    'id' => $c->id,
+                    'name' => (string) ($c->name ?: $c->company ?: 'عميل'),
+                ])
+                ->values()
+                ->all(),
         ]);
     }
 

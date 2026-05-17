@@ -120,6 +120,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/chat/messages', [TeamChatController::class, 'messages'])->name('chat.messages.index');
     Route::get('/chat/read-receipts', [TeamChatController::class, 'readReceipts'])->name('chat.read-receipts');
     Route::post('/chat/forward', [ChatForwardController::class, 'store'])->name('chat.forward');
+    Route::post('/chat/tasks-from-message', [\App\Http\Controllers\ChatTaskFromMessageController::class, 'store'])->name('chat.tasks-from-message.store');
     Route::patch('/chat/messages/{teamChatMessage}', [TeamChatController::class, 'update'])->name('chat.messages.update');
     Route::delete('/chat/messages/{teamChatMessage}', [TeamChatController::class, 'destroy'])->name('chat.messages.destroy');
     Route::post('/chat/typing', [TeamChatController::class, 'typingUpdate'])->name('chat.typing.update');

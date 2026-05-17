@@ -1,4 +1,5 @@
 <script setup>
+import ChatCreateTaskSheet from '@/Components/Chat/ChatCreateTaskSheet.vue';
 import ChatForwardModal from '@/Components/Chat/ChatForwardModal.vue';
 import ChatMediaLightbox from '@/Components/Chat/ChatMediaLightbox.vue';
 import ChatMessageActionsSheet from '@/Components/Chat/ChatMessageActionsSheet.vue';
@@ -45,6 +46,7 @@ const props = defineProps({
         type: Object,
         default: () => ({ count: 0, message_ids: [], first_message_id: null }),
     },
+    taskClients: { type: Array, default: () => [] },
 });
 const page = usePage();
 
@@ -234,6 +236,10 @@ const messageActions = ref({ open: false, msg: null });
 const forwardModalOpen = ref(false);
 const forwardProcessing = ref(false);
 const forwardSourceMessage = ref(null);
+const createTaskSheetOpen = ref(false);
+const createTaskSourceMessage = ref(null);
+const createTaskProcessing = ref(false);
+const createTaskError = ref('');
 
 const chatNotificationsOpen = ref(false);
 const chatNotificationsLoading = ref(false);
@@ -1907,6 +1913,116 @@ async function saveTeamChatMembers(memberIds) {
     }
 }
 
+function stripMentionTokens(text) {
+    return String(text || '')
+        .replace(/@\[[\d]+\]|@[a-zA-Z0-9][a-zA-Z0-9._-]{1,31}/gu, '')
+        .replace(/\s+/gu, ' ')
+        .trim();
+}
+
+function titleFromChatMessage(msg) {
+    const plain = stripMentionTokens(msg?.body || '');
+    if (plain.length <= 120) {
+        return plain;
+    }
+    return `${plain.slice(0, 117)}…`;
+}
+
+function assigneeIdsFromChatMessage(msg) {
+    const ids = new Set();
+    for (const mention of msg?.mentions || []) {
+        const uid = Number(mention?.user?.id ?? mention?.user_id ?? 0);
+        if (uid > 0) {
+            ids.add(uid);
+        }
+    }
+    return [...ids];
+}
+
+const createTaskRequireTeamPick = computed(() => props.viewKind !== 'team');
+const createTaskDefaultTeamSlug = computed(() => props.selectedTeam?.slug || '');
+const createTaskInitial = computed(() => {
+    const msg = createTaskSourceMessage.value;
+    let description = '';
+    if (msg?.body && replyTo.value?.id) {
+        description = `الرد:\n${replyTo.value.body || ''}\n\nالأصل:\n${msg.body}`;
+    } else if (msg?.body) {
+        description = String(msg.body);
+    }
+
+    return {
+        title: msg ? titleFromChatMessage(msg) : '',
+        description,
+        clientId: null,
+        assigneeIds: msg ? assigneeIdsFromChatMessage(msg) : [],
+    };
+});
+
+function openCreateTaskSheet(sourceMessage = null) {
+    if (props.viewKind === 'none') {
+        return;
+    }
+    createTaskSourceMessage.value = sourceMessage;
+    createTaskError.value = '';
+    createTaskSheetOpen.value = true;
+    closeMessageActions();
+}
+
+async function submitCreateTaskFromChat(payload) {
+    if (!payload?.title?.trim() || !payload?.team_slug) {
+        createTaskError.value = 'عنوان المهمة والفريق مطلوبان.';
+        return;
+    }
+
+    const body = {
+        context: props.viewKind,
+        team_slug: payload.team_slug,
+        title: payload.title,
+        description: payload.description || null,
+        client_id: payload.client_id,
+        assignee_ids: payload.assignee_ids,
+        source_message_id: createTaskSourceMessage.value?.id || null,
+    };
+
+    if (props.viewKind === 'team' && props.selectedTeam?.id) {
+        body.team_id = props.selectedTeam.id;
+    }
+    if (props.viewKind === 'private_room' && props.selectedPrivateRoom?.id) {
+        body.private_room_id = props.selectedPrivateRoom.id;
+    }
+    if (props.viewKind === 'direct' && props.selectedDirect?.id) {
+        body.direct_conversation_id = props.selectedDirect.id;
+    }
+
+    createTaskProcessing.value = true;
+    createTaskError.value = '';
+    try {
+        const res = await window.axios.post(route('chat.tasks-from-message.store'), body, {
+            headers: { Accept: 'application/json' },
+        });
+        mergeChatUnreadFromResponse(res?.data);
+        if (res?.data?.message) {
+            mergeMessageRowsFromApi([res.data.message]);
+        }
+        createTaskSheetOpen.value = false;
+        createTaskSourceMessage.value = null;
+    } catch (err) {
+        const errors = err?.response?.data?.errors;
+        const firstField = errors && typeof errors === 'object' ? Object.values(errors).flat()[0] : null;
+        createTaskError.value = String(firstField || err?.response?.data?.message || 'تعذر إنشاء المهمة.');
+    } finally {
+        createTaskProcessing.value = false;
+    }
+}
+
+function onMessageActionCreateTask() {
+    const msg = messageActions.value.msg;
+    closeMessageActions();
+    if (msg) {
+        openCreateTaskSheet(msg);
+    }
+}
+
 function openMessageActions(msg) {
     if (!msg || msg.is_pending || msg.kind === 'call') {
         return;
@@ -2787,6 +2903,7 @@ watch(
                             @clear-attachment="clearAttachment"
                             @send-voice="onSendVoice"
                             @open-stickers="openStickerPicker"
+                            @open-create-task="openCreateTaskSheet()"
                         />
                         </div>
                     </template>
@@ -2955,8 +3072,26 @@ watch(
             @copy="copyMessageText(messageActions.msg)"
             @forward="openForwardFromActions"
             @reply="startReply(messageActions.msg)"
+            @create-task="onMessageActionCreateTask"
             @start-edit="onMessageActionEdit"
             @remove="onMessageActionRemove"
+        />
+
+        <ChatCreateTaskSheet
+            :open="createTaskSheetOpen"
+            :processing="createTaskProcessing"
+            :error="createTaskError"
+            :teams="teams"
+            :clients="taskClients"
+            :mentionable-users="mentionableUsers"
+            :default-team-slug="createTaskDefaultTeamSlug"
+            :require-team-pick="createTaskRequireTeamPick"
+            :initial-title="createTaskInitial.title"
+            :initial-description="createTaskInitial.description"
+            :initial-client-id="createTaskInitial.clientId"
+            :initial-assignee-ids="createTaskInitial.assigneeIds"
+            @close="createTaskSheetOpen = false"
+            @submit="submitCreateTaskFromChat"
         />
 
         <ChatStickerPicker

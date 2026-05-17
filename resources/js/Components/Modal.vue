@@ -1,11 +1,7 @@
 <script setup>
-import { Capacitor } from '@capacitor/core';
+import { modalPanelClassForMaxWidth } from '@/utils/mobileSheetClasses.js';
 import { registerOverlayClose, registerOverlayOpen } from '@/state/overlayOpen.js';
-import { modalMobilePanelByMaxWidth } from '@/utils/mobileSheetClasses.js';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-
-/** في WebView الأصلي نعرض اللوحة كـ bottom sheet */
-const isNativeShell = Capacitor.isNativePlatform();
 
 const props = defineProps({
     show: {
@@ -32,11 +28,9 @@ watch(
         if (props.show) {
             registerOverlayOpen();
             showSlot.value = true;
-
             dialog.value?.showModal();
         } else {
             registerOverlayClose();
-
             setTimeout(() => {
                 dialog.value?.close();
                 showSlot.value = false;
@@ -52,12 +46,9 @@ const close = () => {
 };
 
 const closeOnEscape = (e) => {
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' && props.show) {
         e.preventDefault();
-
-        if (props.show) {
-            close();
-        }
+        close();
     }
 };
 
@@ -65,139 +56,50 @@ onMounted(() => document.addEventListener('keydown', closeOnEscape));
 
 onUnmounted(() => {
     document.removeEventListener('keydown', closeOnEscape);
-
     if (props.show) {
         registerOverlayClose();
     }
 });
 
-const mobilePanelClass = computed(
-    () => modalMobilePanelByMaxWidth[props.maxWidth] ?? modalMobilePanelByMaxWidth['2xl'],
-);
-
-const panelTransitionEnterFrom = isNativeShell
-    ? 'opacity-0 translate-y-full'
-    : 'opacity-0 translate-y-6 sm:translate-y-0 sm:scale-95';
-
-const panelTransitionEnterTo = isNativeShell ? 'opacity-100 translate-y-0' : 'opacity-100 translate-y-0 sm:scale-100';
-
-const panelTransitionLeaveTo = isNativeShell
-    ? 'opacity-0 translate-y-full'
-    : 'opacity-0 translate-y-6 sm:translate-y-0 sm:scale-95';
-
-const panelTransitionLeaveFrom = isNativeShell ? 'opacity-100 translate-y-0' : 'opacity-100 translate-y-0 sm:scale-100';
-
-const panelBoxClass = computed(() => {
-    const safeBottom = 'pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]';
-
-    if (isNativeShell) {
-        return ['modal-content-light w-full max-w-none mx-0 mb-0 shadow-xl transition-all transform flex min-h-0 flex-col !overflow-hidden', mobilePanelClass.value, safeBottom];
-    }
-
-    return [
-        'modal-content-light mb-6 transition-all transform sm:mx-auto sm:mb-6 sm:w-full sm:rounded-lg',
-        'max-lg:mb-0 max-lg:mx-auto max-lg:w-full max-lg:max-w-[calc(100%-0.25rem)]',
-        mobilePanelClass.value,
-        'flex min-h-0 flex-col !overflow-hidden',
-        safeBottom,
-    ];
-});
+const panelClass = computed(() => modalPanelClassForMaxWidth(props.maxWidth));
 </script>
 
 <template>
     <Teleport to="body">
-        <dialog
-            class="z-[100] m-0 min-h-full min-w-full overflow-y-auto bg-transparent backdrop:bg-transparent sm:z-50"
-            ref="dialog"
-        >
-            <div
-                class="fixed inset-0 z-[100] max-lg:flex max-lg:flex-col max-lg:justify-end max-lg:overflow-y-auto max-lg:bg-black/45 max-lg:p-4 max-lg:pt-8 max-lg:pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] sm:z-50 sm:block sm:overflow-y-auto sm:px-4 sm:py-6 sm:pt-6"
-                scroll-region
-            >
+        <dialog ref="dialog" class="m-0 min-h-0 min-w-0 border-0 bg-transparent p-0 shadow-none outline-none">
             <Transition
-                enter-active-class="ease-out duration-300"
+                enter-active-class="transition duration-200 ease-out"
                 enter-from-class="opacity-0"
                 enter-to-class="opacity-100"
-                leave-active-class="ease-in duration-200"
+                leave-active-class="transition duration-150 ease-in"
                 leave-from-class="opacity-100"
                 leave-to-class="opacity-0"
             >
                 <div
-                    v-show="show"
-                    class="fixed inset-0 transform transition-all max-lg:pointer-events-auto"
-                    @click="close"
+                    v-if="show"
+                    class="app-modal-backdrop"
+                    role="dialog"
+                    aria-modal="true"
+                    @click.self="close"
                 >
-                    <div class="absolute inset-0 bg-gray-500/75 max-lg:bg-black/45" />
+                    <Transition
+                        enter-active-class="transition duration-260 ease-out"
+                        enter-from-class="opacity-0 scale-[0.97] translate-y-2"
+                        enter-to-class="opacity-100 scale-100 translate-y-0"
+                        leave-active-class="transition duration-150 ease-in"
+                        leave-from-class="opacity-100 scale-100 translate-y-0"
+                        leave-to-class="opacity-0 scale-[0.97] translate-y-2"
+                    >
+                        <div v-if="show" :class="panelClass" dir="rtl" @click.stop>
+                            <div class="app-modal-scroll">
+                                <div class="app-modal-inner text-slate-900">
+                                    <slot v-if="showSlot" />
+                                </div>
+                            </div>
+                        </div>
+                    </Transition>
                 </div>
             </Transition>
-
-            <Transition
-                enter-active-class="ease-out duration-300"
-                :enter-from-class="panelTransitionEnterFrom"
-                :enter-to-class="panelTransitionEnterTo"
-                leave-active-class="ease-in duration-200"
-                :leave-from-class="panelTransitionLeaveFrom"
-                :leave-to-class="panelTransitionLeaveTo"
-            >
-                <div v-show="show" class="bg-white max-lg:relative max-lg:shrink-0" :class="panelBoxClass" @click.stop>
-                    <div class="modal-panel-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
-                        <slot v-if="showSlot" />
-                    </div>
-                </div>
-            </Transition>
-            </div>
         </dialog>
     </Teleport>
 </template>
-
-<style scoped>
-.modal-content-light {
-    color: #111111;
-}
-
-.modal-content-light :deep(.text-white),
-.modal-content-light :deep(.text-white\/90),
-.modal-content-light :deep(.text-white\/80),
-.modal-content-light :deep(.text-slate-900),
-.modal-content-light :deep(.text-slate-800),
-.modal-content-light :deep(.text-slate-700),
-.modal-content-light :deep(.text-slate-600),
-.modal-content-light :deep(.text-slate-500),
-.modal-content-light :deep(.text-slate-400),
-.modal-content-light :deep(.text-gray-900),
-.modal-content-light :deep(.text-gray-800),
-.modal-content-light :deep(.text-gray-700),
-.modal-content-light :deep(.text-gray-600),
-.modal-content-light :deep(.text-gray-500),
-.modal-content-light :deep(.text-gray-400),
-.modal-content-light :deep(label),
-.modal-content-light :deep(h1),
-.modal-content-light :deep(h2),
-.modal-content-light :deep(h3),
-.modal-content-light :deep(h4),
-.modal-content-light :deep(h5),
-.modal-content-light :deep(h6),
-.modal-content-light :deep(p),
-.modal-content-light :deep(span) {
-    color: #111111 !important;
-}
-
-.modal-content-light :deep(input),
-.modal-content-light :deep(select),
-.modal-content-light :deep(textarea) {
-    color: #111111 !important;
-}
-
-.modal-content-light :deep(input::placeholder),
-.modal-content-light :deep(textarea::placeholder) {
-    color: #6b7280 !important;
-}
-
-.modal-content-light :deep(.glass-modal) {
-    background: transparent !important;
-    backdrop-filter: none !important;
-    padding: 0 !important;
-    border-radius: 0 !important;
-    min-height: 0;
-}
-</style>

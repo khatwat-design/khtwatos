@@ -5,7 +5,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BASE_URL="${STICKER_BASE_URL:-https://telegram-stickers.github.io/public/stickers}"
-DEST="${ROOT}/public/chat/stickers"
+DEST="${ROOT}/public/chat-stickers/stickers"
 
 download() {
   local rel="$1"
