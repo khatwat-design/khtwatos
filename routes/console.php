@@ -19,6 +19,10 @@ Schedule::command('goods:send-daily-sales-reminders --limit=200')
     ->dailyAt((string) config('services.goods.daily_sales_reminder_at', '09:00'))
     ->withoutOverlapping();
 
+Schedule::command('goods:meta-leads:call-reminders')
+    ->hourly()
+    ->withoutOverlapping();
+
 Schedule::command('portal:send-daily-sales-reminders --limit=400')
     ->dailyAt((string) config('services.portal.daily_sales_reminder_at', '18:00'))
     ->withoutOverlapping();

@@ -34,7 +34,7 @@ function formatStaffDateTime(iso) {
 /** بطاقات KPI للموظف (قيم من staff.cards فقط) */
 const staffKpiCards = computed(() => {
     const c = props.staff?.cards || {};
-    return [
+    const cards = [
         {
             key: 'tasks',
             title: 'مهامي النشطة',
@@ -66,6 +66,29 @@ const staffKpiCards = computed(() => {
             sub: 'محادثات موجهة إليك بانتظار القراءة',
         },
     ];
+
+    if (props.staff?.is_meta_leads_rep) {
+        cards.unshift(
+            {
+                key: 'meta_calls',
+                title: 'مكالمات ليدز قادمة',
+                value: Number(c.meta_calls_upcoming || 0),
+                sub: 'مواعيد مكالمات ميتا مسندة إليك',
+                route: 'goods.index',
+                routeParams: { tab: 'meta_leads', meta_view: 'upcoming_calls' },
+            },
+            {
+                key: 'meta_leads_today',
+                title: 'ليدز ميتا اليوم',
+                value: Number(c.meta_leads_today || 0),
+                sub: 'ليدز جديدة اليوم مسندة إليك',
+                route: 'goods.index',
+                routeParams: { tab: 'meta_leads' },
+            },
+        );
+    }
+
+    return cards;
 });
 
 const stageLabelMap = {
@@ -587,20 +610,23 @@ const outsideMetricTiles = computed(() => [
                 <div
                     class="grid grid-cols-2 divide-x divide-slate-100 divide-y divide-slate-100 sm:grid-cols-2 lg:grid-cols-5 lg:divide-y-0"
                 >
-                    <article
+                    <component
+                        :is="card.route ? Link : 'article'"
                         v-for="card in staffKpiCards"
                         :key="`stk-${card.key}`"
+                        :href="card.route ? route(card.route, card.routeParams || {}) : undefined"
                         class="min-h-[6.5rem] px-4 py-3 sm:min-h-[6.75rem] sm:px-4 sm:py-4"
-                        :class="
+                        :class="[
                             card.key === 'tasks' && Number(staff.cards?.tasks_overdue || 0) > 0
                                 ? 'bg-rose-50/25'
-                                : 'bg-white'
-                        "
+                                : 'bg-white',
+                            card.route ? 'block transition hover:bg-brand-50/40' : '',
+                        ]"
                     >
                         <p class="text-ops-label font-semibold text-slate-500">{{ card.title }}</p>
                         <p class="mt-1.5 text-2xl font-semibold tabular-nums text-slate-900 sm:text-[1.65rem]">{{ card.value }}</p>
                         <p class="mt-1 text-ops-meta leading-snug text-slate-500 sm:text-ops-body-sm">{{ card.sub }}</p>
-                    </article>
+                    </component>
                 </div>
             </section>
 

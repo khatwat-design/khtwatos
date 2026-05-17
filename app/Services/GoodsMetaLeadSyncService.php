@@ -10,6 +10,8 @@ class GoodsMetaLeadSyncService
 {
     public function __construct(
         private readonly GoodsMetaLeadSheetMapper $mapper,
+        private readonly GoodsMetaLeadAssignmentService $assignment,
+        private readonly SmartNotificationService $notifications,
     ) {}
 
     /**
@@ -32,6 +34,14 @@ class GoodsMetaLeadSyncService
                 ->first();
 
             if (! $existing) {
+                if (empty($mapped['owner_user_id'])) {
+                    $ownerId = $this->assignment->pickOwnerUserId();
+                    if ($ownerId) {
+                        $mapped['owner_user_id'] = $ownerId;
+                        $mapped['assigned_at'] = now();
+                    }
+                }
+
                 $lead = GoodsMetaLead::query()->create($mapped);
                 GoodsMetaLeadStatusHistory::query()->create([
                     'goods_meta_lead_id' => $lead->id,
@@ -40,6 +50,10 @@ class GoodsMetaLeadSyncService
                     'note' => 'استيراد من Google Sheet',
                     'user_id' => $actorUserId,
                 ]);
+
+                if ($lead->owner_user_id) {
+                    $this->notifyNewAssignment($lead);
+                }
 
                 return $lead;
             }
@@ -94,5 +108,22 @@ class GoodsMetaLeadSyncService
         }
 
         return $stats;
+    }
+
+    private function notifyNewAssignment(GoodsMetaLead $lead): void
+    {
+        $ownerId = (int) ($lead->owner_user_id ?? 0);
+        if ($ownerId <= 0) {
+            return;
+        }
+
+        $this->notifications->notifyUsers([$ownerId], [
+            'title' => 'ليد ميتا جديد',
+            'body' => trim(($lead->full_name ?: 'عميل').' — '.($lead->campaign_name ?: 'حملة ميتا')),
+            'severity' => 'info',
+            'category' => 'general',
+            'link' => route('goods.index', ['tab' => 'meta_leads', 'meta_owner' => $ownerId]),
+            'meta' => ['goods_meta_lead_id' => $lead->id],
+        ]);
     }
 }

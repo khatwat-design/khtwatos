@@ -80,10 +80,11 @@ class GoodsMetaLeadSheetMapper
             'last_contact_date' => $this->parseSheetDate($normalized['تاريخالاتصالالاخير'] ?? $normalized['last_contact_date'] ?? null),
             'next_contact_date' => $this->parseSheetDate(
                 $normalized['تاريخالاتصالالقادم']
-                    ?? $normalized['الموعدالقادم']
                     ?? $normalized['next_contact_date']
                     ?? null
             ),
+            'next_call_at' => $this->parseDateTime($normalized['الموعدالقادم'] ?? null)
+                ?? $this->parseSheetDate($normalized['الموعدالقادم'] ?? null),
             'form_answers' => array_filter([
                 'monthly_orders' => $monthly,
                 'goal' => $goal,

@@ -10,8 +10,8 @@ const props = defineProps({
     meta_lead_status_options: { type: Array, default: () => [] },
     meta_filters: { type: Object, default: () => ({}) },
     meta_campaign_options: { type: Array, default: () => [] },
-    meta_sheet_options: { type: Array, default: () => [] },
     meta_analytics: { type: Object, default: () => ({}) },
+    meta_assignee_stats: { type: Array, default: () => [] },
     owners: { type: Array, default: () => [] },
     meta_leads_webhook_configured: { type: Boolean, default: false },
 });
@@ -27,8 +27,49 @@ const editForm = useForm({
     reason_label: '',
     outcome_label: '',
     next_contact_date: '',
+    next_call_at: '',
     note: '',
 });
+
+function metaQuery(extra = {}) {
+    return {
+        tab: 'meta_leads',
+        meta_status: props.meta_filters?.status || undefined,
+        meta_campaign: props.meta_filters?.campaign || undefined,
+        meta_owner: props.meta_filters?.owner || undefined,
+        meta_view: props.meta_filters?.view || undefined,
+        ...extra,
+    };
+}
+
+function filterByAssignee(assignee, view = null) {
+    router.get(
+        route('goods.index'),
+        metaQuery({
+            meta_owner: assignee.id,
+            meta_view: view || undefined,
+        }),
+        { preserveState: true, replace: true },
+    );
+}
+
+function clearAssigneeFilter() {
+    router.get(route('goods.index'), metaQuery({ meta_owner: undefined, meta_view: undefined }), {
+        preserveState: true,
+        replace: true,
+    });
+}
+
+function toDatetimeLocal(iso) {
+    if (!iso) return '';
+    try {
+        const d = new Date(iso);
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    } catch {
+        return '';
+    }
+}
 
 const filteredLeads = computed(() => {
     const q = search.value.trim().toLowerCase();
@@ -40,7 +81,6 @@ const filteredLeads = computed(() => {
             lead.full_name,
             lead.phone,
             lead.campaign_name,
-            lead.sheet_name,
             lead.ad_name,
             lead.team_notes,
             lead.probability_label,
@@ -70,55 +110,18 @@ function statusClass(status) {
     return map[status] || 'bg-gray-100 text-gray-700';
 }
 
-function applyMetaFilters() {
-    router.get(
-        route('goods.index'),
-        {
-            tab: 'meta_leads',
-            meta_status: props.meta_filters?.status || undefined,
-            meta_campaign: props.meta_filters?.campaign || undefined,
-        },
-        { preserveState: true, replace: true },
-    );
-}
-
 function onMetaStatusFilter(event) {
-    router.get(
-        route('goods.index'),
-        {
-            tab: 'meta_leads',
-            meta_status: event.target.value || undefined,
-            meta_campaign: props.meta_filters?.campaign || undefined,
-            meta_sheet: props.meta_filters?.sheet || undefined,
-        },
-        { preserveState: true, replace: true },
-    );
+    router.get(route('goods.index'), metaQuery({ meta_status: event.target.value || undefined }), {
+        preserveState: true,
+        replace: true,
+    });
 }
 
 function onMetaCampaignFilter(event) {
-    router.get(
-        route('goods.index'),
-        {
-            tab: 'meta_leads',
-            meta_status: props.meta_filters?.status || undefined,
-            meta_campaign: event.target.value || undefined,
-            meta_sheet: props.meta_filters?.sheet || undefined,
-        },
-        { preserveState: true, replace: true },
-    );
-}
-
-function onMetaSheetFilter(event) {
-    router.get(
-        route('goods.index'),
-        {
-            tab: 'meta_leads',
-            meta_status: props.meta_filters?.status || undefined,
-            meta_campaign: props.meta_filters?.campaign || undefined,
-            meta_sheet: event.target.value || undefined,
-        },
-        { preserveState: true, replace: true },
-    );
+    router.get(route('goods.index'), metaQuery({ meta_campaign: event.target.value || undefined }), {
+        preserveState: true,
+        replace: true,
+    });
 }
 
 function formatDt(iso) {
@@ -139,6 +142,7 @@ function openEdit(lead) {
     editForm.reason_label = lead.reason_label || '';
     editForm.outcome_label = lead.outcome_label || '';
     editForm.next_contact_date = lead.next_contact_date || '';
+    editForm.next_call_at = toDatetimeLocal(lead.next_call_at);
     editForm.note = '';
 }
 
@@ -180,6 +184,45 @@ function submitEdit(leadId) {
             </div>
         </div>
 
+        <div v-if="meta_assignee_stats?.length" class="flex flex-col gap-2">
+            <p class="text-xs font-semibold text-slate-600">توزيع الفريق — اضغط للفلترة</p>
+            <div class="flex flex-wrap gap-2">
+                <button
+                    v-for="rep in meta_assignee_stats"
+                    :key="`rep-${rep.id}`"
+                    type="button"
+                    class="flex min-w-[9rem] flex-col rounded-xl border px-3 py-2 text-start text-xs transition"
+                    :class="
+                        Number(meta_filters?.owner) === rep.id
+                            ? 'border-brand-400 bg-brand-50 ring-1 ring-brand-300'
+                            : 'border-slate-200 bg-white hover:bg-slate-50'
+                    "
+                    @click="filterByAssignee(rep)"
+                >
+                    <span class="font-bold text-slate-900">{{ rep.name }}</span>
+                    <span class="mt-1 text-slate-600">ليدز اليوم: {{ rep.leads_today }}</span>
+                    <button
+                        type="button"
+                        class="mt-1 text-start font-semibold text-sky-700 underline decoration-sky-300"
+                        @click.stop="filterByAssignee(rep, 'upcoming_calls')"
+                    >
+                        مكالمات قادمة: {{ rep.upcoming_calls }}
+                    </button>
+                </button>
+                <button
+                    v-if="meta_filters?.owner"
+                    type="button"
+                    class="self-center rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
+                    @click="clearAssigneeFilter"
+                >
+                    إلغاء فلتر الموظف
+                </button>
+            </div>
+            <p v-if="meta_filters?.view === 'upcoming_calls'" class="text-[11px] text-sky-800">
+                عرض المكالمات القادمة فقط — مرتبة حسب الموعد
+            </p>
+        </div>
+
         <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <select
                 class="min-h-11 rounded-xl border border-gray-300 bg-white px-3 text-sm"
@@ -196,15 +239,6 @@ function submitEdit(leadId) {
             >
                 <option value="">كل الحملات</option>
                 <option v-for="c in meta_campaign_options" :key="`mc-${c}`" :value="c">{{ c }}</option>
-            </select>
-            <select
-                v-if="meta_sheet_options?.length"
-                class="min-h-11 rounded-xl border border-gray-300 bg-white px-3 text-sm sm:min-w-[10rem]"
-                :value="meta_filters?.sheet || ''"
-                @change="onMetaSheetFilter"
-            >
-                <option value="">كل الأوراق</option>
-                <option v-for="s in meta_sheet_options" :key="`ms-${s}`" :value="s">{{ s }}</option>
             </select>
             <TextInput v-model="search" class="min-h-11 flex-1 rounded-xl text-sm" placeholder="بحث بالاسم، الهاتف، الحملة…" />
         </div>
@@ -226,9 +260,6 @@ function submitEdit(leadId) {
                                 {{ lead.full_name || '—' }}
                             </h3>
                             <p class="mt-1 font-mono text-xs text-gray-600" dir="ltr">{{ lead.phone || '—' }}</p>
-                            <p v-if="lead.sheet_name" class="mt-1 text-[10px] font-semibold text-violet-700">
-                                ورقة: {{ lead.sheet_name }}
-                            </p>
                             <p v-if="lead.platform" class="mt-0.5 text-[10px] font-semibold uppercase text-gray-400">
                                 {{ lead.platform }}
                             </p>
@@ -249,6 +280,10 @@ function submitEdit(leadId) {
                             <p class="text-[10px] font-semibold text-gray-400">المسؤول</p>
                             <p class="mt-0.5 truncate text-xs font-semibold text-gray-800">{{ lead.owner?.name || '—' }}</p>
                         </div>
+                    </div>
+                    <div v-if="lead.next_call_at" class="border-t border-sky-50 bg-sky-50/40 px-3 py-2">
+                        <p class="text-[10px] font-semibold text-sky-700">موعد المكالمة القادمة</p>
+                        <p class="mt-0.5 text-xs font-semibold text-sky-900">{{ formatDt(lead.next_call_at) }}</p>
                     </div>
                     <div v-if="lead.campaign_name || lead.ad_name" class="border-t border-gray-50 px-3 py-2">
                         <p class="text-[10px] font-semibold text-gray-400">الحملة</p>
@@ -312,6 +347,14 @@ function submitEdit(leadId) {
                                 <TextInput v-model="editForm.outcome_label" class="mt-1 w-full text-sm" />
                             </div>
                             <div>
+                                <InputLabel value="موعد المكالمة القادمة" />
+                                <input
+                                    v-model="editForm.next_call_at"
+                                    type="datetime-local"
+                                    class="mt-1 min-h-11 w-full rounded-xl border border-gray-300 px-3 text-sm text-gray-900 shadow-sm"
+                                />
+                            </div>
+                            <div>
                                 <InputLabel value="ملاحظات الفريق" />
                                 <textarea v-model="editForm.team_notes" rows="2" class="mt-1 w-full rounded-xl border-gray-300 text-sm" />
                             </div>
@@ -340,7 +383,6 @@ function submitEdit(leadId) {
                     <tr>
                         <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">التاريخ</th>
                         <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">العميل</th>
-                        <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">الورقة</th>
                         <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">الحملة</th>
                         <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">الإجابات</th>
                         <th class="px-3 py-2 text-start text-xs font-medium text-gray-500">المتابعة</th>
@@ -356,7 +398,6 @@ function submitEdit(leadId) {
                                 <p class="font-mono text-xs text-gray-600" dir="ltr">{{ lead.phone || '—' }}</p>
                                 <p v-if="lead.platform" class="mt-0.5 text-[10px] uppercase text-gray-400">{{ lead.platform }}</p>
                             </td>
-                            <td class="px-3 py-2 text-xs font-medium text-violet-800">{{ lead.sheet_name || '—' }}</td>
                             <td class="px-3 py-2 text-xs text-gray-700">
                                 <p class="font-medium">{{ lead.campaign_name || '—' }}</p>
                                 <p class="text-gray-500">{{ lead.adset_name }}</p>
@@ -374,6 +415,9 @@ function submitEdit(leadId) {
                                 <p v-if="lead.probability_label" class="mt-1 text-[10px] text-gray-500">{{ lead.probability_label }}</p>
                                 <p v-if="lead.outcome_label" class="text-[10px] text-gray-500">{{ lead.outcome_label }}</p>
                                 <p v-if="lead.owner?.name" class="mt-1 text-[10px] text-gray-600">مسؤول: {{ lead.owner.name }}</p>
+                                <p v-if="lead.next_call_at" class="mt-1 text-[10px] font-semibold text-sky-700">
+                                    مكالمة: {{ formatDt(lead.next_call_at) }}
+                                </p>
                             </td>
                             <td class="px-3 py-2">
                                 <button
@@ -386,7 +430,7 @@ function submitEdit(leadId) {
                             </td>
                         </tr>
                         <tr v-if="editingId === lead.id" class="bg-brand-50/30">
-                            <td colspan="7" class="px-3 py-3">
+                            <td colspan="6" class="px-3 py-3">
                                 <form class="grid gap-3 md:grid-cols-2" @submit.prevent="submitEdit(lead.id)">
                                     <div>
                                         <InputLabel value="حالة المتابعة" />
@@ -414,8 +458,12 @@ function submitEdit(leadId) {
                                         <TextInput v-model="editForm.reason_label" class="mt-1 w-full text-sm" />
                                     </div>
                                     <div>
-                                        <InputLabel value="موعد الاتصال القادم" />
-                                        <TextInput v-model="editForm.next_contact_date" type="date" class="mt-1 w-full text-sm" />
+                                        <InputLabel value="موعد المكالمة القادمة" />
+                                        <input
+                                            v-model="editForm.next_call_at"
+                                            type="datetime-local"
+                                            class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                                        />
                                     </div>
                                     <div class="md:col-span-2">
                                         <InputLabel value="ملاحظات الفريق" />
@@ -430,7 +478,7 @@ function submitEdit(leadId) {
                         </tr>
                     </template>
                     <tr v-if="!filteredLeads.length">
-                        <td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">
+                        <td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">
                             لا توجد ليدز ميتا بعد. بعد ربط Apps Script ستظهر هنا تلقائياً.
                         </td>
                     </tr>

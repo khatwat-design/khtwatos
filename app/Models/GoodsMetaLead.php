@@ -26,7 +26,6 @@ class GoodsMetaLead extends Model
 
     protected $fillable = [
         'meta_lead_id',
-        'sheet_name',
         'lead_created_at',
         'full_name',
         'phone',
@@ -54,6 +53,9 @@ class GoodsMetaLead extends Model
         'first_contact_date',
         'last_contact_date',
         'next_contact_date',
+        'next_call_at',
+        'call_reminder_sent_at',
+        'assigned_at',
         'form_answers',
         'raw_row',
         'sheet_synced_at',
@@ -68,6 +70,9 @@ class GoodsMetaLead extends Model
             'first_contact_date' => 'date',
             'last_contact_date' => 'date',
             'next_contact_date' => 'date',
+            'next_call_at' => 'datetime',
+            'call_reminder_sent_at' => 'datetime',
+            'assigned_at' => 'datetime',
             'form_answers' => 'array',
             'raw_row' => 'array',
             'sheet_synced_at' => 'datetime',

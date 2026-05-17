@@ -13,6 +13,7 @@ const props = defineProps({
     pipeline: { type: Object, default: () => ({}) },
     channel_mix: { type: Object, default: () => ({}) },
     recent_status_changes: { type: Array, default: () => [] },
+    meta_leads: { type: Object, default: () => ({ reps: [], team_totals: {}, by_campaign: {} }) },
 });
 
 const page = usePage();
@@ -481,6 +482,80 @@ const sortedReps = computed(() => {
                     <Link :href="route('employees.index')" class="text-xs font-semibold text-brand-700 hover:underline">
                         أضِف موظفين إلى فريق "المبيعات"
                     </Link>
+                </div>
+            </div>
+
+            <!-- Meta leads analytics -->
+            <div v-if="(meta_leads?.reps || []).length" class="ui-card space-y-4 p-4">
+                <div>
+                    <h2 class="text-sm font-bold text-slate-900">ليدز ميتا (إعلانات)</h2>
+                    <p class="mt-0.5 text-xs text-slate-600">
+                        توزيع تلقائي: نبراس 60% · حسين علي 40% — أداء الفترة {{ meta_leads.range_days }} يوم
+                    </p>
+                </div>
+                <div class="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-100 bg-slate-100 sm:grid-cols-4">
+                    <div class="bg-white p-3">
+                        <p class="text-[11px] text-slate-500">ليدز في الفترة</p>
+                        <p class="text-xl font-bold text-brand-700">{{ meta_leads.team_totals?.leads_in_range ?? 0 }}</p>
+                    </div>
+                    <div class="bg-white p-3">
+                        <p class="text-[11px] text-slate-500">مكالمات قادمة</p>
+                        <p class="text-xl font-bold text-sky-700">{{ meta_leads.team_totals?.upcoming_calls ?? 0 }}</p>
+                    </div>
+                    <div class="bg-white p-3">
+                        <p class="text-[11px] text-slate-500">قيد المتابعة</p>
+                        <p class="text-xl font-bold text-slate-800">{{ meta_leads.team_totals?.following ?? 0 }}</p>
+                    </div>
+                    <div class="bg-white p-3">
+                        <p class="text-[11px] text-slate-500">تم البيع</p>
+                        <p class="text-xl font-bold text-emerald-700">{{ meta_leads.team_totals?.won ?? 0 }}</p>
+                    </div>
+                </div>
+                <div class="grid gap-3 md:grid-cols-2">
+                    <div
+                        v-for="rep in meta_leads.reps"
+                        :key="`ml-rep-${rep.id}`"
+                        class="rounded-xl border border-slate-200 bg-slate-50/50 p-3"
+                    >
+                        <div class="flex items-center justify-between gap-2">
+                            <h3 class="font-bold text-slate-900">{{ rep.name }}</h3>
+                            <span class="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 ring-1 ring-slate-200">
+                                هدف {{ rep.weight }}%
+                            </span>
+                        </div>
+                        <dl class="mt-2 grid grid-cols-2 gap-2 text-[11px]">
+                            <div>
+                                <dt class="text-slate-500">ليدز الفترة</dt>
+                                <dd class="font-bold text-slate-900">{{ rep.leads_in_range }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-slate-500">ليدز اليوم</dt>
+                                <dd class="font-bold text-slate-900">{{ rep.leads_today }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-slate-500">مكالمات قادمة</dt>
+                                <dd class="font-bold text-sky-700">{{ rep.upcoming_calls }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-slate-500">نسبة إغلاق</dt>
+                                <dd class="font-bold text-emerald-700">{{ rep.conversion_rate }}%</dd>
+                            </div>
+                            <div>
+                                <dt class="text-slate-500">محتملون</dt>
+                                <dd class="font-bold">{{ rep.potential }}</dd>
+                            </div>
+                            <div>
+                                <dt class="text-slate-500">إجمالي مسند</dt>
+                                <dd class="font-bold">{{ rep.leads_total }}</dd>
+                            </div>
+                        </dl>
+                        <Link
+                            :href="route('goods.index', { tab: 'meta_leads', meta_owner: rep.id })"
+                            class="mt-2 inline-block text-[11px] font-semibold text-brand-700 hover:underline"
+                        >
+                            فتح ليدز {{ rep.name }}
+                        </Link>
+                    </div>
                 </div>
             </div>
 

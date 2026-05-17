@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\GoodsMetaLeadAnalyticsService;
 use App\Services\SalesAnalyticsService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -31,6 +32,7 @@ class SalesAnalyticsController extends Controller
 
         return Inertia::render('Sales/Analytics', $data + [
             'analytics_range_days' => $rangeDays,
+            'meta_leads' => app(GoodsMetaLeadAnalyticsService::class)->salesDashboard($rangeDays),
         ]);
     }
 }

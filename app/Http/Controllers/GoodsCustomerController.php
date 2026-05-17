@@ -10,6 +10,7 @@ use App\Models\OutsideConversation;
 use App\Models\OutsideMessage;
 use App\Models\User;
 use App\Services\GoodsMetaLeadAnalyticsService;
+use App\Services\GoodsMetaLeadAssignmentService;
 use App\Services\OutsideGoodsClientBridgeService;
 use App\Services\WhatsAppCloudService;
 use App\Support\GoodsMetaLeadWorkflow;
@@ -33,7 +34,9 @@ class GoodsCustomerController extends Controller
         $tab = trim((string) $request->query('tab', 'customers'));
         $metaFilterStatus = trim((string) $request->query('meta_status', ''));
         $metaCampaign = trim((string) $request->query('meta_campaign', ''));
-        $metaSheet = trim((string) $request->query('meta_sheet', ''));
+        $metaOwner = (int) $request->query('meta_owner', 0);
+        $metaView = trim((string) $request->query('meta_view', ''));
+        $assignment = app(GoodsMetaLeadAssignmentService::class);
 
         $customers = GoodsCustomer::query()
             ->with(['owner:id,name', 'contact:id,name,phone', 'client:id,name'])
@@ -45,9 +48,14 @@ class GoodsCustomerController extends Controller
             ->with(['owner:id,name'])
             ->when($metaFilterStatus !== '', fn ($q) => $q->where('workflow_status', $metaFilterStatus))
             ->when($metaCampaign !== '', fn ($q) => $q->where('campaign_name', $metaCampaign))
-            ->when($metaSheet !== '', fn ($q) => $q->where('sheet_name', $metaSheet))
-            ->orderByDesc('lead_created_at')
-            ->orderByDesc('id');
+            ->when($metaOwner > 0, fn ($q) => $q->where('owner_user_id', $metaOwner))
+            ->when($metaView === 'upcoming_calls', fn ($q) => $q
+                ->whereNotNull('next_call_at')
+                ->where('next_call_at', '>=', now())
+                ->orderBy('next_call_at'))
+            ->when($metaView !== 'upcoming_calls', fn ($q) => $q
+                ->orderByDesc('lead_created_at')
+                ->orderByDesc('id'));
 
         $metaLeads = $metaLeadsQuery->limit(500)->get();
         $campaignOptions = GoodsMetaLead::query()
@@ -56,15 +64,6 @@ class GoodsCustomerController extends Controller
             ->distinct()
             ->orderBy('campaign_name')
             ->pluck('campaign_name')
-            ->values()
-            ->all();
-
-        $sheetOptions = GoodsMetaLead::query()
-            ->whereNotNull('sheet_name')
-            ->where('sheet_name', '!=', '')
-            ->distinct()
-            ->orderBy('sheet_name')
-            ->pluck('sheet_name')
             ->values()
             ->all();
 
@@ -109,7 +108,6 @@ class GoodsCustomerController extends Controller
             'meta_leads' => $metaLeads->map(fn (GoodsMetaLead $lead) => [
                 'id' => $lead->id,
                 'meta_lead_id' => $lead->meta_lead_id,
-                'sheet_name' => $lead->sheet_name,
                 'full_name' => $lead->full_name,
                 'phone' => $lead->phone,
                 'platform' => $lead->platform,
@@ -127,16 +125,18 @@ class GoodsCustomerController extends Controller
                 'first_contact_date' => $lead->first_contact_date?->format('Y-m-d'),
                 'last_contact_date' => $lead->last_contact_date?->format('Y-m-d'),
                 'next_contact_date' => $lead->next_contact_date?->format('Y-m-d'),
+                'next_call_at' => $lead->next_call_at?->toIso8601String(),
                 'owner' => $lead->owner ? ['id' => $lead->owner->id, 'name' => $lead->owner->name] : null,
             ])->values(),
             'meta_lead_status_options' => GoodsMetaLeadWorkflow::statusOptions(),
             'meta_filters' => [
                 'status' => $metaFilterStatus,
                 'campaign' => $metaCampaign,
-                'sheet' => $metaSheet,
+                'owner' => $metaOwner > 0 ? $metaOwner : null,
+                'view' => $metaView !== '' ? $metaView : null,
             ],
+            'meta_assignee_stats' => $assignment->assigneeFilterStats(),
             'meta_campaign_options' => $campaignOptions,
-            'meta_sheet_options' => $sheetOptions,
             'meta_analytics' => $metaAnalytics,
             'meta_leads_webhook_configured' => (string) config('services.goods.meta_leads_webhook_secret', '') !== '',
         ]);

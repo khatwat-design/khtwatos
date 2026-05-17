@@ -21,10 +21,12 @@ class GoodsMetaLeadController extends Controller
             'reason_label' => ['nullable', 'string', 'max:255'],
             'outcome_label' => ['nullable', 'string', 'max:255'],
             'next_contact_date' => ['nullable', 'date'],
+            'next_call_at' => ['nullable', 'date'],
             'note' => ['nullable', 'string', 'max:255'],
         ]);
 
         $previous = $goodsMetaLead->workflow_status;
+        $previousCallAt = $goodsMetaLead->next_call_at?->toIso8601String();
 
         $goodsMetaLead->fill([
             'workflow_status' => $data['workflow_status'],
@@ -34,7 +36,13 @@ class GoodsMetaLeadController extends Controller
             'reason_label' => $data['reason_label'] ?? $goodsMetaLead->reason_label,
             'outcome_label' => $data['outcome_label'] ?? $goodsMetaLead->outcome_label,
             'next_contact_date' => $data['next_contact_date'] ?? $goodsMetaLead->next_contact_date,
+            'next_call_at' => $data['next_call_at'] ?? $goodsMetaLead->next_call_at,
         ]);
+
+        if (($goodsMetaLead->next_call_at?->toIso8601String() ?? null) !== $previousCallAt) {
+            $goodsMetaLead->call_reminder_sent_at = null;
+        }
+
         $goodsMetaLead->save();
 
         if ($previous !== $goodsMetaLead->workflow_status) {
