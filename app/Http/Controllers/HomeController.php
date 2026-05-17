@@ -172,12 +172,16 @@ class HomeController extends Controller
                     ->orWhereHas('assignees', fn ($q2) => $q2->where('users.id', $user->id));
             });
 
-        $tasksAssigned = (clone $assignedTasksQuery)->count();
+        $openTasksQuery = (clone $assignedTasksQuery)->whereHas(
+            'column',
+            fn ($q) => $q->whereNotIn('name', $this->doneTaskColumnNames()),
+        );
 
-        $tasksOverdue = (clone $assignedTasksQuery)
+        $tasksAssigned = (clone $openTasksQuery)->count();
+
+        $tasksOverdue = (clone $openTasksQuery)
             ->whereNotNull('due_at')
             ->where('due_at', '<', $now)
-            ->whereHas('column', fn ($q) => $q->where('name', '!=', 'تم'))
             ->count();
 
         $meetingsUpcoming = Meeting::query()
@@ -197,28 +201,39 @@ class HomeController extends Controller
             ->where('unread_count', '>', 0)
             ->count();
 
-        $recentTasks = (clone $assignedTasksQuery)
-            ->with(['column:id,name', 'taskBoard.team:id,slug'])
+        $recentTasks = (clone $openTasksQuery)
+            ->with(['column:id,name', 'taskBoard.team:id,slug,name'])
+            ->orderByRaw('CASE WHEN due_at IS NOT NULL AND due_at < ? THEN 0 ELSE 1 END', [$now])
             ->orderByRaw('CASE WHEN due_at IS NULL THEN 1 ELSE 0 END')
             ->orderBy('due_at')
             ->orderByDesc('id')
-            ->limit(8)
+            ->limit(10)
             ->get()
             ->map(function (Task $t) use ($now) {
-                $isDone = in_array($t->column?->name, ['تم', 'مكتمل', 'منجز', 'Done', 'Completed'], true);
-
                 return [
                     'id' => $t->id,
                     'title' => $t->title,
                     'due_at' => $t->due_at?->toIso8601String(),
                     'column_name' => $t->column?->name,
                     'team_slug' => $t->taskBoard?->team?->slug,
-                    'is_overdue' => ! $isDone
-                        && $t->due_at !== null
-                        && $t->due_at->lt($now),
+                    'team_name' => $t->taskBoard?->team?->name,
+                    'is_overdue' => $t->due_at !== null && $t->due_at->lt($now),
                 ];
             })
             ->values();
+
+        $firstOverdueTask = (clone $openTasksQuery)
+            ->with(['taskBoard.team:id,slug,name'])
+            ->whereNotNull('due_at')
+            ->where('due_at', '<', $now)
+            ->orderBy('due_at')
+            ->first();
+
+        $firstOverduePayload = $firstOverdueTask ? [
+            'id' => $firstOverdueTask->id,
+            'title' => $firstOverdueTask->title,
+            'team_slug' => $firstOverdueTask->taskBoard?->team?->slug,
+        ] : null;
 
         $upcomingMeetings = Meeting::query()
             ->with(['client:id,name'])
@@ -256,6 +271,7 @@ class HomeController extends Controller
             $meetingsNext48h,
             $clientsAccount,
             $clientsCampaign,
+            $firstOverduePayload,
         );
 
         $metaLeadCounts = app(GoodsMetaLeadAssignmentService::class)->staffDashboardCounts((int) $user->id);
@@ -298,6 +314,7 @@ class HomeController extends Controller
                 ],
                 'is_meta_leads_rep' => app(GoodsMetaLeadAssignmentService::class)->isAssignee((int) $user->id),
                 'recent_tasks' => $recentTasks,
+                'first_overdue_task' => $firstOverduePayload,
                 'upcoming_meetings' => $upcomingMeetings,
                 'priority_followups' => $priorityFollowups,
             ],
@@ -320,6 +337,12 @@ class HomeController extends Controller
         };
     }
 
+    /** @return list<string> */
+    private function doneTaskColumnNames(): array
+    {
+        return ['تم', 'مكتمل', 'منجز', 'Done', 'Completed'];
+    }
+
     /**
      * @return list<array{kind: string, title: string, detail: string, route: string|null, action_label: string|null}>
      */
@@ -330,10 +353,18 @@ class HomeController extends Controller
         int $meetingsNext48h,
         int $clientsAccount,
         int $clientsCampaign,
+        ?array $firstOverdueTask = null,
     ): array {
         $items = [];
 
         if ($tasksOverdue > 0) {
+            $overdueParams = $firstOverdueTask
+                ? array_filter([
+                    'task' => $firstOverdueTask['id'],
+                    'team' => $firstOverdueTask['team_slug'] ?? null,
+                ], fn ($v) => $v !== null && $v !== '')
+                : [];
+
             $items[] = [
                 'kind' => 'danger',
                 'title' => 'مهام متأخرة',
@@ -341,7 +372,8 @@ class HomeController extends Controller
                     ? 'مهمة واحدة تجاوزت الموعد ولم تُغلق بعد.'
                     : "لديك {$tasksOverdue} مهام تجاوزت الموعد ولم تُغلق بعد.",
                 'route' => 'tasks.index',
-                'action_label' => 'فتح المهام',
+                'route_params' => $overdueParams,
+                'action_label' => $firstOverdueTask ? 'فتح المهمة' : 'فتح المهام',
             ];
         }
 

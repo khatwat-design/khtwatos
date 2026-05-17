@@ -1,4 +1,5 @@
 <script setup>
+import StaffActiveTasksCard from '@/Components/Home/StaffActiveTasksCard.vue';
 import StaffPersonalTodoPanel from '@/Components/Home/StaffPersonalTodoPanel.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link } from '@inertiajs/vue3';
@@ -33,24 +34,10 @@ function formatStaffDateTime(iso) {
     }
 }
 
-function staffTaskHref(task) {
-    return route('tasks.index', {
-        team: task.team_slug || undefined,
-        task: task.id,
-    });
-}
-
 /** بطاقات KPI للموظف (قيم من staff.cards فقط) */
 const staffKpiCards = computed(() => {
     const c = props.staff?.cards || {};
     const cards = [
-        {
-            key: 'tasks',
-            title: 'مهامي النشطة',
-            value: Number(c.tasks_assigned || 0),
-            sub: `متأخرة: ${Number(c.tasks_overdue || 0)}`,
-            route: 'tasks.index',
-        },
         {
             key: 'meetings',
             title: 'اجتماعات قادمة',
@@ -601,7 +588,7 @@ const outsideMetricTiles = computed(() => [
                             </div>
                             <Link
                                 v-if="item.route && item.action_label"
-                                :href="route(item.route)"
+                                :href="route(item.route, item.route_params || {})"
                                 class="shrink-0 self-center rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-ops-label font-semibold text-slate-800 transition-colors hover:border-slate-300 hover:bg-slate-50"
                             >
                                 {{ item.action_label }}
@@ -610,6 +597,12 @@ const outsideMetricTiles = computed(() => [
                     </li>
                 </ul>
             </section>
+
+            <StaffActiveTasksCard
+                :tasks="staff.recent_tasks"
+                :cards="staff.cards"
+                :first-overdue-task="staff.first_overdue_task"
+            />
 
             <!-- KPIs: سطح واحد لتقليل تنافس البطاقات -->
             <section class="ops-surface overflow-hidden p-0 shadow-sm">
@@ -626,12 +619,7 @@ const outsideMetricTiles = computed(() => [
                         :key="`stk-${card.key}`"
                         :href="card.route ? route(card.route, card.routeParams || {}) : undefined"
                         class="min-h-[6.5rem] px-4 py-3 sm:min-h-[6.75rem] sm:px-4 sm:py-4"
-                        :class="[
-                            card.key === 'tasks' && Number(staff.cards?.tasks_overdue || 0) > 0
-                                ? 'bg-rose-50/25'
-                                : 'bg-white',
-                            card.route ? 'block transition hover:bg-brand-50/40' : '',
-                        ]"
+                        :class="[card.route ? 'block bg-white transition hover:bg-brand-50/40' : 'bg-white']"
                     >
                         <p class="text-ops-label font-semibold text-slate-500">{{ card.title }}</p>
                         <p class="mt-1.5 text-2xl font-semibold tabular-nums text-slate-900 sm:text-[1.65rem]">{{ card.value }}</p>
@@ -642,65 +630,7 @@ const outsideMetricTiles = computed(() => [
 
             <StaffPersonalTodoPanel :items="staff_personal_todos" />
 
-            <section class="grid gap-4 lg:grid-cols-2">
-                <div
-                    class="ops-surface p-4 sm:p-5"
-                >
-                    <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-4">
-                        <div>
-                            <h3 class="ops-section-title">مهامي</h3>
-                            <p class="mt-0.5 text-[11px] text-slate-500">اضغط على مهمة للانتقال إليها في لوحة المهام</p>
-                        </div>
-                        <Link
-                            :href="route('tasks.index')"
-                            class="rounded-lg px-2 py-1 text-[11px] font-bold text-brand-700 transition hover:bg-brand-50 hover:text-brand-900"
-                        >
-                            لوحة المهام
-                        </Link>
-                    </div>
-                    <ul v-if="staff.recent_tasks?.length" class="mt-4 space-y-2" role="list">
-                        <li v-for="t in staff.recent_tasks" :key="`rt-${t.id}`">
-                            <Link
-                                :href="staffTaskHref(t)"
-                                class="group block rounded-xl border px-3 py-2.5 transition"
-                                :class="
-                                    t.is_overdue
-                                        ? 'border-rose-200/80 bg-rose-50/40 hover:border-rose-300 hover:bg-rose-50/70'
-                                        : 'border-slate-100 bg-slate-50/50 hover:border-brand-300/60 hover:bg-brand-50/35'
-                                "
-                            >
-                                <div class="flex items-start justify-between gap-2">
-                                    <p class="min-w-0 flex-1 text-[13px] font-semibold text-slate-900 group-hover:text-brand-900">
-                                        {{ t.title }}
-                                    </p>
-                                    <svg
-                                        class="mt-0.5 h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-brand-600"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        stroke-width="2"
-                                        aria-hidden="true"
-                                    >
-                                        <path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round" />
-                                    </svg>
-                                </div>
-                                <p class="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-slate-500">
-                                    <span
-                                        v-if="t.column_name"
-                                        class="rounded-md bg-white px-1.5 py-0.5 font-medium text-slate-600 ring-1 ring-slate-200/80"
-                                    >
-                                        {{ t.column_name }}
-                                    </span>
-                                    <span v-if="t.is_overdue" class="font-bold text-rose-700">متأخرة</span>
-                                    <span class="tabular-nums">{{ formatStaffDateTime(t.due_at) }}</span>
-                                </p>
-                            </Link>
-                        </li>
-                    </ul>
-                    <p v-else class="mt-8 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 py-8 text-center text-sm text-slate-500">
-                        لا توجد مهام مسندة إليك حاليًا.
-                    </p>
-                </div>
+            <section class="grid gap-4 lg:grid-cols-1">
 
                 <div
                     class="ops-surface p-4 sm:p-5"
