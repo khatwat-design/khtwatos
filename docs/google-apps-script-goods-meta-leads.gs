@@ -5,8 +5,10 @@
  *
  * 1) Extensions → Apps Script → الصق هذا الملف بالكامل
  * 2) عدّل CONFIG (السرّ يجب أن يطابق GOODS_META_LEADS_WEBHOOK_SECRET على السيرفر)
- * 3) من القائمة اختر syncAllRows_ → Run (أول مرة يطلب صلاحية UrlFetch)
- * 4) شغّل setup_ مرة واحدة لإنشاء مزامنة تلقائية كل 5 دقائق
+ * 3) من القائمة اختر syncMetaLeadsNow → Run (أول مرة يطلب صلاحية UrlFetch)
+ * 4) شغّل setupMetaLeadsAutoSync مرة واحدة (مزامنة كل 5 دقائق)
+ *
+ * ملاحظة: الدوال التي تنتهي بـ _ لا تظهر في قائمة التشغيل في Google Apps Script.
  *
  * البيانات تظهر في: البضاعة → تبويب «ليدز ميتا»
  * أو مباشرة: /goods?tab=meta_leads
@@ -19,6 +21,16 @@ const CONFIG = {
   HEADER_ROW: 1,
   BATCH_SIZE: 40,
 };
+
+/** تظهر في القائمة — مزامنة كل الصفوف الآن */
+function syncMetaLeadsNow() {
+  syncAllRows_();
+}
+
+/** تظهر في القائمة — تفعيل المزامنة التلقائية كل 5 دقائق */
+function setupMetaLeadsAutoSync() {
+  setup_();
+}
 
 /** شغّل مرة واحدة لإنشاء مشغّل زمني */
 function setup_() {

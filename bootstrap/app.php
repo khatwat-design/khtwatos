@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'webhooks/calendly',
             'outside/webhook',
+            'goods/meta-leads/sync',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
