@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\GoodsMetaLead;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
@@ -53,6 +54,7 @@ class GoodsMetaLeadSyncTest extends TestCase
         $lead = GoodsMetaLead::query()->where('meta_lead_id', 'l:4235976496655120')->first();
         $this->assertNotNull($lead);
         $this->assertSame('9647824462427', $lead->phone_normalized);
+        $this->assertTrue($lead->has_whatsapp);
     }
 
     public function test_sheet_sync_does_not_overwrite_status_set_in_app(): void
@@ -88,5 +90,26 @@ class GoodsMetaLeadSyncTest extends TestCase
         ], [
             'X-Goods-Meta-Leads-Secret' => 'wrong',
         ])->assertUnauthorized();
+    }
+
+    public function test_whatsapp_contact_sets_following_status(): void
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+
+        $lead = GoodsMetaLead::query()->create([
+            'meta_lead_id' => 'l:wa-test',
+            'full_name' => 'عميل واتساب',
+            'phone' => '07824462427',
+            'has_whatsapp' => true,
+            'workflow_status' => GoodsMetaLead::WORKFLOW_NEW,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('goods.meta-leads.whatsapp', $lead))
+            ->assertRedirect(route('goods.index', ['tab' => 'meta_leads']));
+
+        $lead->refresh();
+        $this->assertSame(GoodsMetaLead::WORKFLOW_FOLLOWING, $lead->workflow_status);
+        $this->assertNotNull($lead->workflow_status_managed_at);
     }
 }

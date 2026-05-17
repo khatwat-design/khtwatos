@@ -3,6 +3,7 @@
 use App\Http\Controllers\AcademyController;
 use App\Http\Controllers\ChatAttachmentController;
 use App\Http\Controllers\ChatForwardController;
+use App\Http\Controllers\ChatMentionController;
 use App\Http\Controllers\ChatNotificationsController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientPortalController;
@@ -137,7 +138,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/chat/direct/{directConversation}/messages', [DirectChatController::class, 'storeMessage'])->name('chat.direct.messages.store');
     Route::get('/chat/direct/{directConversation}/messages', [DirectChatController::class, 'messages'])->name('chat.direct.messages.index');
     Route::get('/chat/unread-summary', [TeamChatController::class, 'unreadSummary'])->name('chat.unread-summary');
-    Route::post('/chat/mentions/acknowledge', [\App\Http\Controllers\ChatMentionController::class, 'acknowledge'])->name('chat.mentions.acknowledge');
+    Route::post('/chat/mentions/acknowledge', [ChatMentionController::class, 'acknowledge'])->name('chat.mentions.acknowledge');
     Route::post('/product-tours/{tour}/complete', [ProductTourController::class, 'complete'])->name('product-tours.complete');
     Route::post('/product-tours/{tour}/skip', [ProductTourController::class, 'skip'])->name('product-tours.skip');
     Route::post('/product-tours/reset', [ProductTourController::class, 'reset'])->name('product-tours.reset');
@@ -158,6 +159,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/goods/customers/{goodsCustomer}/sales-reminder', [GoodsCustomerController::class, 'sendSalesReminder'])->name('goods.customers.sales-reminder');
     Route::post('/goods/customers/{goodsCustomer}/weekly-survey', [GoodsCustomerController::class, 'sendWeeklySurvey'])->name('goods.customers.weekly-survey');
     Route::patch('/goods/meta-leads/{goodsMetaLead}', [GoodsMetaLeadController::class, 'update'])->name('goods.meta-leads.update');
+    Route::post('/goods/meta-leads/{goodsMetaLead}/whatsapp', [GoodsMetaLeadController::class, 'whatsappContact'])->name('goods.meta-leads.whatsapp');
 
     Route::get('/sales/analytics', [SalesAnalyticsController::class, 'index'])->name('sales.analytics');
 

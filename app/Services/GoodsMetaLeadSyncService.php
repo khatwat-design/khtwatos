@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\GoodsMetaLead;
 use App\Models\GoodsMetaLeadStatusHistory;
+use App\Support\IraqiPhone;
 use Illuminate\Support\Facades\DB;
 
 class GoodsMetaLeadSyncService
@@ -25,6 +26,7 @@ class GoodsMetaLeadSyncService
         }
 
         $mapped['phone_normalized'] = $this->mapper->normalizePhone($mapped['phone'] ?? null);
+        $mapped['has_whatsapp'] = IraqiPhone::isLikelyMobile($mapped['phone'] ?? null);
         $mapped['sheet_synced_at'] = now();
 
         return DB::transaction(function () use ($mapped, $actorUserId) {
@@ -75,6 +77,7 @@ class GoodsMetaLeadSyncService
         foreach ($rows as $row) {
             if (! is_array($row)) {
                 $stats['skipped']++;
+
                 continue;
             }
 
@@ -86,6 +89,7 @@ class GoodsMetaLeadSyncService
             $lead = $this->upsertFromSheetRow($row, $actorUserId);
             if (! $lead) {
                 $stats['skipped']++;
+
                 continue;
             }
             if ($before) {
@@ -109,6 +113,7 @@ class GoodsMetaLeadSyncService
             $mapped['workflow_status'],
             $mapped['owner_user_id'],
             $mapped['assigned_at'],
+            $mapped['has_whatsapp'],
         );
 
         if ($existing->workflow_status_managed_at !== null) {

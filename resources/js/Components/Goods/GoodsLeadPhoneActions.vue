@@ -1,18 +1,52 @@
 <script setup>
-import { copyText, toLocalIraqiPhone, whatsAppUrl } from '@/utils/iraqiPhone';
+import {
+    buildGoodsMetaWhatsAppMessage,
+    copyText,
+    openWhatsAppBusiness,
+    toLocalIraqiPhone,
+    whatsAppBusinessUrl,
+} from '@/utils/iraqiPhone';
+import { router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 const props = defineProps({
     phone: { type: String, default: '' },
     compact: { type: Boolean, default: false },
+    metaLeadId: { type: Number, default: null },
+    customerName: { type: String, default: '' },
+    hasWhatsapp: { type: Boolean, default: false },
 });
 
+const page = usePage();
 const copied = ref(false);
 let copiedTimer = null;
 
 const localPhone = computed(() => toLocalIraqiPhone(props.phone));
-const waLink = computed(() => whatsAppUrl(props.phone));
 const canUse = computed(() => localPhone.value.length >= 10);
+const employeeName = computed(() => page.props.auth?.user?.name || '');
+
+const waLink = computed(() => {
+    if (!canUse.value) {
+        return '';
+    }
+    if (props.metaLeadId && !props.hasWhatsapp) {
+        return '';
+    }
+    const message = props.metaLeadId
+        ? buildGoodsMetaWhatsAppMessage(props.customerName, employeeName.value)
+        : null;
+    return whatsAppBusinessUrl(props.phone, message);
+});
+
+const showWhatsApp = computed(() => {
+    if (!waLink.value) {
+        return false;
+    }
+    if (props.metaLeadId) {
+        return props.hasWhatsapp;
+    }
+    return true;
+});
 
 async function copyForCall() {
     if (!canUse.value) {
@@ -33,7 +67,18 @@ function openWhatsApp() {
     if (!waLink.value) {
         return;
     }
-    window.open(waLink.value, '_blank', 'noopener,noreferrer');
+
+    const message = props.metaLeadId
+        ? buildGoodsMetaWhatsAppMessage(props.customerName, employeeName.value)
+        : null;
+
+    openWhatsAppBusiness(props.phone, message);
+
+    if (props.metaLeadId) {
+        router.post(route('goods.meta-leads.whatsapp', props.metaLeadId), {}, {
+            preserveScroll: true,
+        });
+    }
 }
 </script>
 
@@ -45,9 +90,10 @@ function openWhatsApp() {
     >
         <p v-if="!compact" class="w-full font-mono text-xs text-gray-600" dir="ltr">{{ localPhone }}</p>
         <button
+            v-if="showWhatsApp"
             type="button"
             class="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100"
-            :class="compact ? 'min-h-8 px-2' : 'flex-1'"
+            :class="compact ? 'min-h-8 px-2' : showWhatsApp ? 'flex-1' : ''"
             @click="openWhatsApp"
         >
             <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

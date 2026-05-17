@@ -29,6 +29,7 @@ const editForm = useForm({
     outcome_label: '',
     next_contact_date: '',
     next_call_at: '',
+    has_whatsapp: true,
     note: '',
 });
 
@@ -55,10 +56,15 @@ function filterByAssignee(assignee, view = null) {
 }
 
 function clearAssigneeFilter() {
-    router.get(route('goods.index'), metaQuery({ meta_owner: undefined, meta_view: undefined }), {
-        preserveState: true,
-        replace: true,
-    });
+    router.get(
+        route('goods.index'),
+        {
+            tab: 'meta_leads',
+            meta_clear: 1,
+            meta_campaign: props.meta_filters?.campaign || undefined,
+        },
+        { preserveState: true, replace: true },
+    );
 }
 
 function toDatetimeLocal(iso) {
@@ -144,6 +150,7 @@ function openEdit(lead) {
     editForm.outcome_label = lead.outcome_label || '';
     editForm.next_contact_date = lead.next_contact_date || '';
     editForm.next_call_at = toDatetimeLocal(lead.next_call_at);
+    editForm.has_whatsapp = lead.has_whatsapp !== false;
     editForm.note = '';
 }
 
@@ -211,7 +218,7 @@ function submitEdit(leadId) {
                     </button>
                 </button>
                 <button
-                    v-if="meta_filters?.owner"
+                    v-if="meta_filters?.owner || meta_filters?.assignee_defaults_active"
                     type="button"
                     class="self-center rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
                     @click="clearAssigneeFilter"
@@ -260,7 +267,12 @@ function submitEdit(leadId) {
                             <h3 class="text-base font-bold leading-snug text-gray-900">
                                 {{ lead.full_name || '—' }}
                             </h3>
-                            <GoodsLeadPhoneActions :phone="lead.phone" />
+                            <GoodsLeadPhoneActions
+                                :phone="lead.phone"
+                                :meta-lead-id="lead.id"
+                                :customer-name="lead.full_name"
+                                :has-whatsapp="lead.has_whatsapp"
+                            />
                             <p v-if="lead.platform" class="mt-0.5 text-[10px] font-semibold uppercase text-gray-400">
                                 {{ lead.platform }}
                             </p>
@@ -355,6 +367,10 @@ function submitEdit(leadId) {
                                     class="mt-1 min-h-11 w-full rounded-xl border border-gray-300 px-3 text-sm text-gray-900 shadow-sm"
                                 />
                             </div>
+                            <label class="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-800">
+                                <input v-model="editForm.has_whatsapp" type="checkbox" class="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                                <span>يوجد واتساب على هذا الرقم</span>
+                            </label>
                             <div>
                                 <InputLabel value="ملاحظات الفريق" />
                                 <textarea v-model="editForm.team_notes" rows="2" class="mt-1 w-full rounded-xl border-gray-300 text-sm" />
@@ -396,7 +412,13 @@ function submitEdit(leadId) {
                             <td class="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">{{ formatDt(lead.lead_created_at) }}</td>
                             <td class="px-3 py-2">
                                 <p class="font-semibold text-gray-900">{{ lead.full_name || '—' }}</p>
-                                <GoodsLeadPhoneActions :phone="lead.phone" compact />
+                                <GoodsLeadPhoneActions
+                                    :phone="lead.phone"
+                                    :meta-lead-id="lead.id"
+                                    :customer-name="lead.full_name"
+                                    :has-whatsapp="lead.has_whatsapp"
+                                    compact
+                                />
                                 <p v-if="lead.platform" class="mt-0.5 text-[10px] uppercase text-gray-400">{{ lead.platform }}</p>
                             </td>
                             <td class="px-3 py-2 text-xs text-gray-700">
@@ -466,6 +488,10 @@ function submitEdit(leadId) {
                                             class="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                                         />
                                     </div>
+                                    <label class="flex cursor-pointer items-center gap-2 text-sm text-gray-800 md:col-span-2">
+                                        <input v-model="editForm.has_whatsapp" type="checkbox" class="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                                        <span>يوجد واتساب على هذا الرقم</span>
+                                    </label>
                                     <div class="md:col-span-2">
                                         <InputLabel value="ملاحظات الفريق" />
                                         <textarea v-model="editForm.team_notes" rows="2" class="mt-1 w-full rounded-md border-gray-300 text-sm" />

@@ -11,6 +11,7 @@ use App\Models\OutsideMessage;
 use App\Models\User;
 use App\Services\GoodsMetaLeadAnalyticsService;
 use App\Services\GoodsMetaLeadAssignmentService;
+use App\Services\GoodsMetaLeadFilterService;
 use App\Services\OutsideGoodsClientBridgeService;
 use App\Services\WhatsAppCloudService;
 use App\Support\GoodsMetaLeadWorkflow;
@@ -28,15 +29,21 @@ class GoodsCustomerController extends Controller
         private readonly OutsideGoodsClientBridgeService $outsideGoodsBridge,
     ) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
         $filterStatus = trim((string) $request->query('status', ''));
         $tab = trim((string) $request->query('tab', 'customers'));
-        $metaFilterStatus = trim((string) $request->query('meta_status', ''));
-        $metaCampaign = trim((string) $request->query('meta_campaign', ''));
-        $metaOwner = (int) $request->query('meta_owner', 0);
-        $metaView = trim((string) $request->query('meta_view', ''));
         $assignment = app(GoodsMetaLeadAssignmentService::class);
+        $metaFilterState = app(GoodsMetaLeadFilterService::class)->resolve($request, $request->user());
+
+        if ($metaFilterState['should_redirect']) {
+            return redirect()->route('goods.index', $metaFilterState['redirect_params']);
+        }
+
+        $metaFilterStatus = $metaFilterState['status'];
+        $metaCampaign = $metaFilterState['campaign'];
+        $metaOwner = $metaFilterState['owner'];
+        $metaView = $metaFilterState['view'];
 
         $customers = GoodsCustomer::query()
             ->with(['owner:id,name', 'contact:id,name,phone', 'client:id,name'])
@@ -110,6 +117,7 @@ class GoodsCustomerController extends Controller
                 'meta_lead_id' => $lead->meta_lead_id,
                 'full_name' => $lead->full_name,
                 'phone' => $lead->phone,
+                'has_whatsapp' => (bool) $lead->has_whatsapp,
                 'platform' => $lead->platform,
                 'campaign_name' => $lead->campaign_name,
                 'adset_name' => $lead->adset_name,
@@ -130,10 +138,11 @@ class GoodsCustomerController extends Controller
             ])->values(),
             'meta_lead_status_options' => GoodsMetaLeadWorkflow::statusOptions(),
             'meta_filters' => [
-                'status' => $metaFilterStatus,
-                'campaign' => $metaCampaign,
+                'status' => $metaFilterStatus !== '' ? $metaFilterStatus : null,
+                'campaign' => $metaCampaign !== '' ? $metaCampaign : null,
                 'owner' => $metaOwner > 0 ? $metaOwner : null,
                 'view' => $metaView !== '' ? $metaView : null,
+                'assignee_defaults_active' => $metaFilterState['assignee_defaults_active'],
             ],
             'meta_assignee_stats' => $assignment->assigneeFilterStats(),
             'meta_campaign_options' => $campaignOptions,
