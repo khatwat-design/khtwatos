@@ -1,4 +1,5 @@
 <script setup>
+import GoodsLeadPhoneActions from '@/Components/Goods/GoodsLeadPhoneActions.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import TextInput from '@/Components/TextInput.vue';
@@ -259,7 +260,7 @@ function submitEdit(leadId) {
                             <h3 class="text-base font-bold leading-snug text-gray-900">
                                 {{ lead.full_name || '—' }}
                             </h3>
-                            <p class="mt-1 font-mono text-xs text-gray-600" dir="ltr">{{ lead.phone || '—' }}</p>
+                            <GoodsLeadPhoneActions :phone="lead.phone" />
                             <p v-if="lead.platform" class="mt-0.5 text-[10px] font-semibold uppercase text-gray-400">
                                 {{ lead.platform }}
                             </p>
@@ -395,7 +396,7 @@ function submitEdit(leadId) {
                             <td class="px-3 py-2 text-xs text-gray-600 whitespace-nowrap">{{ formatDt(lead.lead_created_at) }}</td>
                             <td class="px-3 py-2">
                                 <p class="font-semibold text-gray-900">{{ lead.full_name || '—' }}</p>
-                                <p class="font-mono text-xs text-gray-600" dir="ltr">{{ lead.phone || '—' }}</p>
+                                <GoodsLeadPhoneActions :phone="lead.phone" compact />
                                 <p v-if="lead.platform" class="mt-0.5 text-[10px] uppercase text-gray-400">{{ lead.platform }}</p>
                             </td>
                             <td class="px-3 py-2 text-xs text-gray-700">

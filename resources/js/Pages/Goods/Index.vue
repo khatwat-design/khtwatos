@@ -1,4 +1,5 @@
 <script setup>
+import GoodsLeadPhoneActions from '@/Components/Goods/GoodsLeadPhoneActions.vue';
 import GoodsMetaLeadsPanel from '@/Components/Goods/GoodsMetaLeadsPanel.vue';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import InputError from '@/Components/InputError.vue';
@@ -210,7 +211,7 @@ function statusClass(status) {
                                     <p v-if="customer.company" class="mt-0.5 truncate text-xs text-gray-500">
                                         {{ customer.company }}
                                     </p>
-                                    <p class="mt-1 font-mono text-xs text-gray-600" dir="ltr">{{ customer.phone || '—' }}</p>
+                                    <GoodsLeadPhoneActions :phone="customer.phone" />
                                 </div>
                             </div>
                             <span

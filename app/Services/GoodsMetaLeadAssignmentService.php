@@ -18,12 +18,13 @@ class GoodsMetaLeadAssignmentService
 
         foreach ($config as $row) {
             $name = trim((string) ($row['name'] ?? ''));
+            $username = trim((string) ($row['username'] ?? ''));
             $weight = (int) ($row['weight'] ?? 0);
-            if ($name === '' || $weight <= 0) {
+            if ($weight <= 0) {
                 continue;
             }
 
-            $user = User::query()->where('name', $name)->first();
+            $user = $this->resolveAssigneeUser($name, $username);
             if (! $user) {
                 continue;
             }
@@ -140,5 +141,28 @@ class GoodsMetaLeadAssignmentService
         }
 
         return User::query()->whereIn('id', $ids)->orderBy('name')->get();
+    }
+
+    private function resolveAssigneeUser(string $name, string $username): ?User
+    {
+        if ($name !== '') {
+            $byName = User::query()->where('name', $name)->first();
+            if ($byName) {
+                return $byName;
+            }
+        }
+
+        if ($username !== '') {
+            $normalized = ltrim($username, '@');
+
+            return User::query()
+                ->where(function ($q) use ($normalized, $username) {
+                    $q->where('username', $normalized)
+                        ->orWhere('username', $username);
+                })
+                ->first();
+        }
+
+        return null;
     }
 }
