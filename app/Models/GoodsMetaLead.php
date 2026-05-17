@@ -48,6 +48,7 @@ class GoodsMetaLead extends Model
         'reason_label',
         'outcome_label',
         'workflow_status',
+        'workflow_status_managed_at',
         'owner_user_id',
         'goods_customer_id',
         'first_contact_date',
@@ -66,6 +67,7 @@ class GoodsMetaLead extends Model
     {
         return [
             'lead_created_at' => 'datetime',
+            'workflow_status_managed_at' => 'datetime',
             'is_organic' => 'boolean',
             'first_contact_date' => 'date',
             'last_contact_date' => 'date',

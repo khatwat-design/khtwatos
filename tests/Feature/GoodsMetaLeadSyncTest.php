@@ -55,6 +55,32 @@ class GoodsMetaLeadSyncTest extends TestCase
         $this->assertSame('9647824462427', $lead->phone_normalized);
     }
 
+    public function test_sheet_sync_does_not_overwrite_status_set_in_app(): void
+    {
+        $lead = GoodsMetaLead::query()->create([
+            'meta_lead_id' => 'l:preserve-status',
+            'full_name' => 'Laith Hamoode',
+            'workflow_status' => GoodsMetaLead::WORKFLOW_FOLLOWING,
+            'workflow_status_managed_at' => now(),
+        ]);
+
+        $this->postJson(route('goods.meta-leads.sync'), [
+            'rows' => [
+                [
+                    'id' => 'l:preserve-status',
+                    'full_name' => 'Laith Hamoode',
+                    'إحتمالية العميل' => '',
+                    'النتيجة' => '',
+                ],
+            ],
+        ], [
+            'X-Goods-Meta-Leads-Secret' => 'test-secret',
+        ])->assertOk();
+
+        $lead->refresh();
+        $this->assertSame(GoodsMetaLead::WORKFLOW_FOLLOWING, $lead->workflow_status);
+    }
+
     public function test_webhook_rejects_invalid_secret(): void
     {
         $this->postJson(route('goods.meta-leads.sync'), [

@@ -28,8 +28,13 @@ class GoodsMetaLeadController extends Controller
         $previous = $goodsMetaLead->workflow_status;
         $previousCallAt = $goodsMetaLead->next_call_at?->toIso8601String();
 
+        $statusChanged = $previous !== $data['workflow_status'];
+
         $goodsMetaLead->fill([
             'workflow_status' => $data['workflow_status'],
+            'workflow_status_managed_at' => $statusChanged
+                ? now()
+                : $goodsMetaLead->workflow_status_managed_at,
             'owner_user_id' => $data['owner_user_id'] ?? null,
             'team_notes' => $data['team_notes'] ?? $goodsMetaLead->team_notes,
             'probability_label' => $data['probability_label'] ?? $goodsMetaLead->probability_label,
@@ -45,7 +50,7 @@ class GoodsMetaLeadController extends Controller
 
         $goodsMetaLead->save();
 
-        if ($previous !== $goodsMetaLead->workflow_status) {
+        if ($statusChanged) {
             GoodsMetaLeadStatusHistory::query()->create([
                 'goods_meta_lead_id' => $goodsMetaLead->id,
                 'from_status' => $previous,

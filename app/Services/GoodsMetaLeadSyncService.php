@@ -58,19 +58,7 @@ class GoodsMetaLeadSyncService
                 return $lead;
             }
 
-            $previousStatus = $existing->workflow_status;
-            $existing->fill($mapped);
-            $existing->save();
-
-            if ($previousStatus !== $existing->workflow_status) {
-                GoodsMetaLeadStatusHistory::query()->create([
-                    'goods_meta_lead_id' => $existing->id,
-                    'from_status' => $previousStatus,
-                    'to_status' => $existing->workflow_status,
-                    'note' => 'تحديث من Google Sheet',
-                    'user_id' => $actorUserId,
-                ]);
-            }
+            $this->applySheetFieldsToExistingLead($existing, $mapped);
 
             return $existing->fresh();
         });
@@ -108,6 +96,31 @@ class GoodsMetaLeadSyncService
         }
 
         return $stats;
+    }
+
+    /**
+     * تحديث بيانات الشيت دون مسح الحالة أو المسؤول أو موعد المكالمة المُدخل من النظام.
+     *
+     * @param  array<string, mixed>  $mapped
+     */
+    private function applySheetFieldsToExistingLead(GoodsMetaLead $existing, array $mapped): void
+    {
+        unset(
+            $mapped['workflow_status'],
+            $mapped['owner_user_id'],
+            $mapped['assigned_at'],
+        );
+
+        if ($existing->workflow_status_managed_at !== null) {
+            unset($mapped['probability_label'], $mapped['outcome_label']);
+        }
+
+        if ($existing->next_call_at !== null) {
+            unset($mapped['next_call_at'], $mapped['call_reminder_sent_at']);
+        }
+
+        $existing->fill($mapped);
+        $existing->save();
     }
 
     private function notifyNewAssignment(GoodsMetaLead $lead): void
