@@ -1,5 +1,4 @@
 <script setup>
-import Modal from '@/Components/Modal.vue';
 import { router } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 
@@ -10,11 +9,11 @@ const props = defineProps({
     meta_assignee_stats: { type: Array, default: () => [] },
 });
 
-const showModal = ref(false);
+const showSheet = ref(false);
 const draftStatus = ref('');
 const draftCampaign = ref('');
 
-watch(showModal, (open) => {
+watch(showSheet, (open) => {
     if (open) {
         draftStatus.value = props.meta_filters?.status || '';
         draftCampaign.value = props.meta_filters?.campaign || '';
@@ -62,19 +61,41 @@ const assigneeAccent = (name) => {
     return { ring: 'ring-brand-200', bg: 'from-brand-500 to-brand-700', light: 'from-brand-50 to-white border-brand-200' };
 };
 
-function navigate(extra = {}) {
-    router.get(
-        route('goods.index'),
-        {
-            tab: 'meta_leads',
-            meta_status: props.meta_filters?.status || undefined,
-            meta_campaign: props.meta_filters?.campaign || undefined,
-            meta_owner: props.meta_filters?.owner || undefined,
-            meta_view: props.meta_filters?.view || undefined,
-            ...extra,
-        },
-        { preserveState: true, replace: true, onSuccess: () => { showModal.value = false; } },
+function filterQuery(overrides = {}) {
+    const params = {
+        tab: 'meta_leads',
+        meta_owner: props.meta_filters?.owner ?? undefined,
+        meta_view: props.meta_filters?.view ?? undefined,
+        meta_status: props.meta_filters?.status ?? undefined,
+        meta_campaign: props.meta_filters?.campaign ?? undefined,
+        ...overrides,
+    };
+
+    return Object.fromEntries(
+        Object.entries(params).filter(([key, value]) => {
+            if (value === undefined || value === null) {
+                return false;
+            }
+            if (key === 'meta_clear') {
+                return true;
+            }
+            if (value === '' && Object.prototype.hasOwnProperty.call(overrides, key)) {
+                return true;
+            }
+
+            return value !== '';
+        }),
     );
+}
+
+function navigate(overrides = {}) {
+    router.get(route('goods.index'), filterQuery(overrides), {
+        preserveState: true,
+        replace: true,
+        onSuccess: () => {
+            showSheet.value = false;
+        },
+    });
 }
 
 function selectAssignee(rep, view = null) {
@@ -85,21 +106,17 @@ function selectAssignee(rep, view = null) {
 }
 
 function clearAssigneeFilter() {
-    router.get(
-        route('goods.index'),
-        {
-            tab: 'meta_leads',
-            meta_clear: 1,
-            meta_campaign: props.meta_filters?.campaign || undefined,
-        },
-        { preserveState: true, replace: true },
-    );
+    const params = { tab: 'meta_leads', meta_clear: 1 };
+    if (props.meta_filters?.campaign) {
+        params.meta_campaign = props.meta_filters.campaign;
+    }
+    router.get(route('goods.index'), params, { preserveState: true, replace: true });
 }
 
 function applyDraftFilters() {
     navigate({
-        meta_status: draftStatus.value || undefined,
-        meta_campaign: draftCampaign.value || undefined,
+        meta_status: draftStatus.value,
+        meta_campaign: draftCampaign.value,
     });
 }
 
@@ -107,8 +124,20 @@ function clearAllFilters() {
     router.get(
         route('goods.index'),
         { tab: 'meta_leads', meta_clear: 1 },
-        { preserveState: true, replace: true, onSuccess: () => { showModal.value = false; } },
+        {
+            preserveState: true,
+            replace: true,
+            onSuccess: () => {
+                showSheet.value = false;
+            },
+        },
     );
+}
+
+function chipClass(active) {
+    return active
+        ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-300'
+        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50';
 }
 </script>
 
@@ -156,13 +185,15 @@ function clearAllFilters() {
                                     ليدز اليوم
                                     <span class="ms-1 tabular-nums text-slate-900">{{ rep.leads_today }}</span>
                                 </span>
-                                <button
-                                    type="button"
-                                    class="inline-flex items-center rounded-lg bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-800 ring-1 ring-sky-200/80 transition hover:bg-sky-100"
+                                <span
+                                    role="button"
+                                    tabindex="0"
+                                    class="inline-flex cursor-pointer items-center rounded-lg bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-800 ring-1 ring-sky-200/80 transition hover:bg-sky-100"
                                     @click.stop="selectAssignee(rep, 'upcoming_calls')"
+                                    @keydown.enter.stop.prevent="selectAssignee(rep, 'upcoming_calls')"
                                 >
                                     مكالمات {{ rep.upcoming_calls }}
-                                </button>
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -173,12 +204,12 @@ function clearAllFilters() {
             </p>
         </div>
 
-        <!-- زر فلترة مضغوط -->
+        <!-- زر فلترة -->
         <div class="flex flex-wrap items-center gap-2">
             <button
                 type="button"
-                class="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-brand-300 hover:bg-brand-50/50"
-                @click="showModal = true"
+                class="inline-flex min-h-10 touch-manipulation items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-brand-300 hover:bg-brand-50/50"
+                @click="showSheet = true"
             >
                 <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
                     <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
@@ -204,111 +235,91 @@ function clearAllFilters() {
             </div>
         </div>
 
-        <Modal :show="showModal" max-width="lg" @close="showModal = false">
-            <div class="relative overflow-hidden rounded-t-2xl bg-white sm:rounded-2xl">
-                <div class="border-b border-slate-100 px-4 pb-3 pt-4 sm:px-5">
-                    <div class="flex items-start justify-between gap-3">
+        <!-- ورقة فلترة (بدون Modal — النقر يعمل على الجوال) -->
+        <Teleport to="body">
+            <div
+                v-if="showSheet"
+                class="mobile-sheet-backdrop z-[80]"
+                @click.self="showSheet = false"
+            >
+                <div class="mobile-sheet-panel mobile-sheet-panel--lg flex max-h-[min(78dvh,32rem)] flex-col p-0" @click.stop>
+                    <div class="mobile-sheet-header">
                         <div>
-                            <h2 class="text-base font-bold text-slate-900">فلترة الليدز</h2>
-                            <p class="mt-0.5 text-xs text-slate-500">الحالة والحملة</p>
+                            <h3 class="mobile-sheet-title">فلترة الليدز</h3>
+                            <p class="text-[11px] text-slate-500">الحالة والحملة</p>
                         </div>
+                        <button type="button" class="mobile-sheet-close-btn" @click="showSheet = false">إغلاق</button>
+                    </div>
+
+                    <div class="mobile-sheet-body min-h-0 flex-1 space-y-5">
+                        <section>
+                            <h4 class="mb-2 text-xs font-bold text-slate-700">حالة المتابعة</h4>
+                            <div class="flex flex-wrap gap-1.5">
+                                <button
+                                    type="button"
+                                    class="touch-manipulation rounded-full border px-3 py-1.5 text-xs font-semibold transition"
+                                    :class="chipClass(draftStatus === '')"
+                                    @click="draftStatus = ''"
+                                >
+                                    كل الحالات
+                                </button>
+                                <button
+                                    v-for="s in meta_lead_status_options"
+                                    :key="`st-pick-${s.value}`"
+                                    type="button"
+                                    class="touch-manipulation rounded-full border px-3 py-1.5 text-xs font-semibold transition"
+                                    :class="chipClass(draftStatus === s.value)"
+                                    @click="draftStatus = s.value"
+                                >
+                                    {{ s.label }}
+                                </button>
+                            </div>
+                        </section>
+
+                        <section>
+                            <h4 class="mb-2 text-xs font-bold text-slate-700">الحملة</h4>
+                            <div class="flex flex-wrap gap-1.5">
+                                <button
+                                    type="button"
+                                    class="touch-manipulation rounded-full border px-3 py-1.5 text-xs font-semibold transition"
+                                    :class="chipClass(draftCampaign === '')"
+                                    @click="draftCampaign = ''"
+                                >
+                                    كل الحملات
+                                </button>
+                                <button
+                                    v-for="c in meta_campaign_options"
+                                    :key="`camp-pick-${c}`"
+                                    type="button"
+                                    class="touch-manipulation max-w-full rounded-full border px-3 py-1.5 text-start text-xs font-semibold transition"
+                                    :class="chipClass(draftCampaign === c)"
+                                    @click="draftCampaign = c"
+                                >
+                                    <span class="line-clamp-2">{{ c }}</span>
+                                </button>
+                            </div>
+                            <p v-if="!meta_campaign_options?.length" class="mt-2 text-xs text-slate-400">لا توجد حملات بعد.</p>
+                        </section>
+                    </div>
+
+                    <div class="mobile-sheet-footer !flex-row">
                         <button
                             type="button"
-                            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600"
-                            aria-label="إغلاق"
-                            @click="showModal = false"
+                            class="min-h-11 flex-1 touch-manipulation rounded-xl bg-brand-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-brand-700"
+                            @click="applyDraftFilters"
                         >
-                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M6 6l12 12M18 6L6 18" stroke-linecap="round" />
-                            </svg>
+                            تطبيق
+                        </button>
+                        <button
+                            type="button"
+                            class="min-h-11 touch-manipulation rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                            @click="clearAllFilters"
+                        >
+                            مسح
                         </button>
                     </div>
                 </div>
-
-                <div class="max-h-[min(70vh,28rem)] space-y-5 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
-                    <section>
-                        <h3 class="mb-2 text-xs font-bold text-slate-700">حالة المتابعة</h3>
-                        <div class="flex flex-wrap gap-2">
-                            <button
-                                type="button"
-                                class="rounded-xl border px-3 py-2 text-xs font-semibold transition"
-                                :class="
-                                    draftStatus === ''
-                                        ? 'border-brand-500 bg-brand-600 text-white shadow-sm'
-                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                                "
-                                @click="draftStatus = ''"
-                            >
-                                كل الحالات
-                            </button>
-                            <button
-                                v-for="s in meta_lead_status_options"
-                                :key="`st-pick-${s.value}`"
-                                type="button"
-                                class="rounded-xl border px-3 py-2 text-xs font-semibold transition"
-                                :class="
-                                    draftStatus === s.value
-                                        ? 'border-brand-500 bg-brand-600 text-white shadow-sm'
-                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                                "
-                                @click="draftStatus = s.value"
-                            >
-                                {{ s.label }}
-                            </button>
-                        </div>
-                    </section>
-
-                    <section>
-                        <h3 class="mb-2 text-xs font-bold text-slate-700">الحملة</h3>
-                        <div class="flex flex-wrap gap-2">
-                            <button
-                                type="button"
-                                class="rounded-xl border px-3 py-2 text-xs font-semibold transition"
-                                :class="
-                                    draftCampaign === ''
-                                        ? 'border-brand-500 bg-brand-600 text-white shadow-sm'
-                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                                "
-                                @click="draftCampaign = ''"
-                            >
-                                كل الحملات
-                            </button>
-                            <button
-                                v-for="c in meta_campaign_options"
-                                :key="`camp-pick-${c}`"
-                                type="button"
-                                class="max-w-full rounded-xl border px-3 py-2 text-start text-xs font-semibold transition"
-                                :class="
-                                    draftCampaign === c
-                                        ? 'border-brand-500 bg-brand-600 text-white shadow-sm'
-                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                                "
-                                @click="draftCampaign = c"
-                            >
-                                <span class="line-clamp-2">{{ c }}</span>
-                            </button>
-                        </div>
-                        <p v-if="!meta_campaign_options?.length" class="text-xs text-slate-400">لا توجد حملات بعد.</p>
-                    </section>
-                </div>
-
-                <div class="flex gap-2 border-t border-slate-100 bg-slate-50/90 p-4 sm:px-5">
-                    <button
-                        type="button"
-                        class="min-h-11 flex-1 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-brand-700"
-                        @click="applyDraftFilters"
-                    >
-                        تطبيق
-                    </button>
-                    <button
-                        type="button"
-                        class="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                        @click="clearAllFilters"
-                    >
-                        مسح
-                    </button>
-                </div>
             </div>
-        </Modal>
+        </Teleport>
     </div>
 </template>
