@@ -1564,6 +1564,47 @@ function scrollToBottom() {
     container.scrollTop = container.scrollHeight;
 }
 
+const SCROLL_POS_PREFIX = 'chat_scroll_';
+
+function saveScrollPosition() {
+    const key = chatConversationKey();
+    if (key === 'none') {
+        return;
+    }
+    const msgs = messagesState.value;
+    if (!msgs.length) {
+        return;
+    }
+    const lastMsg = msgs[msgs.length - 1];
+    if (lastMsg?.id) {
+        try {
+            localStorage.setItem(SCROLL_POS_PREFIX + key, String(lastMsg.id));
+        } catch (e) {
+            // ignore
+        }
+    }
+}
+
+function restoreScrollPosition() {
+    const key = chatConversationKey();
+    if (key === 'none') {
+        return;
+    }
+    let savedId;
+    try {
+        savedId = localStorage.getItem(SCROLL_POS_PREFIX + key);
+    } catch (e) {
+        return;
+    }
+    if (!savedId) {
+        return;
+    }
+    const el = messagesContainerRef.value?.querySelector(`[data-message-id="${savedId}"]`);
+    if (el) {
+        el.scrollIntoView({ block: 'nearest' });
+    }
+}
+
 const filteredMessages = computed(() => {
     const term = searchTerm.value.trim().toLowerCase();
     if (!term) {
@@ -2165,6 +2206,7 @@ watch(
         props.selectedDirect?.id,
     ],
     () => {
+        saveScrollPosition();
         form.team_id = props.selectedTeam?.id ?? null;
         subscribeTeamEcho();
         stopPolling();
@@ -2195,6 +2237,7 @@ watch(
         messagesState.value = [...(props.messages || [])];
         pendingMessages.value = [];
         mentionInboxState.value = normalizeMentionInbox(props.mentionInbox || {});
+        nextTick(() => restoreScrollPosition());
     },
     { immediate: true },
 );
@@ -2228,6 +2271,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+    saveScrollPosition();
     window.removeEventListener('employee-call-settled', onEmployeeCallSettled);
     chatMobileChromeHidden.value = false;
     if (typeof document !== 'undefined') {
