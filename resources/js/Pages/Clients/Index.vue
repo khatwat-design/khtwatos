@@ -15,6 +15,7 @@ const props = defineProps({
     accountManagers: Array,
     campaignManagers: Array,
     filters: Object,
+    can_toggle_client_active: Boolean,
 });
 const canDeleteRecords = Boolean(usePage().props.auth?.can?.deleteRecords);
 const showFilterModal = ref(false);
@@ -29,9 +30,26 @@ watch(searchInput, (val) => {
         router.get(route('clients.index'), {
             search: val || undefined,
             stage_id: props.filters?.stage_id || undefined,
+            active: activeParam(),
         }, { preserveState: true, replace: true });
     }, 300);
 });
+
+const currentActiveFilter = ref(props.filters?.active);
+
+watch(currentActiveFilter, (val) => {
+    router.get(route('clients.index'), {
+        active: val === true ? '1' : val === false ? '0' : '',
+        search: searchInput.value || undefined,
+        stage_id: props.filters?.stage_id || undefined,
+    }, { preserveState: true, replace: true });
+});
+
+const activeFilterOptions = [
+    { value: null, label: 'الكل' },
+    { value: true, label: 'النشطين' },
+    { value: false, label: 'غير النشطين' },
+];
 
 const filterForm = useForm({
     stage_id: props.filters?.stage_id ?? '',
@@ -48,12 +66,18 @@ const createForm = useForm({
     current_pipeline_stage_id: props.stages?.[0]?.id ?? null,
 });
 
+function activeParam() {
+    const v = currentActiveFilter.value;
+    return v === true ? '1' : v === false ? '0' : '';
+}
+
 function setStageFilter(event) {
     const raw = event.target.value;
     const stageId = raw === '' ? undefined : Number(raw);
     router.get(route('clients.index'), {
         search: searchInput.value || undefined,
         stage_id: stageId,
+        active: activeParam(),
     }, { preserveState: true, replace: true });
 }
 
@@ -62,6 +86,7 @@ function applyFilterModal() {
     router.get(route('clients.index'), {
         search: searchInput.value || undefined,
         stage_id: stageId,
+        active: activeParam(),
     }, { preserveState: true, replace: true });
     showFilterModal.value = false;
 }
@@ -85,6 +110,10 @@ function deleteClient(clientId) {
         return;
     }
     router.delete(route('clients.destroy', clientId), { preserveScroll: true });
+}
+
+function toggleActive(client) {
+    router.post(route('clients.toggle-active', client.id), {}, { preserveScroll: true });
 }
 </script>
 
@@ -110,7 +139,7 @@ function deleteClient(clientId) {
                         v-if="searchInput"
                         type="button"
                         class="absolute end-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-gray-400 hover:text-gray-600"
-                        @click="searchInput = ''; router.get(route('clients.index'), { search: undefined, stage_id: props.filters?.stage_id || undefined }, { preserveState: true, replace: true })"
+                        @click="searchInput = ''; router.get(route('clients.index'), { search: undefined, stage_id: props.filters?.stage_id || undefined, active: activeParam() }, { preserveState: true, replace: true })"
                     >
                         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -140,14 +169,34 @@ function deleteClient(clientId) {
                 </div>
             </div>
 
+            <div class="flex items-center gap-1.5 rounded-xl bg-gray-50/80 p-1 ring-1 ring-gray-200">
+                <button
+                    v-for="opt in activeFilterOptions"
+                    :key="String(opt.value)"
+                    type="button"
+                    class="flex-1 rounded-lg px-3 py-1.5 text-center text-xs font-semibold transition"
+                    :class="currentActiveFilter === opt.value ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700'"
+                    @click="currentActiveFilter = opt.value"
+                >
+                    {{ opt.label }}
+                </button>
+            </div>
+
             <!-- موبايل: بطاقات بدون تمرير أفقي -->
             <div class="space-y-3 md:hidden">
                 <Link
                     v-for="c in clients"
                     :key="`client-card-${c.id}`"
                     :href="route('clients.show', c.id)"
-                    class="group block overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ring-1 ring-gray-100/80 transition-all duration-200 active:scale-[0.99] hover:border-brand-100 hover:shadow-md hover:ring-brand-100/50"
+                    class="group relative block overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ring-1 ring-gray-100/80 transition-all duration-200 active:scale-[0.99] hover:border-brand-100 hover:shadow-md hover:ring-brand-100/50"
                 >
+                    <div class="absolute end-2 top-2 z-10">
+                        <span
+                            class="inline-flex h-2.5 w-2.5 rounded-full"
+                            :class="c.is_active ? 'bg-emerald-500' : 'bg-red-400'"
+                            :title="c.is_active ? 'نشط' : 'غير نشط'"
+                        />
+                    </div>
                     <div class="flex gap-3 p-4">
                         <div class="relative shrink-0">
                             <img
@@ -205,6 +254,16 @@ function deleteClient(clientId) {
                             </p>
                         </div>
                     </div>
+                    <div v-if="can_toggle_client_active" class="border-t border-gray-50 px-3 py-2">
+                        <button
+                            type="button"
+                            class="w-full rounded-lg py-1.5 text-xs font-semibold transition"
+                            :class="c.is_active ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'"
+                            @click.prevent="toggleActive(c)"
+                        >
+                            {{ c.is_active ? 'تعطيل العميل' : 'تفعيل العميل' }}
+                        </button>
+                    </div>
                 </Link>
                 <p v-if="!clients.length" class="rounded-2xl border border-dashed border-gray-200 bg-white/80 px-4 py-10 text-center text-sm text-gray-500">
                     لا يوجد عملاء بعد.
@@ -216,6 +275,9 @@ function deleteClient(clientId) {
                 <table class="min-w-full divide-y divide-gray-200 text-sm">
                     <thead class="bg-white/90">
                         <tr>
+                            <th class="px-4 py-2 text-start font-medium text-gray-900">
+                                <span class="sr-only">الحالة</span>
+                            </th>
                             <th class="px-4 py-2 text-start font-medium text-gray-900">
                                 العميل
                             </th>
@@ -234,13 +296,20 @@ function deleteClient(clientId) {
                             <th class="px-4 py-2 text-start font-medium text-gray-900">
                                 آخر تحديث
                             </th>
-                            <th v-if="canDeleteRecords" class="px-4 py-2 text-start font-medium text-gray-900">
+                            <th v-if="canDeleteRecords || can_toggle_client_active" class="px-4 py-2 text-start font-medium text-gray-900">
                                 إجراءات
                             </th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         <tr v-for="c in clients" :key="c.id">
+                            <td class="px-4 py-2">
+                                <span
+                                    class="inline-flex h-2.5 w-2.5 rounded-full"
+                                    :class="c.is_active ? 'bg-emerald-500' : 'bg-red-400'"
+                                    :title="c.is_active ? 'نشط' : 'غير نشط'"
+                                />
+                            </td>
                             <td class="px-4 py-2">
                                 <Link
                                     :href="route('clients.show', c.id)"
@@ -276,8 +345,18 @@ function deleteClient(clientId) {
                                     )
                                 }}
                             </td>
-                            <td v-if="canDeleteRecords" class="whitespace-nowrap px-4 py-2">
+                            <td v-if="canDeleteRecords || can_toggle_client_active" class="whitespace-nowrap px-4 py-2">
                                 <button
+                                    v-if="can_toggle_client_active"
+                                    type="button"
+                                    class="ml-2 rounded px-2 py-1 text-xs font-semibold transition"
+                                    :class="c.is_active ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'"
+                                    @click="toggleActive(c)"
+                                >
+                                    {{ c.is_active ? 'تعطيل' : 'تفعيل' }}
+                                </button>
+                                <button
+                                    v-if="canDeleteRecords"
                                     type="button"
                                     class="text-sm text-red-700 hover:underline"
                                     @click="deleteClient(c.id)"
@@ -287,7 +366,7 @@ function deleteClient(clientId) {
                             </td>
                         </tr>
                         <tr v-if="!clients.length">
-                            <td :colspan="canDeleteRecords ? 7 : 6" class="px-4 py-8 text-center text-gray-500">
+                            <td :colspan="canDeleteRecords || can_toggle_client_active ? 9 : 8" class="px-4 py-8 text-center text-gray-500">
                                 لا يوجد عملاء بعد.
                             </td>
                         </tr>

@@ -195,6 +195,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/client-attachments/{clientAttachment}', [ClientController::class, 'deleteAttachment'])->name('clients.attachments.destroy');
     Route::delete('/clients/{client}', [ClientController::class, 'destroy'])->name('clients.destroy');
     Route::patch('/clients/{client}/stage', [ClientController::class, 'updateStage'])->name('clients.stage');
+    Route::post('/clients/{client}/toggle-active', [ClientController::class, 'toggleActive'])->name('clients.toggle-active');
     Route::get('/academy', [AcademyController::class, 'index'])->name('academy.index');
     Route::get('/academy/sales-training', [AcademyController::class, 'salesTraining'])->name('academy.sales-training');
     Route::middleware('can:view-warehouse')->group(function () {

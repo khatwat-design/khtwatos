@@ -48,6 +48,14 @@ class ClientController extends Controller
         $stages = $this->ensurePipelineStages();
         $stageId = $request->filled('stage_id') ? (int) $request->query('stage_id') : null;
         $search = $request->query('search');
+        $raw = $request->query('active');
+        if ($raw === null) {
+            $active = true;
+        } elseif ($raw === '') {
+            $active = null;
+        } else {
+            $active = filter_var($raw, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        }
 
         $clients = Client::query()
             ->with(['currentStage', 'accountManager:id,name', 'campaignManager:id,name'])
@@ -61,6 +69,7 @@ class ClientController extends Controller
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%");
             }))
+            ->when($active !== null, fn ($q) => $q->where('is_active', $active))
             ->orderBy('name')
             ->get();
 
@@ -71,6 +80,7 @@ class ClientController extends Controller
                 'company' => $c->company,
                 'email' => $c->email,
                 'logo_url' => $c->logo_path ? Storage::disk('public')->url($c->logo_path) : null,
+                'is_active' => $c->is_active,
                 'current_stage' => $c->currentStage ? [
                     'key' => $c->currentStage->key,
                     'label' => $c->currentStage->label,
@@ -86,8 +96,23 @@ class ClientController extends Controller
             'filters' => [
                 'stage_id' => $stageId,
                 'search' => $search,
+                'active' => $active,
             ],
+            'can_toggle_client_active' => $request->user()?->isAdmin(),
         ]);
+    }
+
+    public function toggleActive(Request $request, Client $client): RedirectResponse
+    {
+        if (! $request->user()?->isAdmin()) {
+            abort(403);
+        }
+
+        $client->update([
+            'is_active' => ! $client->is_active,
+        ]);
+
+        return redirect()->back();
     }
 
     public function create(): Response

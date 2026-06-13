@@ -26,9 +26,11 @@ class Client extends Model
         'subscription_started_at',
         'subscription_ends_at',
         'subscription_activated_by',
+        'is_active',
     ];
 
     protected $casts = [
+        'is_active' => 'boolean',
         'subscription_started_at' => 'datetime',
         'subscription_ends_at' => 'datetime',
         'meta_oauth_connecting_at' => 'datetime',
