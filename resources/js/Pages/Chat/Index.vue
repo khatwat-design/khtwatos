@@ -2180,7 +2180,6 @@ watch(
             if (props.viewKind === 'team') {
                 pullTypingUsers();
             }
-            nextTick(() => scrollToBottom());
         } else {
             messagesState.value = [];
             pendingMessages.value = [];
