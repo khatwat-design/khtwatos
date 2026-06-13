@@ -7,7 +7,7 @@ import TextInput from '@/Components/TextInput.vue';
 import MobileSheet from '@/Components/MobileSheet.vue';
 import { mobileSheetForm } from '@/utils/mobileSheetClasses.js';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 const props = defineProps({
     clients: Array,
@@ -19,6 +19,19 @@ const props = defineProps({
 const canDeleteRecords = Boolean(usePage().props.auth?.can?.deleteRecords);
 const showFilterModal = ref(false);
 const showCreateModal = ref(false);
+
+const searchInput = ref(props.filters?.search ?? '');
+let searchTimer = null;
+
+watch(searchInput, (val) => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+        router.get(route('clients.index'), {
+            search: val || undefined,
+            stage_id: props.filters?.stage_id || undefined,
+        }, { preserveState: true, replace: true });
+    }, 300);
+});
 
 const filterForm = useForm({
     stage_id: props.filters?.stage_id ?? '',
@@ -38,12 +51,18 @@ const createForm = useForm({
 function setStageFilter(event) {
     const raw = event.target.value;
     const stageId = raw === '' ? undefined : Number(raw);
-    router.get(route('clients.index'), { stage_id: stageId }, { preserveState: true, replace: true });
+    router.get(route('clients.index'), {
+        search: searchInput.value || undefined,
+        stage_id: stageId,
+    }, { preserveState: true, replace: true });
 }
 
 function applyFilterModal() {
     const stageId = filterForm.stage_id === '' ? undefined : Number(filterForm.stage_id);
-    router.get(route('clients.index'), { stage_id: stageId }, { preserveState: true, replace: true });
+    router.get(route('clients.index'), {
+        search: searchInput.value || undefined,
+        stage_id: stageId,
+    }, { preserveState: true, replace: true });
     showFilterModal.value = false;
 }
 
@@ -76,7 +95,28 @@ function deleteClient(clientId) {
         <template #title>العملاء</template>
 
         <div class="mx-auto w-full min-w-0 max-w-6xl space-y-4 px-3 pb-8 sm:px-4">
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="relative w-full sm:w-72">
+                    <svg class="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                    </svg>
+                    <input
+                        v-model="searchInput"
+                        type="text"
+                        placeholder="بحث بالاسم، الشركة، البريد أو الهاتف…"
+                        class="h-11 w-full rounded-xl border border-gray-300 bg-white pe-4 ps-10 text-sm text-gray-900 shadow-sm placeholder:text-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                    />
+                    <button
+                        v-if="searchInput"
+                        type="button"
+                        class="absolute end-2 top-1/2 -translate-y-1/2 rounded-lg p-1 text-gray-400 hover:text-gray-600"
+                        @click="searchInput = ''; router.get(route('clients.index'), { search: undefined, stage_id: props.filters?.stage_id || undefined }, { preserveState: true, replace: true })"
+                    >
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
                 <div class="flex w-full items-stretch justify-between gap-2 sm:w-auto sm:items-center">
                     <button
                         type="button"

@@ -2255,7 +2255,11 @@ onBeforeUnmount(() => {
 watch(
     () => [messagesState.value.length, pendingMessages.value.length],
     () => {
-        nextTick(() => scrollToBottom());
+        nextTick(() => {
+            if (shouldAutoScroll()) {
+                scrollToBottom();
+            }
+        });
     },
 );
 </script>

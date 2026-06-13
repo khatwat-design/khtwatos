@@ -70,6 +70,7 @@ class HandleInertiaRequests extends Middleware
                     'deleteRecords' => $user ? $user->isAdmin() : false,
                     'viewAdminHome' => $user ? Gate::forUser($user)->allows('view-admin-home') : false,
                     'viewWarehouse' => $user ? Gate::forUser($user)->allows('view-warehouse') : false,
+                    'viewOperations' => $user ? Gate::forUser($user)->allows('view-operations') : false,
                     'manageCampaignUpdates' => $user ? Gate::forUser($user)->allows('manage-campaign-updates') : false,
                     'viewClientPortalLink' => $user ? Gate::forUser($user)->allows('view-client-portal-link') : false,
                     'manageSystemSettings' => $user ? Gate::forUser($user)->allows('manage-system-settings') : false,

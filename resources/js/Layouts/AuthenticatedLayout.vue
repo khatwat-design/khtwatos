@@ -109,6 +109,9 @@ const navBase = computed(() => [
         : []),
     { label: 'الاجتماعات', routeName: 'meetings.index', match: 'meetings.*' },
     { label: 'العملاء', routeName: 'clients.index', match: 'clients.*' },
+    ...(page.props.auth?.can?.viewOperations
+        ? [{ label: 'التقارير اليومية', routeName: 'operations.index', match: 'operations.*' }]
+        : []),
     ...(page.props.auth?.can?.viewWarehouse
         ? [{ label: 'المخزن', routeName: 'warehouse.index', match: 'warehouse.*' }]
         : []),
@@ -191,6 +194,7 @@ function navIcon(item) {
     if (item.routeName === 'sales.analytics') return 'analytics';
     if (item.routeName === 'meetings.index') return 'calendar';
     if (item.routeName === 'clients.index') return 'users';
+    if (item.routeName === 'operations.index') return 'operations';
     if (item.routeName === 'warehouse.index') return 'warehouse';
     if (item.routeName === 'academy.index') return 'academy';
     if (item.routeName === 'employees.index') return 'employees';
@@ -739,6 +743,11 @@ async function openNotification(note) {
                                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                                 <circle cx="8.5" cy="7" r="3.5" />
                                 <path d="M20 8v6M23 11h-6" />
+                            </svg>
+                            <svg v-else-if="navIcon(item) === 'operations'" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                                <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+                                <rect x="9" y="3" width="6" height="4" rx="1" />
+                                <path d="M9 14l2 2 4-4" />
                             </svg>
                             <svg v-else-if="navIcon(item) === 'warehouse'" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                 <path d="M3 10l9-6 9 6v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V10z" />

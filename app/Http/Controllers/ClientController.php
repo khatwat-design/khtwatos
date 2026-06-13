@@ -47,6 +47,7 @@ class ClientController extends Controller
     {
         $stages = $this->ensurePipelineStages();
         $stageId = $request->filled('stage_id') ? (int) $request->query('stage_id') : null;
+        $search = $request->query('search');
 
         $clients = Client::query()
             ->with(['currentStage', 'accountManager:id,name', 'campaignManager:id,name'])
@@ -54,6 +55,12 @@ class ClientController extends Controller
                 'tasks as open_tasks_count' => fn ($q) => $q->whereHas('column', fn ($c) => $c->where('name', '!=', 'تم')),
             ])
             ->when($stageId, fn ($q) => $q->where('current_pipeline_stage_id', $stageId))
+            ->when($search, fn ($q) => $q->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('company', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%");
+            }))
             ->orderBy('name')
             ->get();
 
@@ -78,6 +85,7 @@ class ClientController extends Controller
             'campaignManagers' => $this->campaignManagers(),
             'filters' => [
                 'stage_id' => $stageId,
+                'search' => $search,
             ],
         ]);
     }

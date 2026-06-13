@@ -255,6 +255,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/tickets/{ticket}', [SupportTicketController::class, 'update'])->name('tickets.update');
     Route::delete('/tickets/{ticket}', [SupportTicketController::class, 'destroy'])->name('tickets.destroy');
     Route::post('/tickets/{ticket}/messages', [SupportTicketController::class, 'addMessage'])->name('tickets.messages.store');
+
+    // العمليات اليومية
+    Route::middleware('can:view-operations')->group(function () {
+        Route::get('/operations', [\App\Http\Controllers\DailyOperationController::class, 'index'])->name('operations.index');
+        Route::post('/operations', [\App\Http\Controllers\DailyOperationController::class, 'store'])->name('operations.store');
+    });
 });
 
 Route::middleware('auth')->group(function () {
