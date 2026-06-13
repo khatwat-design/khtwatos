@@ -159,15 +159,15 @@ class DailyOperationController extends Controller
     private function resolveClients($user, string $role)
     {
         if ($role === 'admin') {
-            return Client::query()->orderBy('name')->get();
+            return Client::query()->where('is_active', true)->orderBy('name')->get();
         }
 
         if ($role === 'media_buyer') {
-            return $user->campaignManagedClients()->orderBy('name')->get();
+            return $user->campaignManagedClients()->where('is_active', true)->orderBy('name')->get();
         }
 
         if ($role === 'account_manager') {
-            return $user->managedClients()->orderBy('name')->get();
+            return $user->managedClients()->where('is_active', true)->orderBy('name')->get();
         }
 
         return collect();
@@ -193,7 +193,7 @@ class DailyOperationController extends Controller
     private function buildAnalytics($user, string $role, string $date): array
     {
         if (! in_array($role, ['media_buyer', 'account_manager'])) {
-            $clients = Client::query()->orderBy('name')->get();
+            $clients = Client::query()->where('is_active', true)->orderBy('name')->get();
             $operations = DailyOperation::query()
                 ->whereDate('report_date', $date)
                 ->where('is_submitted', true)
