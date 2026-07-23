@@ -39,7 +39,8 @@ class TaskController extends Controller
         $this->archiveCompletedTasks();
         $hasArchiveColumn = Schema::hasColumn('tasks', 'archived_at');
 
-        $teams = $this->ensureTeams();
+        $allTeams = $this->ensureTeams();
+        $teams = $this->visibleTaskTeams($request->user(), $allTeams);
         $requestedSlug = $request->query('team');
         $openTaskId = $request->filled('task') ? (int) $request->query('task') : null;
         $focusColumnId = $request->filled('column') ? (int) $request->query('column') : null;
@@ -298,6 +299,34 @@ class TaskController extends Controller
             ->whereIn('slug', collect($defaults)->pluck('slug'))
             ->orderBy('sort_order')
             ->get(['id', 'name', 'slug']);
+    }
+
+    /**
+     * تقييد الفرق المسموح عرض مهامها حسب دور المستخدم وفريقه.
+     *
+     * - المدير / HR / مدراء الحسابات / المحاسبة: يشوفون كل الفرق.
+     * - باقي الفرق: يشوفون مهام فريقهم فقط.
+     */
+    private function visibleTaskTeams(?User $user, Collection $allTeams): Collection
+    {
+        if (! $user) {
+            return $allTeams;
+        }
+
+        if ($user->isAdmin() || $user->isHrManager()) {
+            return $allTeams;
+        }
+
+        $userTeamSlugs = $user->teams->pluck('slug')->all();
+        $privilegedSlugs = ['account', 'accounting'];
+
+        if (array_intersect($privilegedSlugs, $userTeamSlugs) !== []) {
+            return $allTeams;
+        }
+
+        $allowedIds = $user->teams->pluck('id')->all();
+
+        return $allTeams->filter(fn (Team $team) => in_array($team->id, $allowedIds, true))->values();
     }
 
     /**

@@ -101,21 +101,12 @@ const showTeamNotebookDock = computed(() => {
 const navBase = computed(() => [
     { label: 'الرئيسية', routeName: 'home.index', match: 'home.*' },
     { label: 'المهام', routeName: 'tasks.index', match: 'tasks.*' },
-    { label: 'الدردشة', routeName: 'chat.index', match: 'chat.*' },
-    { label: 'الخارج', routeName: 'outside.index', match: 'outside.*' },
     { label: 'البضاعة', routeName: 'goods.index', match: 'goods.*' },
     ...(page.props.auth?.can?.viewSalesAnalytics
         ? [{ label: 'تحليلات المبيعات', routeName: 'sales.analytics', match: 'sales.*' }]
         : []),
     { label: 'الاجتماعات', routeName: 'meetings.index', match: 'meetings.*' },
     { label: 'العملاء', routeName: 'clients.index', match: 'clients.*' },
-    ...(page.props.auth?.can?.viewOperations
-        ? [{ label: 'التقارير اليومية', routeName: 'operations.index', match: 'operations.*' }]
-        : []),
-    ...(page.props.auth?.can?.viewWarehouse
-        ? [{ label: 'المخزن', routeName: 'warehouse.index', match: 'warehouse.*' }]
-        : []),
-    { label: 'الأكاديمية', routeName: 'academy.index', match: 'academy.index' },
     { label: 'المشاكل والدعم', routeName: 'tickets.index', match: 'tickets.*' },
     ...(page.props.auth?.can?.manageEmployees
         ? [{ label: 'الموظفين', routeName: 'employees.index', match: 'employees.*' }]
@@ -143,16 +134,16 @@ const nav = computed(() => {
     return list.filter((item) => allow.has(item.routeName));
 });
 
-/** على الجوال: المشاكل والدعم في الشريط السفلي؛ التحليلات والإعدادات في القائمة العلوية */
+/** على الجوال: المشاكل والدعم في الشريط السفلي؛ الإعدادات والموظفين في القائمة العلوية */
 const mobileBottomNav = computed(() =>
     nav.value.filter(
-        (item) => !['academy.index', 'employees.index', 'settings.index', 'sales.analytics'].includes(item.routeName),
+        (item) => !['employees.index', 'settings.index', 'sales.analytics'].includes(item.routeName),
     ),
 );
 
 const mobileDropdownNav = computed(() =>
     nav.value.filter((item) =>
-        ['academy.index', 'employees.index', 'settings.index'].includes(item.routeName),
+        ['employees.index', 'settings.index'].includes(item.routeName),
     ),
 );
 

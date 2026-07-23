@@ -92,7 +92,7 @@ export default {
                 },
             },
             fontFamily: {
-                sans: ['Cairo', 'Figtree', ...defaultTheme.fontFamily.sans],
+                sans: ['Thmanyah', 'Cairo', 'Figtree', ...defaultTheme.fontFamily.sans],
             },
         },
     },
