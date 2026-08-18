@@ -1,0 +1,85 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Task extends Model
+{
+    protected $fillable = [
+        'task_board_id',
+        'board_column_id',
+        'title',
+        'description',
+        'assignee_id',
+        'client_id',
+        'position',
+        'due_at',
+        'archived_at',
+        'archived_by_id',
+        'archived_reason',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'position' => 'integer',
+            'due_at' => 'datetime',
+            'archived_at' => 'datetime',
+        ];
+    }
+
+    public function taskBoard(): BelongsTo
+    {
+        return $this->belongsTo(TaskBoard::class);
+    }
+
+    public function column(): BelongsTo
+    {
+        return $this->belongsTo(BoardColumn::class, 'board_column_id');
+    }
+
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assignee_id');
+    }
+
+    public function assignees(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'task_assignees')
+            ->withTimestamps();
+    }
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    public function statusHistories(): HasMany
+    {
+        return $this->hasMany(TaskStatusHistory::class)->orderByDesc('created_at');
+    }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(TaskMessage::class)->orderBy('created_at');
+    }
+
+    public function reassignments(): HasMany
+    {
+        return $this->hasMany(TaskReassignment::class)->orderByDesc('created_at');
+    }
+
+    public function checklistItems(): HasMany
+    {
+        return $this->hasMany(TaskChecklistItem::class)->orderBy('created_at');
+    }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(TaskAttachment::class)->orderByDesc('created_at');
+    }
+}

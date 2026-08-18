@@ -1,0 +1,27 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class GoodsMetaLeadStatusHistory extends Model
+{
+    protected $fillable = [
+        'goods_meta_lead_id',
+        'from_status',
+        'to_status',
+        'note',
+        'user_id',
+    ];
+
+    public function lead(): BelongsTo
+    {
+        return $this->belongsTo(GoodsMetaLead::class, 'goods_meta_lead_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+}

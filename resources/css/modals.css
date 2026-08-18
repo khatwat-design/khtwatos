@@ -1,0 +1,6 @@
+/**
+ * مرجع تنسيق النوافذ المنبثقة — التعريفات الفعلية في app.css داخل @layer components.
+ * الأصناف: app-modal-backdrop, app-modal-panel, app-modal-header, app-modal-body, app-modal-footer
+ * الأحجام: app-modal-panel--sm | md | lg | xl | 2xl | task
+ * الأسماء القديمة mobile-sheet-* ما زالت تعمل (أسماء مستعارة).
+ */

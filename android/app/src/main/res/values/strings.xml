@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">خارج المخزون</string>
+    <string name="title_activity_main">خارج المخزون</string>
+    <string name="package_name">design.khatwat.erp</string>
+    <string name="custom_url_scheme">design.khatwat.erp</string>
+</resources>

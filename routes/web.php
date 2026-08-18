@@ -1,0 +1,285 @@
+<?php
+
+use App\Http\Controllers\AcademyController;
+use App\Http\Controllers\ChatAttachmentController;
+use App\Http\Controllers\ChatForwardController;
+use App\Http\Controllers\ChatMentionController;
+use App\Http\Controllers\ChatNotificationsController;
+use App\Http\Controllers\ClientController;
+use App\Http\Controllers\ClientPortalController;
+use App\Http\Controllers\DatabaseBackupController;
+use App\Http\Controllers\DevicePushTokenController;
+use App\Http\Controllers\DirectChatController;
+use App\Http\Controllers\EmployeeAttendanceController;
+use App\Http\Controllers\EmployeeCallController;
+use App\Http\Controllers\EmployeeCallDiagnosticController;
+use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\GoodsCustomerController;
+use App\Http\Controllers\GoodsMetaLeadController;
+use App\Http\Controllers\GoodsMetaLeadWebhookController;
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\MeetingController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\OutsideController;
+use App\Http\Controllers\OutsideWebhookController;
+use App\Http\Controllers\PrivateChatRoomController;
+use App\Http\Controllers\ProductTourController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicBookingController;
+use App\Http\Controllers\PushSubscriptionController;
+use App\Http\Controllers\LeadAssignmentController;
+use App\Http\Controllers\SalesAnalyticsController;
+use App\Http\Controllers\StaffPersonalTodoController;
+use App\Http\Controllers\SupportTicketController;
+use App\Http\Controllers\SystemSettingsController;
+use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TeamChatController;
+use App\Http\Controllers\TeamChatMembersController;
+use App\Http\Controllers\TeamNotebookController;
+use App\Http\Controllers\WarehouseController;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/', function () {
+    if (! auth()->check()) {
+        return redirect()->route('login');
+    }
+
+    return redirect()->route('home.index');
+});
+
+Route::get('/book', [PublicBookingController::class, 'index'])->name('book.index');
+Route::post('/book', [PublicBookingController::class, 'store'])->name('book.store');
+Route::get('/portal/login', [ClientPortalController::class, 'login'])->name('portal.login');
+Route::post('/portal/login', [ClientPortalController::class, 'authenticate'])->name('portal.login.attempt');
+Route::post('/portal/logout', [ClientPortalController::class, 'logout'])->name('portal.logout');
+Route::get('/portal', [ClientPortalController::class, 'dashboard'])->name('portal.dashboard');
+Route::post('/portal/meetings', [ClientPortalController::class, 'storeMeeting'])->name('portal.meetings.store');
+Route::post('/portal/daily-sales', [ClientPortalController::class, 'storeDailySales'])->name('portal.sales.store');
+Route::get('/portal/products', [ClientPortalController::class, 'products'])->name('portal.products.index');
+Route::post('/portal/products', [ClientPortalController::class, 'storeProduct'])->name('portal.products.store');
+Route::patch('/portal/products/{clientProduct}', [ClientPortalController::class, 'updateProduct'])->name('portal.products.update');
+Route::delete('/portal/products/{clientProduct}', [ClientPortalController::class, 'destroyProduct'])->name('portal.products.destroy');
+Route::get('/portal/profile', [ClientPortalController::class, 'profile'])->name('portal.profile');
+Route::patch('/portal/profile', [ClientPortalController::class, 'updateProfile'])->name('portal.profile.update');
+Route::get('/portal/meta/oauth/redirect', [ClientPortalController::class, 'redirectMetaOAuth'])->name('portal.meta.oauth.redirect');
+Route::get('/portal/meta/oauth/callback', [ClientPortalController::class, 'handleMetaOAuthCallback'])->name('portal.meta.oauth.callback');
+Route::post('/portal/notes', [ClientPortalController::class, 'storeNote'])->name('portal.notes.store');
+Route::get('/outside/webhook', [OutsideWebhookController::class, 'verify'])
+    ->name('outside.webhook.verify')
+    ->withoutMiddleware([ValidateCsrfToken::class]);
+
+Route::post('/outside/webhook', [OutsideWebhookController::class, 'receive'])
+    ->name('outside.webhook.receive')
+    ->withoutMiddleware([ValidateCsrfToken::class]);
+
+Route::post('/goods/meta-leads/sync', [GoodsMetaLeadWebhookController::class, 'receive'])
+    ->name('goods.meta-leads.sync')
+    ->withoutMiddleware([ValidateCsrfToken::class]);
+
+Route::get('/dashboard', function () {
+    return redirect()->route('home.index');
+})->middleware(['auth', 'verified'])->name('dashboard');
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/home', [HomeController::class, 'index'])->name('home.index');
+
+    Route::post('/staff-personal-todos', [StaffPersonalTodoController::class, 'store'])->name('staff-personal-todos.store');
+    Route::patch('/staff-personal-todos/{staffPersonalTodo}', [StaffPersonalTodoController::class, 'update'])->name('staff-personal-todos.update');
+    Route::delete('/staff-personal-todos/{staffPersonalTodo}', [StaffPersonalTodoController::class, 'destroy'])->name('staff-personal-todos.destroy');
+
+    Route::get('/tasks', [TaskController::class, 'index'])->name('tasks.index');
+    Route::get('/tasks/{task}/details', [TaskController::class, 'details'])->name('tasks.details');
+    Route::post('/tasks', [TaskController::class, 'store'])->name('tasks.store');
+    Route::patch('/tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
+    Route::delete('/tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
+    Route::post('/tasks/{task}/messages', [TaskController::class, 'addMessage'])->name('tasks.messages.store');
+    Route::post('/tasks/{task}/attachments', [TaskController::class, 'addAttachment'])->name('tasks.attachments.store');
+    Route::delete('/task-attachments/{taskAttachment}', [TaskController::class, 'deleteAttachment'])->name('tasks.attachments.destroy');
+    Route::post('/tasks/{task}/reassignments', [TaskController::class, 'addReassignment'])->name('tasks.reassignments.store');
+    Route::post('/tasks/{task}/checklist-items', [TaskController::class, 'addChecklistItem'])->name('tasks.checklist-items.store');
+    Route::patch('/task-checklist-items/{taskChecklistItem}', [TaskController::class, 'toggleChecklistItem'])->name('tasks.checklist-items.toggle');
+    Route::patch('/task-boards/{taskBoard}/sync', [TaskController::class, 'sync'])->name('task-boards.sync');
+    Route::patch('/teams/{team}/notebook/personal', [TeamNotebookController::class, 'updatePersonal'])
+        ->name('teams.notebook.personal.update');
+    Route::patch('/teams/{team}/notebook/shared', [TeamNotebookController::class, 'updateShared'])
+        ->name('teams.notebook.shared.update');
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::post('/push-subscriptions', [PushSubscriptionController::class, 'store'])->name('push-subscriptions.store');
+    Route::delete('/push-subscriptions', [PushSubscriptionController::class, 'destroy'])->name('push-subscriptions.destroy');
+    Route::post('/device-push-tokens', [DevicePushTokenController::class, 'store'])->name('device-push-tokens.store');
+    Route::delete('/device-push-tokens', [DevicePushTokenController::class, 'destroy'])->name('device-push-tokens.destroy');
+    Route::get('/chat', [TeamChatController::class, 'index'])->name('chat.index');
+    Route::get('/chat/attachments/{path}', [ChatAttachmentController::class, 'show'])
+        ->where('path', '.*')
+        ->name('chat.attachments.show');
+    Route::post('/chat', [TeamChatController::class, 'store'])->name('chat.store');
+    Route::get('/chat/teams/{team}/members', [TeamChatMembersController::class, 'show'])->name('chat.teams.members.show');
+    Route::put('/chat/teams/{team}/members', [TeamChatMembersController::class, 'update'])->name('chat.teams.members.update');
+    Route::get('/chat/messages', [TeamChatController::class, 'messages'])->name('chat.messages.index');
+    Route::get('/chat/read-receipts', [TeamChatController::class, 'readReceipts'])->name('chat.read-receipts');
+    Route::post('/chat/forward', [ChatForwardController::class, 'store'])->name('chat.forward');
+    Route::post('/chat/tasks-from-message', [\App\Http\Controllers\ChatTaskFromMessageController::class, 'store'])->name('chat.tasks-from-message.store');
+    Route::patch('/chat/messages/{teamChatMessage}', [TeamChatController::class, 'update'])->name('chat.messages.update');
+    Route::delete('/chat/messages/{teamChatMessage}', [TeamChatController::class, 'destroy'])->name('chat.messages.destroy');
+    Route::post('/chat/typing', [TeamChatController::class, 'typingUpdate'])->name('chat.typing.update');
+    Route::get('/chat/typing', [TeamChatController::class, 'typingUsers'])->name('chat.typing.index');
+    Route::post('/chat/private-rooms', [PrivateChatRoomController::class, 'store'])->name('chat.private-rooms.store');
+    Route::delete('/chat/private-rooms/{privateChatRoom}', [PrivateChatRoomController::class, 'destroy'])->name('chat.private-rooms.destroy');
+    Route::post('/chat/private-rooms/{privateChatRoom}/leave', [PrivateChatRoomController::class, 'leave'])->name('chat.private-rooms.leave');
+    Route::post('/chat/private-rooms/{privateChatRoom}/messages', [PrivateChatRoomController::class, 'storeMessage'])->name('chat.private-rooms.messages.store');
+    Route::get('/chat/private-rooms/{privateChatRoom}/messages', [PrivateChatRoomController::class, 'messages'])->name('chat.private-rooms.messages.index');
+    Route::get('/chat/calls/diagnostics/status', [EmployeeCallDiagnosticController::class, 'status'])->name('chat.calls.diagnostics.status');
+    Route::post('/chat/calls/diagnostics/client', [EmployeeCallDiagnosticController::class, 'storeClientReport'])->name('chat.calls.diagnostics.client');
+    Route::post('/chat/calls/release-stale', [EmployeeCallController::class, 'releaseStale'])->name('chat.calls.release-stale');
+    Route::get('/chat/calls/pending', [EmployeeCallController::class, 'pending'])->name('chat.calls.pending');
+    Route::post('/chat/calls', [EmployeeCallController::class, 'store'])->name('chat.calls.store');
+    Route::post('/chat/calls/{employeeCall}/accept', [EmployeeCallController::class, 'accept'])->name('chat.calls.accept');
+    Route::post('/chat/calls/{employeeCall}/reject', [EmployeeCallController::class, 'reject'])->name('chat.calls.reject');
+    Route::post('/chat/calls/{employeeCall}/end', [EmployeeCallController::class, 'end'])->name('chat.calls.end');
+    Route::post('/chat/calls/{employeeCall}/signal', [EmployeeCallController::class, 'signal'])->name('chat.calls.signal');
+    Route::patch('/chat/calls/{employeeCall}/mode', [EmployeeCallController::class, 'updateMode'])->name('chat.calls.mode');
+    Route::post('/chat/direct/open', [DirectChatController::class, 'open'])->name('chat.direct.open');
+    Route::post('/chat/direct/{directConversation}/messages', [DirectChatController::class, 'storeMessage'])->name('chat.direct.messages.store');
+    Route::get('/chat/direct/{directConversation}/messages', [DirectChatController::class, 'messages'])->name('chat.direct.messages.index');
+    Route::get('/chat/unread-summary', [TeamChatController::class, 'unreadSummary'])->name('chat.unread-summary');
+    Route::post('/chat/mentions/acknowledge', [ChatMentionController::class, 'acknowledge'])->name('chat.mentions.acknowledge');
+    Route::post('/product-tours/{tour}/complete', [ProductTourController::class, 'complete'])->name('product-tours.complete');
+    Route::post('/product-tours/{tour}/skip', [ProductTourController::class, 'skip'])->name('product-tours.skip');
+    Route::post('/product-tours/reset', [ProductTourController::class, 'reset'])->name('product-tours.reset');
+    Route::post('/product-tours/{tour}/restart', [ProductTourController::class, 'restart'])->name('product-tours.restart');
+    Route::get('/chat/notifications-feed', [ChatNotificationsController::class, 'index'])->name('chat.notifications.index');
+    Route::post('/chat/notifications-feed/read-all', [ChatNotificationsController::class, 'markAllRead'])->name('chat.notifications.read-all');
+    Route::get('/outside', [OutsideController::class, 'index'])->name('outside.index');
+    Route::post('/outside/contacts', [OutsideController::class, 'storeContact'])->name('outside.contacts.store');
+    Route::delete('/outside/contacts/{outsideContact}', [OutsideController::class, 'destroyContact'])->name('outside.contacts.destroy');
+    Route::post('/outside/conversations/{outsideConversation}/read', [OutsideController::class, 'markConversationRead'])->name('outside.conversations.read');
+    Route::post('/outside/conversations/{outsideConversation}/intelligence/dismiss-routing', [OutsideController::class, 'dismissIntelligenceRouting'])->name('outside.conversations.intelligence.dismiss-routing');
+    Route::post('/outside/conversations/{outsideConversation}/messages', [OutsideController::class, 'storeMessage'])->name('outside.messages.store');
+    Route::patch('/outside/conversations/{outsideConversation}', [OutsideController::class, 'updateConversation'])->name('outside.conversations.update');
+    Route::post('/outside/messages/{outsideMessage}/retry', [OutsideController::class, 'retryMessage'])->name('outside.messages.retry');
+    Route::get('/goods', [GoodsCustomerController::class, 'index'])->name('goods.index');
+    Route::post('/goods/customers', [GoodsCustomerController::class, 'store'])->name('goods.customers.store');
+    Route::patch('/goods/customers/{goodsCustomer}/status', [GoodsCustomerController::class, 'updateStatus'])->name('goods.customers.status');
+    Route::post('/goods/customers/{goodsCustomer}/sales-reminder', [GoodsCustomerController::class, 'sendSalesReminder'])->name('goods.customers.sales-reminder');
+    Route::post('/goods/customers/{goodsCustomer}/weekly-survey', [GoodsCustomerController::class, 'sendWeeklySurvey'])->name('goods.customers.weekly-survey');
+    Route::patch('/goods/meta-leads/{goodsMetaLead}', [GoodsMetaLeadController::class, 'update'])->name('goods.meta-leads.update');
+    Route::post('/goods/meta-leads/{goodsMetaLead}/whatsapp', [GoodsMetaLeadController::class, 'whatsappContact'])->name('goods.meta-leads.whatsapp');
+
+    Route::get('/sales/analytics', [SalesAnalyticsController::class, 'index'])->name('sales.analytics');
+    Route::get('/sales/lead-assignment', [LeadAssignmentController::class, 'index'])->name('sales.lead-assignment');
+    Route::put('/sales/lead-assignment', [LeadAssignmentController::class, 'update'])->name('sales.lead-assignment.update');
+    Route::post('/sales/lead-assignment/redistribute', [LeadAssignmentController::class, 'redistribute'])->name('sales.lead-assignment.redistribute');
+    Route::get('/sales/lead-assignment/stats', [LeadAssignmentController::class, 'stats'])->name('sales.lead-assignment.stats');
+
+    Route::get('/meetings', [MeetingController::class, 'index'])->name('meetings.index');
+    Route::get('/meetings/create', [MeetingController::class, 'create'])->name('meetings.create');
+    Route::post('/meetings', [MeetingController::class, 'store'])->name('meetings.store');
+    Route::get('/meetings/{meeting}/edit', [MeetingController::class, 'edit'])->name('meetings.edit');
+    Route::patch('/meetings/{meeting}', [MeetingController::class, 'update'])->name('meetings.update');
+    Route::post('/meetings/{meeting}/complete', [MeetingController::class, 'complete'])->name('meetings.complete');
+    Route::post('/meetings/{meeting}/postpone', [MeetingController::class, 'postpone'])->name('meetings.postpone');
+    Route::post('/meetings/{meeting}/archive', [MeetingController::class, 'archive'])->name('meetings.archive');
+    Route::post('/meetings/{meeting}/restore', [MeetingController::class, 'restoreArchive'])->name('meetings.restore');
+    Route::delete('/meetings/{meeting}', [MeetingController::class, 'destroy'])->name('meetings.destroy');
+
+    Route::get('/clients', [ClientController::class, 'index'])->name('clients.index');
+    Route::get('/clients/create', [ClientController::class, 'create'])->name('clients.create');
+    Route::post('/clients', [ClientController::class, 'store'])->name('clients.store');
+    Route::get('/clients/{client}', [ClientController::class, 'show'])->name('clients.show');
+    Route::patch('/clients/{client}', [ClientController::class, 'update'])->name('clients.update');
+    Route::post('/clients/{client}/activate-subscription', [ClientController::class, 'activateSubscription'])->name('clients.subscription.activate');
+    Route::patch('/clients/{client}/subscription', [ClientController::class, 'updateSubscription'])->name('clients.subscription.update');
+    Route::patch('/clients/{client}/portal-credentials', [ClientController::class, 'updatePortalCredentials'])->name('clients.portal-credentials.update');
+    Route::post('/clients/{client}/products', [ClientController::class, 'storeProduct'])->name('clients.products.store');
+    Route::delete('/client-products/{clientProduct}', [ClientController::class, 'destroyProduct'])->name('clients.products.destroy');
+    Route::post('/clients/{client}/attachments', [ClientController::class, 'addAttachment'])->name('clients.attachments.store');
+    Route::post('/clients/{client}/reference-links', [ClientController::class, 'addReferenceLink'])->name('clients.reference-links.store');
+    Route::delete('/client-attachments/{clientAttachment}', [ClientController::class, 'deleteAttachment'])->name('clients.attachments.destroy');
+    Route::delete('/clients/{client}', [ClientController::class, 'destroy'])->name('clients.destroy');
+    Route::patch('/clients/{client}/stage', [ClientController::class, 'updateStage'])->name('clients.stage');
+    Route::post('/clients/{client}/toggle-active', [ClientController::class, 'toggleActive'])->name('clients.toggle-active');
+    Route::get('/academy', [AcademyController::class, 'index'])->name('academy.index');
+    Route::get('/academy/sales-training', [AcademyController::class, 'salesTraining'])->name('academy.sales-training');
+    Route::middleware('can:view-warehouse')->group(function () {
+        Route::get('/warehouse', [WarehouseController::class, 'index'])->name('warehouse.index');
+        Route::post('/warehouse/campaign-updates', [WarehouseController::class, 'upsertCampaignUpdate'])
+            ->middleware('can:manage-campaign-updates')
+            ->name('warehouse.campaign-updates.upsert');
+        Route::post('/warehouse/meta-integrations', [WarehouseController::class, 'upsertMetaIntegration'])
+            ->middleware('can:manage-campaign-updates')
+            ->name('warehouse.meta-integrations.upsert');
+        Route::post('/warehouse/meta-sync', [WarehouseController::class, 'syncMetaCampaigns'])
+            ->middleware('can:manage-campaign-updates')
+            ->name('warehouse.meta-sync');
+        Route::get('/warehouse/meta/oauth/redirect', [WarehouseController::class, 'redirectToMetaOAuth'])
+            ->middleware('can:manage-campaign-updates')
+            ->name('warehouse.meta.oauth.redirect');
+        Route::get('/warehouse/meta/oauth/callback', [WarehouseController::class, 'handleMetaOAuthCallback'])
+            ->middleware('can:manage-campaign-updates')
+            ->name('warehouse.meta.oauth.callback');
+        Route::post('/warehouse/meta/oauth/disconnect', [WarehouseController::class, 'disconnectMetaOAuth'])
+            ->middleware('can:manage-campaign-updates')
+            ->name('warehouse.meta.oauth.disconnect');
+    });
+
+    Route::middleware('can:manage-system-settings')->group(function () {
+        Route::get('/settings', [SystemSettingsController::class, 'edit'])->name('settings.index');
+        Route::patch('/settings', [SystemSettingsController::class, 'update'])->name('settings.update');
+        Route::patch('/settings/team-navigation', [SystemSettingsController::class, 'updateTeamNavigation'])
+            ->name('settings.team-navigation.update');
+
+        Route::post('/settings/backups', [DatabaseBackupController::class, 'store'])->name('settings.backups.store');
+        Route::delete('/settings/backups/{filename}', [DatabaseBackupController::class, 'destroy'])
+            ->where('filename', '[a-zA-Z0-9._-]+')
+            ->name('settings.backups.destroy');
+        Route::get('/settings/backups/{filename}/download', [DatabaseBackupController::class, 'download'])
+            ->where('filename', '[a-zA-Z0-9._-]+')
+            ->name('settings.backups.download');
+    });
+
+    Route::middleware('can:manage-employees')->group(function () {
+        Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
+        Route::post('/employees', [EmployeeController::class, 'store'])->name('employees.store');
+        Route::patch('/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
+        Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
+        Route::post('/employees/{employee}/login-whatsapp', [EmployeeController::class, 'sendLoginWhatsApp'])->name('employees.login-whatsapp');
+        Route::post('/attendance/{attendance}/approve-late', [EmployeeController::class, 'approveLate'])->name('attendance.approve-late');
+    });
+
+    // الحضور اليومي ونبضات النشاط
+    Route::get('/attendance/status', [EmployeeAttendanceController::class, 'status'])->name('attendance.status');
+    Route::post('/attendance/check', [EmployeeAttendanceController::class, 'check'])->name('attendance.check');
+    Route::post('/attendance/check-out', [EmployeeAttendanceController::class, 'checkOut'])->name('attendance.check-out');
+    Route::post('/attendance/heartbeat', [EmployeeAttendanceController::class, 'heartbeat'])->name('attendance.heartbeat');
+
+    // تذاكر الدعم والمشاكل
+    Route::get('/tickets', [SupportTicketController::class, 'index'])->name('tickets.index');
+    Route::post('/tickets', [SupportTicketController::class, 'store'])->name('tickets.store');
+    Route::get('/tickets/{ticket}', [SupportTicketController::class, 'show'])->name('tickets.show');
+    Route::patch('/tickets/{ticket}', [SupportTicketController::class, 'update'])->name('tickets.update');
+    Route::delete('/tickets/{ticket}', [SupportTicketController::class, 'destroy'])->name('tickets.destroy');
+    Route::post('/tickets/{ticket}/messages', [SupportTicketController::class, 'addMessage'])->name('tickets.messages.store');
+
+    // العمليات اليومية
+    Route::middleware('can:view-operations')->group(function () {
+        Route::get('/operations', [\App\Http\Controllers\DailyOperationController::class, 'index'])->name('operations.index');
+        Route::post('/operations', [\App\Http\Controllers\DailyOperationController::class, 'store'])->name('operations.store');
+    });
+});
+
+Route::middleware('auth')->group(function () {
+    Route::get('/profile/meta/oauth/redirect', [ProfileController::class, 'redirectMetaOAuth'])->name('profile.meta.oauth.redirect');
+    Route::get('/profile/meta/oauth/callback', [ProfileController::class, 'handleMetaOAuthCallback'])->name('profile.meta.oauth.callback');
+    Route::post('/profile/meta/oauth/disconnect', [ProfileController::class, 'disconnectMetaOAuth'])->name('profile.meta.oauth.disconnect');
+
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::patch('/profile/team-notebook', [ProfileController::class, 'updateTeamNotebookVisibility'])
+        ->name('profile.team-notebook.update');
+    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+});
+
+require __DIR__.'/auth.php';

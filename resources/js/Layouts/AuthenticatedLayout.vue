@@ -98,23 +98,33 @@ const showTeamNotebookDock = computed(() => {
     return true;
 });
 
-const navBase = computed(() => [
-    { label: 'الرئيسية', routeName: 'home.index', match: 'home.*' },
-    { label: 'المهام', routeName: 'tasks.index', match: 'tasks.*' },
-    { label: 'البضاعة', routeName: 'goods.index', match: 'goods.*' },
-    ...(page.props.auth?.can?.viewSalesAnalytics
-        ? [{ label: 'تحليلات المبيعات', routeName: 'sales.analytics', match: 'sales.*' }]
-        : []),
-    { label: 'الاجتماعات', routeName: 'meetings.index', match: 'meetings.*' },
-    { label: 'العملاء', routeName: 'clients.index', match: 'clients.*' },
-    { label: 'المشاكل والدعم', routeName: 'tickets.index', match: 'tickets.*' },
-    ...(page.props.auth?.can?.manageEmployees
-        ? [{ label: 'الموظفين', routeName: 'employees.index', match: 'employees.*' }]
-        : []),
-    ...(page.props.auth?.can?.manageSystemSettings
-        ? [{ label: 'الإعدادات', routeName: 'settings.index', match: 'settings.*' }]
-        : []),
-]);
+const isSalesTeam = computed(() => Boolean(page.props.auth?.can?.viewSalesAnalytics));
+
+const navBase = computed(() => {
+    const items = [
+        { label: 'الرئيسية', routeName: 'home.index', match: 'home.*' },
+        { label: 'إدارة العملاء', routeName: 'goods.index', match: 'goods.*' },
+        { label: 'الاجتماعات', routeName: 'meetings.index', match: 'meetings.*' },
+    ];
+
+    if (isSalesTeam.value) {
+        items.push({ label: 'تحليلات المبيعات', routeName: 'sales.analytics', match: 'sales.*' });
+        items.push({ label: 'المهام', routeName: 'tasks.index', match: 'tasks.*' });
+    } else {
+        items.push({ label: 'المهام', routeName: 'tasks.index', match: 'tasks.*' });
+        items.push({ label: 'العملاء', routeName: 'clients.index', match: 'clients.*' });
+        items.push({ label: 'المشاكل والدعم', routeName: 'tickets.index', match: 'tickets.*' });
+    }
+
+    if (page.props.auth?.can?.manageEmployees) {
+        items.push({ label: 'الموظفين', routeName: 'employees.index', match: 'employees.*' });
+    }
+    if (page.props.auth?.can?.manageSystemSettings) {
+        items.push({ label: 'الإعدادات', routeName: 'settings.index', match: 'settings.*' });
+    }
+
+    return items;
+});
 
 /** قيود ظهور القائمة حسب الفريق (من الخادم): null = لا قيود إضافية */
 const navTeamAllowlist = computed(() => {
@@ -134,10 +144,19 @@ const nav = computed(() => {
     return list.filter((item) => allow.has(item.routeName));
 });
 
+const sidebarNav = computed(() =>
+    nav.value.filter((item) => {
+        if (item.routeName === 'sales.analytics' && layoutMobileViewport.value) {
+            return false;
+        }
+        return true;
+    }),
+);
+
 /** على الجوال: المشاكل والدعم في الشريط السفلي؛ الإعدادات والموظفين في القائمة العلوية */
 const mobileBottomNav = computed(() =>
     nav.value.filter(
-        (item) => !['employees.index', 'settings.index', 'sales.analytics'].includes(item.routeName),
+        (item) => !['employees.index', 'settings.index'].includes(item.routeName),
     ),
 );
 
@@ -145,10 +164,6 @@ const mobileDropdownNav = computed(() =>
     nav.value.filter((item) =>
         ['employees.index', 'settings.index'].includes(item.routeName),
     ),
-);
-
-const showMobileAnalyticsHeaderLink = computed(
-    () => Boolean(page.props.auth?.can?.viewSalesAnalytics) && layoutMobileViewport.value,
 );
 
 // نافذة تسجيل الحضور اليومية + قياس النشاط
@@ -438,7 +453,7 @@ async function openNotification(note) {
                 </div>
                 <nav class="flex flex-1 flex-col gap-0.5 p-2">
                     <Link
-                        v-for="item in nav"
+                        v-for="item in sidebarNav"
                         :key="item.routeName"
                         :data-tour="`nav-${item.routeName}`"
                         :href="route(item.routeName)"
@@ -511,20 +526,6 @@ async function openNotification(note) {
                                 }}
                             </span>
                         </button>
-                        <Link
-                            v-if="showMobileAnalyticsHeaderLink"
-                            :href="route('sales.analytics')"
-                            prefetch
-                            class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-800 transition-colors hover:bg-slate-50 lg:hidden"
-                            :class="active('sales.*') ? 'ring-1 ring-brand-200 bg-brand-50 text-brand-700' : ''"
-                            title="تحليلات المبيعات"
-                            aria-label="تحليلات المبيعات"
-                        >
-                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                                <path d="M3 20h18" />
-                                <path d="M6 17V9M11 17V5M16 17v-7M21 17v-3" />
-                            </svg>
-                        </Link>
                         <div class="relative">
                             <button
                                 type="button"

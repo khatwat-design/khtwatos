@@ -1,0 +1,134 @@
+<?php
+
+namespace App\Models;
+
+// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+
+#[Fillable([
+    'name',
+    'username',
+    'phone',
+    'email',
+    'password',
+    'role',
+    'calendly_url',
+    'is_bookable',
+    'availability_days',
+    'availability_start_time',
+    'availability_end_time',
+    'availability_schedule',
+    'avatar_path',
+    'show_team_notebook',
+])]
+#[Hidden(['password', 'remember_token'])]
+class User extends Authenticatable
+{
+    /** @use HasFactory<UserFactory> */
+    use HasFactory, Notifiable;
+
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+            'is_bookable' => 'boolean',
+            'show_team_notebook' => 'boolean',
+            'availability_days' => 'array',
+            'availability_schedule' => 'array',
+        ];
+    }
+
+    public function teams(): BelongsToMany
+    {
+        return $this->belongsToMany(Team::class)
+            ->withPivot(['allocation_percent', 'is_lead'])
+            ->withTimestamps();
+    }
+
+    public function hostedMeetings(): HasMany
+    {
+        return $this->hasMany(Meeting::class, 'user_id');
+    }
+
+    public function meetingParticipations(): BelongsToMany
+    {
+        return $this->belongsToMany(Meeting::class, 'meeting_participants')
+            ->withTimestamps();
+    }
+
+    public function assignedTasks(): HasMany
+    {
+        return $this->hasMany(Task::class, 'assignee_id');
+    }
+
+    public function managedClients(): HasMany
+    {
+        return $this->hasMany(Client::class, 'account_manager_id');
+    }
+
+    public function campaignManagedClients(): HasMany
+    {
+        return $this->hasMany(Client::class, 'campaign_manager_id');
+    }
+
+    public function pushSubscriptions(): HasMany
+    {
+        return $this->hasMany(PushSubscription::class);
+    }
+
+    public function devicePushTokens(): HasMany
+    {
+        return $this->hasMany(DevicePushToken::class);
+    }
+
+    public function metaOAuthTokens(): HasMany
+    {
+        return $this->hasMany(MetaOAuthToken::class);
+    }
+
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(EmployeeAttendance::class);
+    }
+
+    public function activitySessions(): HasMany
+    {
+        return $this->hasMany(UserActivitySession::class);
+    }
+
+    public function taskTimeLogs(): HasMany
+    {
+        return $this->hasMany(TaskTimeLog::class);
+    }
+
+    public function reportedTickets(): HasMany
+    {
+        return $this->hasMany(SupportTicket::class, 'reporter_id');
+    }
+
+    public function assignedTickets(): HasMany
+    {
+        return $this->hasMany(SupportTicket::class, 'assignee_id');
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isHrManager(): bool
+    {
+        return $this->teams()
+            ->where('slug', 'hr')
+            ->wherePivot('is_lead', true)
+            ->exists();
+    }
+}

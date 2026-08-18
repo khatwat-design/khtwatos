@@ -1,0 +1,27 @@
+{
+  "id": "/",
+  "name": "خارج المخزون",
+  "short_name": "خارج المخزون",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "browser"],
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/images/logo-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/images/logo-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
+
